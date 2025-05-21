@@ -5,45 +5,28 @@
     </h1>
     <NavigationMenu>
       <NavigationMenuList>
-        <LazyNuxtLink to="/home">
+
+        <LazyNuxtLink to="/contact">
+          <NavigationMenuItem class="px-2 text-xs" >Contact us
+          </NavigationMenuItem>
+        </LazyNuxtLink>
+
+        <LazyNuxtLink to="/about">
+          <NavigationMenuItem class="px-2 text-xs" >About us
+          </NavigationMenuItem>
+        </LazyNuxtLink>
+      <LazyNuxtLink to="/home">
         <NavigationMenuItem class="px-2 text-xs" >Home
         </NavigationMenuItem>
-        </LazyNuxtLink>
-        <NavigationMenuItem>
-          <NavigationMenuTrigger class="bg-transparent text-xs">Invoices</NavigationMenuTrigger>
-          <NavigationMenuContent class="bg-gray-900 text-white md:w-[400px] lg:w-[500px] ">
-            <LazyNuxtLink to="/admin/invoices/drafts">
-              <NavigationMenuLink>Drafts</NavigationMenuLink>
-            </LazyNuxtLink>
-            <LazyNuxtLink to="/admin/invoices/pending">
-            <NavigationMenuLink>Pending</NavigationMenuLink>
-            </LazyNuxtLink>
-            <LazyNuxtLink to="/admin/invoices/approved">
-            <NavigationMenuLink>Approved</NavigationMenuLink>
-            </LazyNuxtLink>
-            <LazyNuxtLink to="/admin/invoices/disbursed">
-            <NavigationMenuLink>Disbursed</NavigationMenuLink>
-            </LazyNuxtLink>
-          </NavigationMenuContent>
-        </NavigationMenuItem>
-<NavigationMenuItem>
-        <NavigationMenuTrigger class="bg-transparent text-xs">Loans</NavigationMenuTrigger>
-          <NavigationMenuContent class="bg-gray-900 text-white md:w-[400px] lg:w-[500px] ">
-            <LazyNuxtLink to="/active">
-            <NavigationMenuLink>Active</NavigationMenuLink>
-            </LazyNuxtLink>
-            <LazyNuxtLink to="/paid">
-            <NavigationMenuLink>Paid</NavigationMenuLink>
-            </LazyNuxtLink>
-          </NavigationMenuContent>
-        </NavigationMenuItem>
+      </LazyNuxtLink>
 
-        <LazyNuxtLink to="/profile">
-        <NavigationMenuItem class="px-2 text-xs">Profile
-        </NavigationMenuItem>
-        </LazyNuxtLink>
+
+
       </NavigationMenuList>
     </NavigationMenu>
+
+
+
     <div class="flex items-center">
       <p class="pr-2">Andrew Chakdahah</p>
       <Avatar class="relative overflow-visible">

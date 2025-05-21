@@ -6,6 +6,7 @@ const loading  = ref(false);
   <div>
     <ViewsDashboardHeader />
     <ViewsDashboardHome />
+    <ViewsDashboardFooter/>
   </div>
 
 </template>
