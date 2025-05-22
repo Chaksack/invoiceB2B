@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"net/http"
+	"os"
 	"time"
 
 	"invoiceB2B/internal/config"
@@ -15,12 +16,21 @@ import (
 	"invoiceB2B/internal/routes"
 	"invoiceB2B/internal/services"
 	"invoiceB2B/internal/utils"
+	"path/filepath"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 )
+
+type NuxtProjectConfig struct {
+	Name     string
+	URLPath  string
+	DistPath string
+}
 
 func main() {
 	// Load configuration
@@ -37,10 +47,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	log.Println("Database connected successfully.")
+	log.Info("Database connected successfully.")
 
 	// Auto-migrate schema
-	log.Println("Running database migrations...")
+	log.Info("Running database migrations...")
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.Staff{},
@@ -52,7 +62,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
-	log.Println("Database migrations completed.")
+	log.Info("Database migrations completed.")
 
 	// Initialize Redis
 	rdb := redis.NewClient(&redis.Options{
@@ -64,16 +74,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not connect to Redis: %v", err)
 	}
-	log.Println("Redis connected successfully.")
+	log.Info("Redis connected successfully.")
 
 	// Initialize Notification Service (RabbitMQ)
 	notificationService, err := services.NewNotificationService(cfg)
 	if err != nil {
 		// Depending on how critical RabbitMQ is at startup,
 		// you might log a warning and continue, or terminate.
-		log.Printf("Warning: Failed to initialize Notification Service (RabbitMQ): %v. Some event notifications might not work.", err)
+		log.Infof("Warning: Failed to initialize Notification Service (RabbitMQ): %v. Some event notifications might not work.", err)
 	} else {
-		log.Println("Notification Service (RabbitMQ) initialized.")
+		log.Info("Notification Service (RabbitMQ) initialized.")
 		defer notificationService.Close()
 	}
 
@@ -101,6 +111,12 @@ func main() {
 	app := fiber.New(fiber.Config{
 		ErrorHandler: utils.GlobalErrorHandler,
 	})
+
+	// Configuration for Nuxt projects
+	nuxtProjects := []NuxtProjectConfig{
+		{Name: "Dashboard", URLPath: "/", DistPath: "./client/dist"},
+	}
+	setupNuxtFrontendServers(app, nuxtProjects)
 
 	// Middleware
 	app.Use(cors.New(cors.Config{
@@ -140,8 +156,27 @@ func main() {
 	})
 
 	port := fmt.Sprintf(":%s", cfg.AppPort)
-	log.Printf("Starting server on port %s in %s mode", port, cfg.AppEnv)
+	log.Infof("Starting server on port %s in %s mode", port, cfg.AppEnv)
 	if err := app.Listen(port); err != nil {
 		log.Fatalf("Error starting server: %v", err)
+	}
+}
+
+func setupNuxtFrontendServers(app *fiber.App, projects []NuxtProjectConfig) {
+	for _, project := range projects {
+		distPath := project.DistPath
+		if _, err := os.Stat(distPath); os.IsNotExist(err) {
+			log.Warnf("Nuxt.js distribution path for '%s' not found at '%s'. This app will not be served.", project.Name, distPath)
+			continue
+		}
+
+		// Serve the static files for the Nuxt project
+		app.Use(project.URLPath, filesystem.New(filesystem.Config{
+			Root:         http.Dir(distPath),
+			Browse:       false,
+			Index:        "index.html",
+			NotFoundFile: filepath.Join(distPath, "index.html"),
+		}))
+		log.Infof("Serving Nuxt app '%s' from URL path '%s' using directory '%s'", project.Name, project.URLPath, distPath)
 	}
 }

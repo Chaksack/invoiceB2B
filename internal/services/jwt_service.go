@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"invoiceB2B/internal/config"
 	"invoiceB2B/internal/models"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -26,16 +27,16 @@ func NewJWTService(cfg *config.Config) JWTService {
 type Claims struct {
 	UserID string `json:"user_id"`
 	Email  string `json:"email"`
-	Role   string `json:"role"` // "user" or staff role
+	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
 
 func (s *jwtService) generateToken(user *models.User, expirationTime time.Duration, isRefreshToken bool) (string, time.Time, error) {
 	expiration := time.Now().Add(expirationTime)
 	claims := &Claims{
-		UserID: user.ID.String(),
+		UserID: strconv.FormatUint(uint64(user.ID), 10),
 		Email:  user.Email,
-		Role:   "user", // Assuming standard user for now; staff would have different role
+		Role:   "user",
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiration),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -77,7 +78,6 @@ func (s *jwtService) ValidateToken(tokenString string, isRefreshToken bool) (jwt
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		// Check subject for refresh token
 		if isRefreshToken {
 			if sub, ok := claims["sub"].(string); !ok || sub != "refresh_token" {
 				return nil, fmt.Errorf("invalid token subject for refresh token")

@@ -6,12 +6,12 @@
     <NavigationMenu>
       <NavigationMenuList>
 
-        <LazyNuxtLink to="/contact">
+        <LazyNuxtLink to="/">
           <NavigationMenuItem class="px-2 text-xs" >Contact us
           </NavigationMenuItem>
         </LazyNuxtLink>
 
-        <LazyNuxtLink to="/about">
+        <LazyNuxtLink to="/">
           <NavigationMenuItem class="px-2 text-xs" >About us
           </NavigationMenuItem>
         </LazyNuxtLink>

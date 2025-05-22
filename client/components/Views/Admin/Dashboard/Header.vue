@@ -12,16 +12,13 @@
         <NavigationMenuItem>
           <NavigationMenuTrigger class="bg-transparent text-xs">Invoices</NavigationMenuTrigger>
           <NavigationMenuContent class="bg-gray-900 text-white md:w-[400px] lg:w-[500px] ">
-            <LazyNuxtLink to="/admin/invoices/drafts">
-              <NavigationMenuLink>Drafts</NavigationMenuLink>
-            </LazyNuxtLink>
             <LazyNuxtLink to="/admin/invoices/pending">
             <NavigationMenuLink>Pending</NavigationMenuLink>
             </LazyNuxtLink>
-            <LazyNuxtLink to="/admin/invoices/approved">
+            <LazyNuxtLink to="">
             <NavigationMenuLink>Approved</NavigationMenuLink>
             </LazyNuxtLink>
-            <LazyNuxtLink to="/admin/invoices/disbursed">
+            <LazyNuxtLink to="">
             <NavigationMenuLink>Disbursed</NavigationMenuLink>
             </LazyNuxtLink>
           </NavigationMenuContent>
@@ -29,16 +26,16 @@
 <NavigationMenuItem>
         <NavigationMenuTrigger class="bg-transparent text-xs">Loans</NavigationMenuTrigger>
           <NavigationMenuContent class="bg-gray-900 text-white md:w-[400px] lg:w-[500px] ">
-            <LazyNuxtLink to="/active">
+            <LazyNuxtLink to="">
             <NavigationMenuLink>Active</NavigationMenuLink>
             </LazyNuxtLink>
-            <LazyNuxtLink to="/paid">
+            <LazyNuxtLink to="">
             <NavigationMenuLink>Paid</NavigationMenuLink>
             </LazyNuxtLink>
           </NavigationMenuContent>
         </NavigationMenuItem>
 
-        <LazyNuxtLink to="/profile">
+        <LazyNuxtLink to="">
         <NavigationMenuItem class="px-2 text-xs">Profile
         </NavigationMenuItem>
         </LazyNuxtLink>

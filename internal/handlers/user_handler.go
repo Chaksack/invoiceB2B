@@ -4,11 +4,11 @@ import (
 	"invoiceB2B/internal/dtos"
 	"invoiceB2B/internal/services"
 	"invoiceB2B/internal/utils"
+	"strconv"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/google/uuid"
 )
 
 type UserHandler struct {
@@ -23,15 +23,15 @@ func NewUserHandler(userService services.UserService, validate *validator.Valida
 	}
 }
 
-// GetUserProfile retrieves the profile of the currently authenticated user.
 func (h *UserHandler) GetUserProfile(c *fiber.Ctx) error {
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	userIDStr := claims["user_id"].(string)
 
-	userID, err := uuid.Parse(userIDStr)
+	parsedUserID, err := strconv.ParseUint(userIDStr, 10, 64)
 	if err != nil {
-		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid user ID in token", err)
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid user ID format in token", err)
 	}
+	userID := uint(parsedUserID)
 
 	user, err := h.userService.GetUserProfile(c.Context(), userID)
 	if err != nil {
@@ -57,14 +57,14 @@ func (h *UserHandler) GetUserProfile(c *fiber.Ctx) error {
 	})
 }
 
-// UpdateUserProfile updates the profile of the currently authenticated user.
 func (h *UserHandler) UpdateUserProfile(c *fiber.Ctx) error {
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	userIDStr := claims["user_id"].(string)
-	userID, err := uuid.Parse(userIDStr)
+	parsedUserID, err := strconv.ParseUint(userIDStr, 10, 64)
 	if err != nil {
-		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid user ID in token", err)
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid user ID format in token", err)
 	}
+	userID := uint(parsedUserID)
 
 	var req dtos.UpdateUserProfileRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -98,14 +98,14 @@ func (h *UserHandler) UpdateUserProfile(c *fiber.Ctx) error {
 	})
 }
 
-// SubmitKYC handles KYC submission for the authenticated user.
 func (h *UserHandler) SubmitKYC(c *fiber.Ctx) error {
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	userIDStr := claims["user_id"].(string)
-	userID, err := uuid.Parse(userIDStr)
+	parsedUserID, err := strconv.ParseUint(userIDStr, 10, 64)
 	if err != nil {
-		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid user ID in token", err)
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid user ID format in token", err)
 	}
+	userID := uint(parsedUserID)
 
 	var req dtos.SubmitKYCRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -114,11 +114,6 @@ func (h *UserHandler) SubmitKYC(c *fiber.Ctx) error {
 	if errs := h.validate.Struct(req); errs != nil {
 		return utils.HandleValidationError(c, errs)
 	}
-
-	// In a real app, you'd handle file uploads here (e.g., c.FormFile("document"))
-	// and store them securely (e.g., S3), then pass paths/metadata in DocumentsInfo.
-	// For this example, DocumentsInfo is just a string.
-	// req.DocumentsInfo could be a JSON string of document metadata.
 
 	kycDetail, err := h.userService.SubmitOrUpdateKYC(c.Context(), userID, req)
 	if err != nil {
@@ -134,19 +129,18 @@ func (h *UserHandler) SubmitKYC(c *fiber.Ctx) error {
 	})
 }
 
-// GetKYCStatus retrieves the KYC status for the authenticated user.
 func (h *UserHandler) GetKYCStatus(c *fiber.Ctx) error {
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	userIDStr := claims["user_id"].(string)
-	userID, err := uuid.Parse(userIDStr)
+	parsedUserID, err := strconv.ParseUint(userIDStr, 10, 64)
 	if err != nil {
-		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid user ID in token", err)
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid user ID format in token", err)
 	}
+	userID := uint(parsedUserID)
 
 	kycDetail, err := h.userService.GetKYCStatus(c.Context(), userID)
 	if err != nil {
-		// If KYC not found, it means not submitted yet.
-		if err.Error() == "record not found" { // GORM specific, make more robust
+		if err.Error() == "KYC record not found for this user" {
 			return c.Status(fiber.StatusOK).JSON(dtos.KYCStatusResponse{
 				UserID:  userID,
 				Status:  "Not Submitted",

@@ -7,11 +7,9 @@ import (
 	"invoiceB2B/internal/dtos"
 	"log"
 
-	"github.com/google/uuid"
+	"github.com/google/uuid" // Keep for simulated external transaction IDs
 )
 
-// PaymentService defines the interface for payment operations.
-// This is a placeholder and would integrate with a real payment gateway.
 type PaymentService interface {
 	InitiateDisbursement(ctx context.Context, req dtos.DisbursementRequest) (*dtos.DisbursementResponse, error)
 	ProcessRepayment(ctx context.Context, req dtos.RepaymentRequest) (*dtos.RepaymentResponse, error)
@@ -19,29 +17,16 @@ type PaymentService interface {
 }
 
 type paymentService struct {
-	// Dependencies for a real payment gateway client would go here
-	// e.g., apiKey string, gatewayClient *somegateway.Client
 }
 
-// NewPaymentService creates a new PaymentService.
-func NewPaymentService( /* gatewayConfig ... */ ) PaymentService {
-	return &paymentService{
-		// Initialize gateway client
-	}
+func NewPaymentService() PaymentService {
+	return &paymentService{}
 }
 
-// InitiateDisbursement simulates initiating a fund transfer.
 func (s *paymentService) InitiateDisbursement(ctx context.Context, req dtos.DisbursementRequest) (*dtos.DisbursementResponse, error) {
-	log.Printf("Attempting to initiate disbursement for Invoice ID %s, Amount: %.2f %s to Account: %s",
+	log.Printf("Attempting to initiate disbursement for Invoice ID %d, Amount: %.2f %s to Account: %s",
 		req.InvoiceID, req.Amount, req.Currency, req.BankAccountNumber)
 
-	// --- Placeholder for actual payment gateway integration ---
-	// 1. Validate request
-	// 2. Call payment gateway API to transfer funds
-	// 3. Handle response from gateway (success, failure, pending)
-	// 4. Record transaction details in your database
-
-	// Simulate a successful disbursement for now
 	if req.Amount <= 0 {
 		return nil, errors.New("disbursement amount must be positive")
 	}
@@ -51,21 +36,14 @@ func (s *paymentService) InitiateDisbursement(ctx context.Context, req dtos.Disb
 
 	return &dtos.DisbursementResponse{
 		TransactionID: simulatedTransactionID,
-		Status:        "SUCCESS", // Or "PENDING", "FAILED"
+		Status:        "SUCCESS",
 		Message:       "Disbursement initiated successfully (simulated).",
 	}, nil
 }
 
-// ProcessRepayment simulates processing a repayment from a user.
 func (s *paymentService) ProcessRepayment(ctx context.Context, req dtos.RepaymentRequest) (*dtos.RepaymentResponse, error) {
-	log.Printf("Attempting to process repayment for Invoice ID %s, Amount: %.2f %s from User ID: %s",
+	log.Printf("Attempting to process repayment for Invoice ID %d, Amount: %.2f %s from User ID: %d",
 		req.InvoiceID, req.Amount, req.Currency, req.UserID)
-
-	// --- Placeholder for actual payment gateway integration ---
-	// 1. Validate request
-	// 2. Call payment gateway API to charge the user or process incoming payment
-	// 3. Handle response
-	// 4. Record transaction details
 
 	if req.Amount <= 0 {
 		return nil, errors.New("repayment amount must be positive")
@@ -88,14 +66,9 @@ func (s *paymentService) ProcessRepayment(ctx context.Context, req dtos.Repaymen
 	}, nil
 }
 
-// CheckPaymentStatus simulates checking the status of a transaction.
 func (s *paymentService) CheckPaymentStatus(ctx context.Context, transactionID string) (*dtos.PaymentStatusResponse, error) {
 	log.Printf("Checking payment status for Transaction ID: %s", transactionID)
 
-	// --- Placeholder ---
-	// In a real scenario, query the payment gateway with the transactionID.
-
-	// Simulate different statuses based on prefix for this example
 	if len(transactionID) < 5 {
 		return nil, fmt.Errorf("invalid transaction ID format for simulation")
 	}
@@ -103,14 +76,12 @@ func (s *paymentService) CheckPaymentStatus(ctx context.Context, transactionID s
 	status := "PENDING"
 	message := "Payment status is pending (simulated)."
 
-	// Simple simulation logic
-	if transactionID[:5] == "DISB_" { // Assuming DISB_ means disbursement
-		// Simulate some disbursements as completed
-		if len(transactionID)%2 == 0 { // Arbitrary condition for simulation
+	if transactionID[:5] == "DISB_" {
+		if len(transactionID)%2 == 0 {
 			status = "SUCCESS"
 			message = "Disbursement completed successfully (simulated)."
 		}
-	} else if transactionID[:6] == "REPAY_" { // Assuming REPAY_ means repayment
+	} else if transactionID[:6] == "REPAY_" {
 		status = "SUCCESS"
 		message = "Repayment confirmed (simulated)."
 	}
@@ -119,7 +90,7 @@ func (s *paymentService) CheckPaymentStatus(ctx context.Context, transactionID s
 		TransactionID: transactionID,
 		Status:        status,
 		Message:       message,
-		Amount:        100.00, // Placeholder amount
-		Currency:      "USD",  // Placeholder currency
+		Amount:        100.00,
+		Currency:      "USD",
 	}, nil
 }

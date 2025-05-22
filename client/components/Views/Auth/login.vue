@@ -34,17 +34,17 @@
             />
           </div>
         </div>
-        <NuxtLink to="/forgot">
+        <NuxtLink to="/">
           <p class="font-light text-xs mt-2" >
             Forgotten Password?
           </p>
         </NuxtLink>
-        <NuxtLink to="/admin/home">
+        <NuxtLink to="/home">
           <button class="py-2 mt-4 rounded-lg bg-bgC text-white bg-black w-full font-medium mb-4 hover:bg-gray-500">
             Sign In
           </button>
           <p class="text-muted-foreground mb-6">
-            New to InvoiceB2B? <a href="/register" class="text-black text-semibold">Register</a>
+            New to InvoiceB2B? <a href="/" class="text-black text-semibold">Register</a>
           </p>
         </NuxtLink>
       </div>

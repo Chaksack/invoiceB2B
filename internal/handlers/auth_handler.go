@@ -10,6 +10,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v4"
+	// "github.com/google/uuid" // No longer needed for ID parsing here
 )
 
 type AuthHandler struct {
@@ -39,7 +40,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		FirstName:    req.FirstName,
 		LastName:     req.LastName,
 		CompanyName:  req.CompanyName,
-		PasswordHash: req.Password, // Hashed by BeforeCreate hook
+		PasswordHash: req.Password,
 	}
 
 	createdUser, err := h.authService.RegisterUser(c.Context(), user)
@@ -49,7 +50,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(dtos.RegisterUserResponse{
 		User: dtos.UserResponse{
-			ID:           createdUser.ID,
+			ID:           createdUser.ID, // ID is now uint
 			Email:        createdUser.Email,
 			FirstName:    createdUser.FirstName,
 			LastName:     createdUser.LastName,
@@ -72,29 +73,19 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	result, err := h.authService.LoginUser(c.Context(), req.Email, req.Password)
 	if err != nil {
-		return utils.HandleError(c, fiber.StatusUnauthorized, "Login failed", err) // More specific errors handled in service
+		return utils.HandleError(c, fiber.StatusUnauthorized, "Login failed", err)
 	}
 
 	if result.TwoFARequired {
 		return c.Status(fiber.StatusOK).JSON(dtos.LoginUserResponse{
 			Message:       "OTP sent to your email for 2FA verification.",
 			TwoFARequired: true,
-			User: dtos.UserResponse{ // Send some user info even if 2FA is pending
+			User: dtos.UserResponse{
 				ID:    result.User.ID,
 				Email: result.User.Email,
 			},
 		})
 	}
-
-	// Set refresh token in HTTPOnly cookie
-	// c.Cookie(&fiber.Cookie{
-	// 	Name:     "refresh_token",
-	// 	Value:    result.RefreshToken,
-	// 	Expires:  time.Now().Add(h.authService.GetConfig().JWTRefreshTokenExpirationDays),
-	// 	HTTPOnly: true,
-	// 	Secure:   h.authService.GetConfig().AppEnv == "production", // Secure in production
-	// 	SameSite: "Lax",
-	// })
 
 	return c.Status(fiber.StatusOK).JSON(dtos.LoginUserResponse{
 		User: dtos.UserResponse{
@@ -107,7 +98,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 			TwoFAEnabled: result.User.TwoFAEnabled,
 		},
 		AccessToken:          result.AccessToken,
-		RefreshToken:         result.RefreshToken, // Client should store this securely (e.g., localStorage)
+		RefreshToken:         result.RefreshToken,
 		Message:              "Login successful.",
 		TwoFARequired:        false,
 		AccessTokenExpiresAt: result.AccessTokenExpiresAt,
@@ -169,15 +160,14 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 
 func (h *AuthHandler) Enable2FA(c *fiber.Ctx) error {
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
-	userID := claims["user_id"].(string)
+	userIDStr := claims["user_id"].(string) // UserID in claim is string representation of uint
 
 	var req dtos.Enable2FARequest
 	if err := c.BodyParser(&req); err != nil {
 		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid request body", err)
 	}
-	// No specific validation for a single boolean here, but could be added.
 
-	err := h.authService.Toggle2FA(c.Context(), userID, req.Enable)
+	err := h.authService.Toggle2FA(c.Context(), userIDStr, req.Enable)
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to update 2FA status", err)
 	}
@@ -196,30 +186,16 @@ func (h *AuthHandler) Enable2FA(c *fiber.Ctx) error {
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	claims, ok := c.Locals("user").(*jwt.Token)
 	if !ok {
-		// This case should ideally not happen if middleware is correctly applied
-		// but as a fallback, we can try to get token from header if needed.
-		// For now, assume middleware populates it.
-		log.Println("Logout: No user claims found in context. This might indicate an issue with middleware setup or an unauthenticated request reaching a protected route.")
+		log.Println("Logout: No user claims found in context.")
 		return utils.HandleError(c, fiber.StatusUnauthorized, "User not authenticated or token missing in context", nil)
 	}
 
-	tokenStr := claims.Raw // Get the raw token string
+	tokenStr := claims.Raw
 
 	err := h.authService.LogoutUser(c.Context(), tokenStr)
 	if err != nil {
-		// Log the error but still return success to client as logout is best-effort
 		log.Printf("Error during token invalidation on logout: %v", err)
 	}
-
-	// Optionally clear refresh token cookie if it was set
-	// c.Cookie(&fiber.Cookie{
-	// 	Name:     "refresh_token",
-	// 	Value:    "",
-	// 	Expires:  time.Now().Add(-time.Hour), // Expire immediately
-	// 	HTTPOnly: true,
-	// 	Secure:   h.authService.GetConfig().AppEnv == "production",
-	// 	SameSite: "Lax",
-	// })
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Logged out successfully"})
 }

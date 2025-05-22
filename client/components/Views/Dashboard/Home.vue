@@ -433,10 +433,6 @@
       </div>
     </section>
 
-    <div class="relative hidden md:block skyline" >
-      <img src="../../assets/City%20skyline-pana.svg" class="h-96 opacity-10  absolute bottom-0 left-0 w-auto" alt="Closed Stores">
-      <img src="../../assets/City%20skyline-pana.svg" class="h-96 opacity-10 absolute bottom-0 right-0 w-auto" alt="City Skyline">
-    </div>
   </main>
 </template>
 <script setup lang="ts">

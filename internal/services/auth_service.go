@@ -5,14 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"invoiceB2B/internal/config"
+	"invoiceB2B/internal/dtos"
 	"invoiceB2B/internal/models"
 	"invoiceB2B/internal/repositories"
 	"log"
+	"strconv"
 	"time"
-
-	"github.com/google/uuid"
 )
 
+// Errors remain the same
 var (
 	ErrUserNotFound        = errors.New("user not found")
 	ErrInvalidCredentials  = errors.New("invalid email or password")
@@ -25,28 +26,14 @@ var (
 	ErrTokenBlacklisted    = errors.New("token has been blacklisted")
 )
 
-type LoginResult struct {
-	User                 *models.User
-	AccessToken          string
-	RefreshToken         string
-	TwoFARequired        bool
-	AccessTokenExpiresAt int64
-}
-
-type RefreshTokenResult struct {
-	AccessToken          string
-	RefreshToken         string
-	AccessTokenExpiresAt int64
-}
-
 type AuthService interface {
 	RegisterUser(ctx context.Context, user *models.User) (*models.User, error)
-	LoginUser(ctx context.Context, email, password string) (*LoginResult, error)
-	VerifyOTP(ctx context.Context, email, otp string) (*LoginResult, error)
-	RefreshToken(ctx context.Context, tokenStr string) (*RefreshTokenResult, error)
+	LoginUser(ctx context.Context, email, password string) (*dtos.LoginUserResponse, error)
+	VerifyOTP(ctx context.Context, email, otp string) (*dtos.LoginUserResponse, error)
+	RefreshToken(ctx context.Context, tokenStr string) (*dtos.RefreshTokenResponse, error)
 	LogoutUser(ctx context.Context, tokenStr string) error
-	Toggle2FA(ctx context.Context, userID string, enable bool) error
-	GetConfig() *config.Config // Helper to access config, e.g., for cookie settings in handler
+	Toggle2FA(ctx context.Context, userIDStr string, enable bool) error
+	GetConfig() *config.Config
 }
 
 type authService struct {
@@ -55,7 +42,7 @@ type authService struct {
 	jwtService          JWTService
 	emailService        EmailService
 	otpService          OTPService
-	notificationService NotificationService // For RabbitMQ events
+	notificationService NotificationService
 	cfg                 *config.Config
 }
 
@@ -95,24 +82,21 @@ func (s *authService) RegisterUser(ctx context.Context, user *models.User) (*mod
 		return nil, fmt.Errorf("could not create user: %w", err)
 	}
 
-	// Create initial KYC record
 	kycDetail := &models.KYCDetail{
 		UserID: createdUser.ID,
-		Status: models.KYCPending, // Default status
+		Status: models.KYCPending,
 	}
 	_, err = s.kycRepo.CreateOrUpdate(ctx, kycDetail)
 	if err != nil {
-		log.Printf("Error creating initial KYC record for user %s: %v", createdUser.ID, err)
-		// Proceed with user creation, but log this issue. Might need a cleanup mechanism.
+		log.Printf("Error creating initial KYC record for user %d: %v", createdUser.ID, err)
 	} else {
 		createdUser.KYCID = &kycDetail.ID
 		if _, err := s.userRepo.Update(ctx, createdUser); err != nil {
-			log.Printf("Error updating user %s with KYCID: %v", createdUser.ID, err)
+			log.Printf("Error updating user %d with KYCID: %v", createdUser.ID, err)
 		}
 	}
 
-	// Send welcome email (asynchronously via RabbitMQ ideally)
-	go func() { // Fire and forget for now, proper worker setup needed for RabbitMQ
+	go func() {
 		subject := "Welcome to Invoice Financing App!"
 		body := fmt.Sprintf("Hi %s,\n\nWelcome to our platform! Your account has been created successfully.\nPlease complete your KYC to start using our services.\n\nThanks,\nThe Team", createdUser.FirstName)
 		err := s.emailService.SendEmail(createdUser.Email, subject, body)
@@ -121,16 +105,19 @@ func (s *authService) RegisterUser(ctx context.Context, user *models.User) (*mod
 		}
 	}()
 
-	// Publish user_registered event (placeholder for RabbitMQ)
-	eventPayload := map[string]interface{}{"user_id": createdUser.ID.String(), "email": createdUser.Email}
-	if err := s.notificationService.PublishUserRegisteredEvent(eventPayload); err != nil {
-		log.Printf("Failed to publish user_registered event for %s: %v", createdUser.Email, err)
+	eventPayload := map[string]interface{}{"user_id": createdUser.ID, "email": createdUser.Email}
+	if s.notificationService != nil {
+		if err := s.notificationService.PublishUserRegisteredEvent(eventPayload); err != nil {
+			log.Printf("Failed to publish user_registered event for %s: %v", createdUser.Email, err)
+		}
+	} else {
+		log.Println("NotificationService is nil, skipping event publishing.")
 	}
 
 	return createdUser, nil
 }
 
-func (s *authService) LoginUser(ctx context.Context, email, password string) (*LoginResult, error) {
+func (s *authService) LoginUser(ctx context.Context, email, password string) (*dtos.LoginUserResponse, error) {
 	user, err := s.userRepo.FindByEmail(ctx, email)
 	if err != nil || user == nil {
 		return nil, ErrInvalidCredentials
@@ -144,19 +131,15 @@ func (s *authService) LoginUser(ctx context.Context, email, password string) (*L
 		return nil, ErrAccountNotActive
 	}
 
-	// Check KYC status - for this app, KYC approval is needed to use features, not strictly for login.
-	// We can add a check here if login itself should be blocked without KYC.
-	// For now, let's assume login is allowed, but subsequent actions might be restricted.
-
 	if user.TwoFAEnabled {
-		otp, err := s.otpService.GenerateAndStoreOTP(ctx, user.ID.String())
+		userIDStr := strconv.FormatUint(uint64(user.ID), 10)
+		otp, err := s.otpService.GenerateAndStoreOTP(ctx, userIDStr)
 		if err != nil {
 			log.Printf("Failed to generate OTP for user %s: %v", user.Email, err)
 			return nil, fmt.Errorf("failed to initiate 2FA: %w", err)
 		}
 
-		// Send OTP via email
-		go func() { // Fire and forget
+		go func() {
 			subject := "Your 2FA Login Code"
 			body := fmt.Sprintf("Hi %s,\n\nYour One-Time Password for login is: %s\nIt will expire in %d minutes.\n\nThanks,\nThe Team", user.FirstName, otp, int(s.cfg.OTPExpirationMinutes.Minutes()))
 			if emailErr := s.emailService.SendEmail(user.Email, subject, body); emailErr != nil {
@@ -164,10 +147,9 @@ func (s *authService) LoginUser(ctx context.Context, email, password string) (*L
 			}
 		}()
 
-		return &LoginResult{User: user, TwoFARequired: true}, nil
+		return &dtos.LoginUserResponse{User: user, TwoFARequired: true}, nil
 	}
 
-	// No 2FA, proceed with token generation
 	accessToken, accessExp, err := s.jwtService.GenerateAccessToken(user)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
@@ -177,7 +159,7 @@ func (s *authService) LoginUser(ctx context.Context, email, password string) (*L
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
-	return &LoginResult{
+	return &dtos.LoginUserResponse{
 		User:                 user,
 		AccessToken:          accessToken,
 		RefreshToken:         refreshToken,
@@ -186,17 +168,18 @@ func (s *authService) LoginUser(ctx context.Context, email, password string) (*L
 	}, nil
 }
 
-func (s *authService) VerifyOTP(ctx context.Context, email, otp string) (*LoginResult, error) {
+func (s *authService) VerifyOTP(ctx context.Context, email, otp string) (*dtos.LoginUserResponse, error) {
 	user, err := s.userRepo.FindByEmail(ctx, email)
 	if err != nil || user == nil {
 		return nil, ErrUserNotFound
 	}
 
-	if !user.TwoFAEnabled { // Should not happen if login flow is correct, but good check
+	if !user.TwoFAEnabled {
 		return nil, Err2FANotEnabled
 	}
 
-	valid, err := s.otpService.VerifyOTP(ctx, user.ID.String(), otp)
+	userIDStr := strconv.FormatUint(uint64(user.ID), 10)
+	valid, err := s.otpService.VerifyOTP(ctx, userIDStr, otp)
 	if err != nil {
 		log.Printf("Error verifying OTP for user %s: %v", user.Email, err)
 		return nil, ErrOTPInvalidOrExpired
@@ -205,7 +188,6 @@ func (s *authService) VerifyOTP(ctx context.Context, email, otp string) (*LoginR
 		return nil, ErrOTPInvalidOrExpired
 	}
 
-	// OTP is valid, generate tokens
 	accessToken, accessExp, err := s.jwtService.GenerateAccessToken(user)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
@@ -215,27 +197,25 @@ func (s *authService) VerifyOTP(ctx context.Context, email, otp string) (*LoginR
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
-	// Clear OTP after successful verification
-	if err := s.otpService.DeleteOTP(ctx, user.ID.String()); err != nil {
-		log.Printf("Warning: Failed to delete OTP for user %s after verification: %v", user.ID, err)
+	if err := s.otpService.DeleteOTP(ctx, userIDStr); err != nil {
+		log.Printf("Warning: Failed to delete OTP for user %s after verification: %v", userIDStr, err)
 	}
 
-	return &LoginResult{
+	return &dtos.LoginUserResponse{
 		User:                 user,
 		AccessToken:          accessToken,
 		RefreshToken:         refreshToken,
-		TwoFARequired:        false, // Verification successful
+		TwoFARequired:        false,
 		AccessTokenExpiresAt: accessExp.Unix(),
 	}, nil
 }
 
-func (s *authService) RefreshToken(ctx context.Context, tokenStr string) (*RefreshTokenResult, error) {
-	claims, err := s.jwtService.ValidateToken(tokenStr, true) // true for refresh token
+func (s *authService) RefreshToken(ctx context.Context, tokenStr string) (*dtos.RefreshTokenResponse, error) {
+	claims, err := s.jwtService.ValidateToken(tokenStr, true)
 	if err != nil {
 		return nil, ErrRefreshTokenInvalid
 	}
 
-	// Check if token is blacklisted (for logout)
 	isBlacklisted, _ := s.otpService.IsTokenBlacklisted(ctx, tokenStr)
 	if isBlacklisted {
 		return nil, ErrTokenBlacklisted
@@ -245,10 +225,11 @@ func (s *authService) RefreshToken(ctx context.Context, tokenStr string) (*Refre
 	if !ok {
 		return nil, ErrRefreshTokenInvalid
 	}
-	userID, err := uuid.Parse(userIDStr)
+	parsedUserID, err := strconv.ParseUint(userIDStr, 10, 64)
 	if err != nil {
 		return nil, ErrRefreshTokenInvalid
 	}
+	userID := uint(parsedUserID)
 
 	user, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil || user == nil {
@@ -264,26 +245,21 @@ func (s *authService) RefreshToken(ctx context.Context, tokenStr string) (*Refre
 		return nil, fmt.Errorf("failed to generate new access token: %w", err)
 	}
 
-	// Optionally, rotate refresh token
 	newRefreshToken, _, err := s.jwtService.GenerateRefreshToken(user)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate new refresh token: %w", err)
 	}
-	// If rotating, you might want to blacklist the old refresh token
-	// s.otpService.BlacklistToken(ctx, tokenStr, s.cfg.JWTRefreshTokenExpirationDays)
 
-	return &RefreshTokenResult{
+	return &dtos.RefreshTokenResponse{
 		AccessToken:          newAccessToken,
-		RefreshToken:         newRefreshToken, // Send new refresh token
+		RefreshToken:         newRefreshToken,
 		AccessTokenExpiresAt: accessExp.Unix(),
 	}, nil
 }
 
 func (s *authService) LogoutUser(ctx context.Context, tokenStr string) error {
-	claims, err := s.jwtService.ValidateToken(tokenStr, false) // false for access token
+	claims, err := s.jwtService.ValidateToken(tokenStr, false)
 	if err != nil {
-		// If token is already expired, that's fine for logout.
-		// If it's invalid for other reasons, log it but proceed.
 		log.Printf("Logout: Validating access token failed (possibly expired): %v", err)
 	}
 
@@ -294,47 +270,44 @@ func (s *authService) LogoutUser(ctx context.Context, tokenStr string) error {
 			if expTime.After(time.Now()) {
 				expiryDuration = time.Until(expTime)
 			} else {
-				expiryDuration = time.Minute // Already expired, blacklist for a short while just in case
+				expiryDuration = time.Minute
 			}
 		} else {
-			expiryDuration = s.cfg.JWTAccessTokenExpirationMinutes // Default if 'exp' is not float64
+			expiryDuration = s.cfg.JWTAccessTokenExpirationMinutes
 		}
 	} else {
-		expiryDuration = s.cfg.JWTAccessTokenExpirationMinutes // Default if claims are nil
+		expiryDuration = s.cfg.JWTAccessTokenExpirationMinutes
 	}
 
-	// Blacklist the access token until its original expiry
 	err = s.otpService.BlacklistToken(ctx, tokenStr, expiryDuration)
 	if err != nil {
 		log.Printf("Failed to blacklist access token on logout: %v", err)
 		return fmt.Errorf("failed to blacklist token: %w", err)
 	}
-	// Note: Refresh token invalidation is harder if not stored server-side.
-	// Client should discard the refresh token.
-	// If refresh tokens are one-time use or stored server-side, invalidate it here.
 	return nil
 }
 
 func (s *authService) Toggle2FA(ctx context.Context, userIDStr string, enable bool) error {
-	userID, err := uuid.Parse(userIDStr)
+	parsedUserID, err := strconv.ParseUint(userIDStr, 10, 64)
 	if err != nil {
 		return fmt.Errorf("invalid user ID format: %w", err)
 	}
+	userID := uint(parsedUserID)
 
-	user, err := s.userRepo.FindByID(ctx, userID)
+	user, err := s.userRepo.FindByID(ctx, userID) // Corrected: FindByID expects uint
 	if err != nil || user == nil {
 		return ErrUserNotFound
 	}
 
 	user.TwoFAEnabled = enable
-	if !enable { // If disabling, clear any stored OTP info (though not strictly used for email OTP model)
+	if !enable {
 		user.EmailOTP = nil
 		user.EmailOTPExp = nil
 	}
 
 	_, err = s.userRepo.Update(ctx, user)
 	if err != nil {
-		log.Printf("Failed to update 2FA status for user %s: %v", userID, err)
+		log.Printf("Failed to update 2FA status for user %d: %v", userID, err)
 		return fmt.Errorf("could not update 2FA status: %w", err)
 	}
 	return nil

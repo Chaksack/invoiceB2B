@@ -1,33 +1,26 @@
 package models
 
 import (
-	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"time"
+	"time" // Keep for explicit fields if needed, but gorm.Model handles CreatedAt, UpdatedAt
 )
 
-// ActivityLog records key actions within the system
 type ActivityLog struct {
-	ID      uuid.UUID  `gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
-	StaffID *uuid.UUID `gorm:"type:uuid;null;index"` // FK to Staff, nullable for system actions
-	Staff   *Staff     `gorm:"foreignKey:StaffID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	// gorm.Model // Original line
+	ID        uint           `gorm:"primarykey"` // Explicitly define ID with correct GORM tag
+	CreatedAt time.Time      // Explicitly define CreatedAt
+	UpdatedAt time.Time      // Explicitly define UpdatedAt
+	DeletedAt gorm.DeletedAt `gorm:"index"` // Explicitly define DeletedAt
 
-	UserID *uuid.UUID `gorm:"type:uuid;null;index"` // FK to User, nullable for non-user specific actions
-	User   *User      `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	StaffID *uint  `gorm:"null;index"`
+	Staff   *Staff `gorm:"foreignKey:StaffID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 
-	Action    string    `gorm:"type:varchar(255);not null"` // e.g., 'USER_REGISTERED', 'KYC_APPROVED'
-	Details   string    `gorm:"type:jsonb;null"`            // Additional context as JSON string
-	IPAddress *string   `gorm:"type:varchar(45);null"`
-	Timestamp time.Time `gorm:"autoCreateTime;not null"`
-}
+	UserID *uint `gorm:"null;index"`
+	User   *User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 
-// BeforeCreate hook for ActivityLog to generate UUID
-func (al *ActivityLog) BeforeCreate(tx *gorm.DB) (err error) {
-	if al.ID == uuid.Nil {
-		al.ID = uuid.New()
-	}
-	if al.Timestamp.IsZero() {
-		al.Timestamp = time.Now()
-	}
-	return
+	Action    string  `gorm:"type:varchar(255);not null"`
+	Details   string  `gorm:"type:jsonb;null"`
+	IPAddress *string `gorm:"type:varchar(45);null"`
+	// Timestamp field from gorm.Model is CreatedAt. If a separate 'timestamp' for the log event itself is needed,
+	// it should be added explicitly, e.g., EventTimestamp time.Time `gorm:"not null"`
 }
