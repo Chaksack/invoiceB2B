@@ -105,7 +105,7 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, userID uint, req dto
 		return nil, ErrKYCNotApprovedForInvoiceUpload
 	}
 
-	relativePath, _, err := s.fileService.SaveFile(req.File, "invoices")
+	relativePath, originalFileName, err := s.fileService.SaveFile(req.File, "invoices") // Get originalFileName too
 	if err != nil {
 		log.Printf("Error saving invoice file for user %d: %v", userID, err)
 		return nil, fmt.Errorf("failed to save invoice file: %w", err)
@@ -117,6 +117,8 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, userID uint, req dto
 		Status:           models.InvoicePendingReview,
 		OriginalFilePath: relativePath,
 		UploadedAt:       now,
+		// InvoiceNumber will be set by the async worker or based on filename initially
+		InvoiceNumber: originalFileName, // Or a generated one
 	}
 
 	if err := s.invoiceRepo.Create(ctx, invoice); err != nil {
@@ -124,11 +126,24 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, userID uint, req dto
 		return nil, fmt.Errorf("failed to create invoice record: %w", err)
 	}
 
+	// Send email confirmation for invoice submission
+	go func() {
+		subject := "Invoice Submission Confirmation"
+		body := fmt.Sprintf("Hi %s,\n\nYour invoice '%s' (ID: %d) has been successfully submitted and is pending review.\n\nThanks,\nThe Team",
+			user.FirstName, originalFileName, invoice.ID)
+		if emailErr := s.emailService.SendEmail(user.Email, subject, body); emailErr != nil {
+			log.Printf("Failed to send invoice submission confirmation email to %s for invoice %d: %v", user.Email, invoice.ID, emailErr)
+		}
+	}()
+
 	eventPayload := map[string]interface{}{
 		"invoice_id":        invoice.ID,
 		"user_id":           userID,
+		"user_email":        user.Email,       // For admin notification context
+		"company_name":      user.CompanyName, // For admin notification context
 		"file_path":         relativePath,
 		"original_filename": req.File.Filename,
+		"uploaded_at":       invoice.UploadedAt.Format(time.RFC3339),
 	}
 	if s.notificationSvc != nil {
 		err = s.notificationSvc.PublishEvent(
@@ -138,6 +153,8 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, userID uint, req dto
 		)
 		if err != nil {
 			log.Printf("Failed to publish invoice.uploaded event for invoice %d: %v", invoice.ID, err)
+		} else {
+			log.Printf("Published invoice.uploaded event for admin notification: Invoice ID %d", invoice.ID)
 		}
 	}
 

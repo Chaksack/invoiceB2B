@@ -387,7 +387,8 @@ func (s *adminService) UploadDisbursementReceipt(ctx context.Context, invoiceID,
 		return nil, errors.New("file service not available")
 	}
 
-	relativePath, _, err := s.fileService.SaveFile(req.File, "receipts")
+	// SaveFile now returns relativePath and the generated unique filename
+	relativePath, uniqueFileName, err := s.fileService.SaveFile(req.File, "receipts")
 	if err != nil {
 		return nil, fmt.Errorf("failed to save receipt file: %w", err)
 	}
@@ -405,8 +406,19 @@ func (s *adminService) UploadDisbursementReceipt(ctx context.Context, invoiceID,
 		go func() {
 			subject := fmt.Sprintf("Disbursement Receipt Uploaded for Invoice #%s", invoice.InvoiceNumber)
 			body := fmt.Sprintf("Hi %s,\n\nA disbursement receipt has been uploaded for your invoice #%s. You can view or download it from your dashboard.\n\nThanks,\nThe Admin Team", user.FirstName, invoice.InvoiceNumber)
-			if err := s.emailService.SendEmail(user.Email, subject, body); err != nil {
-				log.Printf("Failed to send receipt upload notification email to %s: %v", user.Email, err)
+
+			// Get absolute path for attachment
+			absAttachmentPath, err := s.fileService.GetAbsPath(relativePath)
+			if err != nil {
+				log.Printf("Failed to get absolute path for receipt attachment %s: %v. Sending email without attachment.", relativePath, err)
+				if emailErr := s.emailService.SendEmail(user.Email, subject, body); emailErr != nil {
+					log.Printf("Failed to send receipt upload notification email (no attachment) to %s: %v", user.Email, emailErr)
+				}
+				return
+			}
+
+			if emailErr := s.emailService.SendEmailWithAttachment(user.Email, subject, body, absAttachmentPath, uniqueFileName); emailErr != nil {
+				log.Printf("Failed to send receipt upload notification email with attachment to %s: %v", user.Email, emailErr)
 			}
 		}()
 	}
