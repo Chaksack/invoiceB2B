@@ -13,9 +13,8 @@ import (
 	"time"
 )
 
-// Errors remain the same
 var (
-	ErrUserNotFound        = errors.New("user not found")
+	ErrUserNotFound        = errors.New("user not found") // Defined in user_service.go, can be shared or redefined
 	ErrInvalidCredentials  = errors.New("invalid email or password")
 	ErrEmailExists         = errors.New("user with this email already exists")
 	ErrOTPInvalidOrExpired = errors.New("otp is invalid or has expired")
@@ -28,9 +27,9 @@ var (
 
 type AuthService interface {
 	RegisterUser(ctx context.Context, user *models.User) (*models.User, error)
-	LoginUser(ctx context.Context, email, password string) (*dtos.LoginUserResponse, error)
-	VerifyOTP(ctx context.Context, email, otp string) (*dtos.LoginUserResponse, error)
-	RefreshToken(ctx context.Context, tokenStr string) (*dtos.RefreshTokenResponse, error)
+	LoginUser(ctx context.Context, email, password string) (*dtos.LoginUserResponse, error) // Return type changed
+	VerifyOTP(ctx context.Context, email, otp string) (*dtos.LoginUserResponse, error)      // Return type changed
+	RefreshToken(ctx context.Context, tokenStr string) (*dtos.RefreshTokenResponse, error)  // Return type changed
 	LogoutUser(ctx context.Context, tokenStr string) error
 	Toggle2FA(ctx context.Context, userIDStr string, enable bool) error
 	GetConfig() *config.Config
@@ -131,6 +130,16 @@ func (s *authService) LoginUser(ctx context.Context, email, password string) (*d
 		return nil, ErrAccountNotActive
 	}
 
+	userResponse := dtos.UserResponse{
+		ID:           user.ID,
+		Email:        user.Email,
+		FirstName:    user.FirstName,
+		LastName:     user.LastName,
+		CompanyName:  user.CompanyName,
+		IsActive:     user.IsActive,
+		TwoFAEnabled: user.TwoFAEnabled,
+	}
+
 	if user.TwoFAEnabled {
 		userIDStr := strconv.FormatUint(uint64(user.ID), 10)
 		otp, err := s.otpService.GenerateAndStoreOTP(ctx, userIDStr)
@@ -147,7 +156,7 @@ func (s *authService) LoginUser(ctx context.Context, email, password string) (*d
 			}
 		}()
 
-		return &dtos.LoginUserResponse{User: user, TwoFARequired: true}, nil
+		return &dtos.LoginUserResponse{User: userResponse, TwoFARequired: true, Message: "OTP sent to your email for 2FA verification."}, nil
 	}
 
 	accessToken, accessExp, err := s.jwtService.GenerateAccessToken(user)
@@ -160,11 +169,12 @@ func (s *authService) LoginUser(ctx context.Context, email, password string) (*d
 	}
 
 	return &dtos.LoginUserResponse{
-		User:                 user,
+		User:                 userResponse,
 		AccessToken:          accessToken,
 		RefreshToken:         refreshToken,
 		TwoFARequired:        false,
 		AccessTokenExpiresAt: accessExp.Unix(),
+		Message:              "Login successful.",
 	}, nil
 }
 
@@ -201,12 +211,23 @@ func (s *authService) VerifyOTP(ctx context.Context, email, otp string) (*dtos.L
 		log.Printf("Warning: Failed to delete OTP for user %s after verification: %v", userIDStr, err)
 	}
 
-	return &dtos.LoginUserResponse{
-		User:                 user,
+	userResponse := dtos.UserResponse{
+		ID:           user.ID,
+		Email:        user.Email,
+		FirstName:    user.FirstName,
+		LastName:     user.LastName,
+		CompanyName:  user.CompanyName,
+		IsActive:     user.IsActive,
+		TwoFAEnabled: user.TwoFAEnabled,
+	}
+
+	return &dtos.LoginUserResponse{ // Using LoginUserResponse DTO for consistency
+		User:                 userResponse,
 		AccessToken:          accessToken,
 		RefreshToken:         refreshToken,
 		TwoFARequired:        false,
 		AccessTokenExpiresAt: accessExp.Unix(),
+		Message:              "OTP verified successfully. Login complete.",
 	}, nil
 }
 
@@ -254,6 +275,7 @@ func (s *authService) RefreshToken(ctx context.Context, tokenStr string) (*dtos.
 		AccessToken:          newAccessToken,
 		RefreshToken:         newRefreshToken,
 		AccessTokenExpiresAt: accessExp.Unix(),
+		Message:              "Token refreshed successfully.",
 	}, nil
 }
 
@@ -294,7 +316,7 @@ func (s *authService) Toggle2FA(ctx context.Context, userIDStr string, enable bo
 	}
 	userID := uint(parsedUserID)
 
-	user, err := s.userRepo.FindByID(ctx, userID) // Corrected: FindByID expects uint
+	user, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil || user == nil {
 		return ErrUserNotFound
 	}

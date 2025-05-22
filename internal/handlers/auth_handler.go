@@ -10,7 +10,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v4"
-	// "github.com/google/uuid" // No longer needed for ID parsing here
 )
 
 type AuthHandler struct {
@@ -50,7 +49,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(dtos.RegisterUserResponse{
 		User: dtos.UserResponse{
-			ID:           createdUser.ID, // ID is now uint
+			ID:           createdUser.ID,
 			Email:        createdUser.Email,
 			FirstName:    createdUser.FirstName,
 			LastName:     createdUser.LastName,
@@ -81,8 +80,13 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 			Message:       "OTP sent to your email for 2FA verification.",
 			TwoFARequired: true,
 			User: dtos.UserResponse{
-				ID:    result.User.ID,
-				Email: result.User.Email,
+				ID:           result.User.ID, // User field in LoginUserResponse is dtos.UserResponse
+				Email:        result.User.Email,
+				FirstName:    result.User.FirstName,
+				LastName:     result.User.LastName,
+				CompanyName:  result.User.CompanyName,
+				IsActive:     result.User.IsActive,
+				TwoFAEnabled: result.User.TwoFAEnabled,
 			},
 		})
 	}
@@ -119,7 +123,9 @@ func (h *AuthHandler) Verify2FA(c *fiber.Ctx) error {
 		return utils.HandleError(c, fiber.StatusUnauthorized, "OTP verification failed", err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(dtos.VerifyOTPResponse{
+	// The result from authService.VerifyOTP is *dtos.LoginUserResponse
+	// So we can directly return it or its fields.
+	return c.Status(fiber.StatusOK).JSON(dtos.VerifyOTPResponse{ // Using VerifyOTPResponse DTO
 		User: dtos.UserResponse{
 			ID:           result.User.ID,
 			Email:        result.User.Email,
@@ -160,7 +166,7 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 
 func (h *AuthHandler) Enable2FA(c *fiber.Ctx) error {
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
-	userIDStr := claims["user_id"].(string) // UserID in claim is string representation of uint
+	userIDStr := claims["user_id"].(string)
 
 	var req dtos.Enable2FARequest
 	if err := c.BodyParser(&req); err != nil {

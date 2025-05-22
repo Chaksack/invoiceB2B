@@ -9,7 +9,7 @@ type RegisterUserRequest struct {
 }
 
 type UserResponse struct {
-	ID           uint   `json:"id"` // Changed from uuid.UUID
+	ID           uint   `json:"id"`
 	Email        string `json:"email"`
 	FirstName    string `json:"firstName"`
 	LastName     string `json:"lastName"`
