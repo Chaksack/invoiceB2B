@@ -15,6 +15,7 @@ type UserRepository interface {
 	FindByID(ctx context.Context, id uint) (*models.User, error)
 	FindByIDWithKYC(ctx context.Context, id uint) (*models.User, error)
 	Update(ctx context.Context, user *models.User) (*models.User, error)
+	FindAllWithPagination(ctx context.Context, page, pageSize int) ([]models.User, int64, error)
 }
 
 type userRepository struct {
@@ -76,4 +77,23 @@ func (r *userRepository) Update(ctx context.Context, user *models.User) (*models
 		return nil, err
 	}
 	return user, nil
+}
+
+func (r *userRepository) FindAllWithPagination(ctx context.Context, page, pageSize int) ([]models.User, int64, error) {
+	var users []models.User
+	var total int64
+
+	query := r.db.WithContext(ctx).Model(&models.User{})
+
+	if err := query.Count(&total).Error; err != nil {
+		log.Printf("Error counting users: %v", err)
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	if err := query.Order("created_at DESC").Offset(offset).Limit(pageSize).Preload("KYCDetail").Find(&users).Error; err != nil {
+		log.Printf("Error fetching users with pagination: %v", err)
+		return nil, 0, err
+	}
+	return users, total, nil
 }

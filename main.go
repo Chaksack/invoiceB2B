@@ -39,6 +39,20 @@ func main() {
 		log.Fatalf("Error loading config: %v", err)
 	}
 
+	if _, err := os.Stat(cfg.UploadsDir); os.IsNotExist(err) {
+		log.Infof("Uploads directory %s does not exist. Creating...", cfg.UploadsDir)
+		if err := os.MkdirAll(cfg.UploadsDir, os.ModePerm); err != nil {
+			log.Fatalf("Failed to create uploads directory: %v", err)
+		}
+		subDirs := []string{"invoices", "receipts", "kyc"}
+		for _, dir := range subDirs {
+			path := fmt.Sprintf("%s/%s", cfg.UploadsDir, dir)
+			if err := os.MkdirAll(path, os.ModePerm); err != nil {
+				log.Fatalf("Failed to create subdirectory %s: %v", path, err)
+			}
+		}
+	}
+
 	// Initialize Validator
 	customValidator := utils.NewCustomValidator()
 
@@ -87,25 +101,28 @@ func main() {
 		defer notificationService.Close()
 	}
 
-	// Initialize Services
 	jwtService := services.NewJWTService(cfg)
 	emailService := services.NewEmailService(cfg)
 	otpService := services.NewOTPService(rdb, cfg.OTPExpirationMinutes)
+	fileService := services.NewFileService(cfg.UploadsDir, cfg.MaxUploadSizeMB*1024*1024)
 
-	// Initialize Repositories
 	userRepo := repositories.NewUserRepository(db)
 	kycRepo := repositories.NewKYCRepository(db)
-	// staffRepo := repositories.NewStaffRepository(db)
-	// activityLogRepo := repositories.NewActivityLogRepository(db)
+	invoiceRepo := repositories.NewInvoiceRepository(db)
+	staffRepo := repositories.NewStaffRepository(db)
+	activityLogRepo := repositories.NewActivityLogRepository(db)
+	transactionRepo := repositories.NewTransactionRepository(db)
 
-	authService := services.NewAuthService(userRepo, kycRepo, jwtService, emailService, otpService, notificationService, cfg)
-	userService := services.NewUserService(userRepo, kycRepo)
-	// paymentService := services.NewPaymentService() // Placeholder
+	activityLogSvc := services.NewActivityLogService(activityLogRepo)
+	authService := services.NewAuthService(userRepo, kycRepo, jwtService, emailService, otpService, notificationService, activityLogSvc, cfg)
+	userService := services.NewUserService(userRepo, kycRepo, activityLogSvc)
+	invoiceService := services.NewInvoiceService(invoiceRepo, userRepo, transactionRepo, fileService, notificationService, activityLogSvc, emailService, cfg)
+	adminService := services.NewAdminService(userRepo, kycRepo, staffRepo, invoiceRepo, transactionRepo, activityLogSvc, emailService, notificationService, fileService, cfg) // Added cfg
 
-	// Initialize Handlers
 	authHandler := handlers.NewAuthHandler(authService, customValidator.Validator)
 	userHandler := handlers.NewUserHandler(userService, customValidator.Validator)
-	// paymentHandler := handlers.NewPaymentHandler(paymentService, customValidator.Validator)
+	invoiceHandler := handlers.NewInvoiceHandler(invoiceService, fileService, customValidator.Validator)
+	adminHandler := handlers.NewAdminHandler(adminService, fileService, customValidator.Validator)
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
@@ -132,18 +149,18 @@ func main() {
 
 	// JWT Middleware instance
 	authMiddleware := middleware.NewAuthMiddleware(jwtService)
+	adminMiddleware := middleware.NewAdminMiddleware(staffRepo)
 
-	// Setup Routes
-	apiGroup := app.Group("/api/v1")
-	routes.SetupAuthRoutes(apiGroup, authHandler, authMiddleware)
-	routes.SetupUserRoutes(apiGroup, userHandler, authMiddleware)
-	// routes.SetupPaymentRoutes(apiGroup, paymentHandler, authMiddleware)
-	// routes.SetupAdminRoutes(apiGroup, ...)
+	apiV1 := app.Group("/api/v1")
+	routes.SetupAuthRoutes(apiV1, authHandler, authMiddleware)
+	routes.SetupUserRoutes(apiV1, userHandler, authMiddleware)
+	routes.SetupInvoiceRoutes(apiV1, invoiceHandler, authMiddleware, adminMiddleware)
+	routes.SetupAdminRoutes(apiV1, adminHandler, authMiddleware, adminMiddleware)
 
-	app.Get("/", func(c *fiber.Ctx) error {
+	app.Get("/api/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"message":   "Welcome to the Invoice Financing API!",
-			"version":   "1.2.0", // Incremented version for RabbitMQ integration
+			"version":   "1.2.0",
 			"timestamp": time.Now(),
 		})
 	})

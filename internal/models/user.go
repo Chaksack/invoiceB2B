@@ -6,6 +6,12 @@ import (
 	"time"
 )
 
+const (
+	RoleAdmin          string = "admin"
+	RoleKYCReviewer    string = "kyc_reviewer"
+	RoleFinanceManager string = "finance_manager"
+)
+
 type User struct {
 	gorm.Model
 	Email        string `gorm:"type:varchar(100);uniqueIndex;not null"`

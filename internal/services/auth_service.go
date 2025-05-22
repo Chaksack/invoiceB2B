@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	ErrUserNotFound        = errors.New("user not found") // Defined in user_service.go, can be shared or redefined
+	ErrUserNotFound        = errors.New("user not found")
 	ErrInvalidCredentials  = errors.New("invalid email or password")
 	ErrEmailExists         = errors.New("user with this email already exists")
 	ErrOTPInvalidOrExpired = errors.New("otp is invalid or has expired")
@@ -27,9 +27,9 @@ var (
 
 type AuthService interface {
 	RegisterUser(ctx context.Context, user *models.User) (*models.User, error)
-	LoginUser(ctx context.Context, email, password string) (*dtos.LoginUserResponse, error) // Return type changed
-	VerifyOTP(ctx context.Context, email, otp string) (*dtos.LoginUserResponse, error)      // Return type changed
-	RefreshToken(ctx context.Context, tokenStr string) (*dtos.RefreshTokenResponse, error)  // Return type changed
+	LoginUser(ctx context.Context, email, password string) (*dtos.LoginUserResponse, error)
+	VerifyOTP(ctx context.Context, email, otp string) (*dtos.LoginUserResponse, error)
+	RefreshToken(ctx context.Context, tokenStr string) (*dtos.RefreshTokenResponse, error)
 	LogoutUser(ctx context.Context, tokenStr string) error
 	Toggle2FA(ctx context.Context, userIDStr string, enable bool) error
 	GetConfig() *config.Config
@@ -42,6 +42,7 @@ type authService struct {
 	emailService        EmailService
 	otpService          OTPService
 	notificationService NotificationService
+	activityLogService  ActivityLogService
 	cfg                 *config.Config
 }
 
@@ -52,15 +53,17 @@ func NewAuthService(
 	emailService EmailService,
 	otpService OTPService,
 	notificationService NotificationService,
+	activityLogService ActivityLogService,
 	cfg *config.Config,
-) AuthService {
-	return &authService{
+) AuthService { // Return the interface type
+	return &authService{ // Return a pointer to the struct that implements the interface
 		userRepo:            userRepo,
 		kycRepo:             kycRepo,
 		jwtService:          jwtService,
 		emailService:        emailService,
 		otpService:          otpService,
 		notificationService: notificationService,
+		activityLogService:  activityLogService,
 		cfg:                 cfg,
 	}
 }
@@ -113,6 +116,8 @@ func (s *authService) RegisterUser(ctx context.Context, user *models.User) (*mod
 		log.Println("NotificationService is nil, skipping event publishing.")
 	}
 
+	_ = s.activityLogService.LogActivity(ctx, nil, &createdUser.ID, "USER_REGISTERED", fmt.Sprintf("User %s registered.", createdUser.Email), "")
+
 	return createdUser, nil
 }
 
@@ -130,7 +135,7 @@ func (s *authService) LoginUser(ctx context.Context, email, password string) (*d
 		return nil, ErrAccountNotActive
 	}
 
-	userResponse := dtos.UserResponse{
+	userResponse := dtos.UserResponse{ // Correctly map *models.User to dtos.UserResponse
 		ID:           user.ID,
 		Email:        user.Email,
 		FirstName:    user.FirstName,
@@ -168,8 +173,10 @@ func (s *authService) LoginUser(ctx context.Context, email, password string) (*d
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
+	_ = s.activityLogService.LogActivity(ctx, nil, &user.ID, "USER_LOGIN_SUCCESS", fmt.Sprintf("User %s logged in successfully.", user.Email), "")
+
 	return &dtos.LoginUserResponse{
-		User:                 userResponse,
+		User:                 userResponse, // Use the mapped DTO
 		AccessToken:          accessToken,
 		RefreshToken:         refreshToken,
 		TwoFARequired:        false,
@@ -195,6 +202,7 @@ func (s *authService) VerifyOTP(ctx context.Context, email, otp string) (*dtos.L
 		return nil, ErrOTPInvalidOrExpired
 	}
 	if !valid {
+		_ = s.activityLogService.LogActivity(ctx, nil, &user.ID, "USER_LOGIN_2FA_FAILED", fmt.Sprintf("User %s failed 2FA OTP verification.", user.Email), "")
 		return nil, ErrOTPInvalidOrExpired
 	}
 
@@ -211,7 +219,7 @@ func (s *authService) VerifyOTP(ctx context.Context, email, otp string) (*dtos.L
 		log.Printf("Warning: Failed to delete OTP for user %s after verification: %v", userIDStr, err)
 	}
 
-	userResponse := dtos.UserResponse{
+	userResponse := dtos.UserResponse{ // Correctly map *models.User to dtos.UserResponse
 		ID:           user.ID,
 		Email:        user.Email,
 		FirstName:    user.FirstName,
@@ -221,8 +229,10 @@ func (s *authService) VerifyOTP(ctx context.Context, email, otp string) (*dtos.L
 		TwoFAEnabled: user.TwoFAEnabled,
 	}
 
-	return &dtos.LoginUserResponse{ // Using LoginUserResponse DTO for consistency
-		User:                 userResponse,
+	_ = s.activityLogService.LogActivity(ctx, nil, &user.ID, "USER_LOGIN_2FA_SUCCESS", fmt.Sprintf("User %s logged in successfully via 2FA.", user.Email), "")
+
+	return &dtos.LoginUserResponse{
+		User:                 userResponse, // Use the mapped DTO
 		AccessToken:          accessToken,
 		RefreshToken:         refreshToken,
 		TwoFARequired:        false,
@@ -306,6 +316,17 @@ func (s *authService) LogoutUser(ctx context.Context, tokenStr string) error {
 		log.Printf("Failed to blacklist access token on logout: %v", err)
 		return fmt.Errorf("failed to blacklist token: %w", err)
 	}
+
+	if claims != nil {
+		userIDStr, ok := claims["user_id"].(string)
+		if ok {
+			parsedUserID, pErr := strconv.ParseUint(userIDStr, 10, 64)
+			if pErr == nil {
+				uid := uint(parsedUserID)
+				_ = s.activityLogService.LogActivity(ctx, nil, &uid, "USER_LOGOUT", fmt.Sprintf("User ID %d logged out.", uid), "")
+			}
+		}
+	}
 	return nil
 }
 
@@ -332,5 +353,12 @@ func (s *authService) Toggle2FA(ctx context.Context, userIDStr string, enable bo
 		log.Printf("Failed to update 2FA status for user %d: %v", userID, err)
 		return fmt.Errorf("could not update 2FA status: %w", err)
 	}
+
+	action := "USER_2FA_DISABLED"
+	if enable {
+		action = "USER_2FA_ENABLED"
+	}
+	_ = s.activityLogService.LogActivity(ctx, nil, &userID, action, fmt.Sprintf("User ID %d %s 2FA.", userID, action), "")
+
 	return nil
 }

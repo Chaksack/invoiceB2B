@@ -21,14 +21,16 @@ type UserService interface {
 }
 
 type userService struct {
-	userRepo repositories.UserRepository
-	kycRepo  repositories.KYCRepository
+	userRepo           repositories.UserRepository
+	kycRepo            repositories.KYCRepository
+	activityLogService ActivityLogService // Added
 }
 
-func NewUserService(userRepo repositories.UserRepository, kycRepo repositories.KYCRepository) UserService {
+func NewUserService(userRepo repositories.UserRepository, kycRepo repositories.KYCRepository, activityLogService ActivityLogService) UserService {
 	return &userService{
-		userRepo: userRepo,
-		kycRepo:  kycRepo,
+		userRepo:           userRepo,
+		kycRepo:            kycRepo,
+		activityLogService: activityLogService, // Added
 	}
 }
 
@@ -47,6 +49,10 @@ func (s *userService) UpdateUserProfile(ctx context.Context, userID uint, req dt
 		return nil, ErrUserNotFound
 	}
 
+	// Store old values for logging if needed
+	// oldFirstName := user.FirstName
+	// ...
+
 	if req.FirstName != "" {
 		user.FirstName = req.FirstName
 	}
@@ -63,6 +69,8 @@ func (s *userService) UpdateUserProfile(ctx context.Context, userID uint, req dt
 		return nil, fmt.Errorf("could not update user profile: %w", err)
 	}
 
+	_ = s.activityLogService.LogActivity(ctx, nil, &userID, "USER_PROFILE_UPDATED", fmt.Sprintf("User ID %d updated their profile.", userID), "")
+
 	fullUser, err := s.userRepo.FindByIDWithKYC(ctx, userID)
 	if err != nil {
 		log.Printf("Error re-fetching profile with KYC for user %d after update: %v", userID, err)
@@ -78,12 +86,14 @@ func (s *userService) SubmitOrUpdateKYC(ctx context.Context, userID uint, req dt
 	}
 
 	kycDetail, err := s.kycRepo.FindByUserID(ctx, userID)
+	isNewSubmission := false
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		log.Printf("Error finding KYC for user %d: %v", userID, err)
 		return nil, fmt.Errorf("could not retrieve existing KYC: %w", err)
 	}
 
 	if kycDetail == nil {
+		isNewSubmission = true
 		kycDetail = &models.KYCDetail{
 			UserID: userID,
 		}
@@ -102,6 +112,13 @@ func (s *userService) SubmitOrUpdateKYC(ctx context.Context, userID uint, req dt
 		log.Printf("Error creating/updating KYC for user %d: %v", userID, err)
 		return nil, fmt.Errorf("could not save KYC information: %w", err)
 	}
+
+	action := "USER_KYC_UPDATED"
+	if isNewSubmission {
+		action = "USER_KYC_SUBMITTED"
+	}
+	_ = s.activityLogService.LogActivity(ctx, nil, &userID, action, fmt.Sprintf("User ID %d %s KYC information.", userID, action), "")
+
 	return updatedKYC, nil
 }
 
