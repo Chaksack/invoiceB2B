@@ -43,6 +43,30 @@ services:
     restart: unless-stopped
     # command: redis-server --requirepass ${REDIS_PASSWORD} # If you set a password
 
+  n8n:
+    image: n8nio/n8n # Corrected: Changed 'build' to 'image' as n8nio/n8n is a pre-built image
+    container_name: n8n_invoice_processor
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # See .env for these values
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - GENERIC_TIMEZONE=${TZ:-Africa/Accra} # Adjust to your timezone
+      - WEBHOOK_URL=http://${N8N_HOST:-localhost}:5678/ # Important for webhooks if you use them later
+      # Environment variables for your n8n workflow to use
+      - GO_API_BASE_URL=http://api:3000/api/v1 # 'api' is the service name of your Go backend
+      - GO_API_INTERNAL_KEY=${INTERNAL_API_KEY} # Use the same key as in your Go API's .env
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./uploads:/mnt/invoice_uploads
+      # Removed the extra hyphen that was causing the error
+    depends_on:
+      - rabbitmq # Ensures RabbitMQ is started before n8n
+      - api # Optional, good if n8n might call API on startup
+
+
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
     container_name: invoice_rabbitmq
@@ -60,3 +84,4 @@ volumes:
   postgres_data:
   redis_data:
   rabbitmq_data:
+  n8n_data:

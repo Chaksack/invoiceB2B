@@ -1,30 +1,21 @@
-# Stage 1: Build the Go application
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine
+LABEL authors="Chakdahah"
 
 WORKDIR /app
 
-# Install git for private repositories if needed
-# RUN apk add --no-cache git
+RUN apk update && apk add --no-cache sqlite build-base
 
-# Copy go.mod and go.sum first to leverage Docker cache
+RUN go install github.com/air-verse/air@latest
+
+ENV CGO_ENABLED=1
+
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-# Build the application for the cmd/api service
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/api_server ./cmd/api/main.go
+#COPY paysenta.db .
 
-# Stage 2: Create the final small image
-FROM alpine:latest
+EXPOSE 8080
 
-WORKDIR /app
-
-# Copy the built binary from the builder stage
-COPY --from=builder /app/api_server .
-
-# Expose the port the app runs on
-EXPOSE 3000
-
-# Command to run the application
-CMD ["./api_server"]
+CMD ["air", "-c", ".air.toml"]
