@@ -14,6 +14,8 @@ const (
 	InvoiceDisbursed        InvoiceStatus = "disbursed"
 	InvoiceRepaymentPending InvoiceStatus = "repayment_pending"
 	InvoiceRepaid           InvoiceStatus = "repaid"
+	InvoiceProcessingFailed InvoiceStatus = "processing_failed"
+	InvoicePendingApproval  InvoiceStatus = "pending_admin_review"
 )
 
 type Invoice struct {
