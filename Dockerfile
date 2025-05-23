@@ -1,5 +1,19 @@
-FROM golang:1.23-alpine
-LABEL authors="Chakdahah"
+FROM node:18-alpine AS nuxt-builder
+
+WORKDIR /client
+
+COPY client/package*.json ./
+RUN npm install
+
+COPY client/ .
+
+RUN npm run generate
+
+RUN echo "--- Contents of /client/.output/public/ after Nuxt build ---" && \
+    ls -lA /client/.output/public/ && \
+    echo "--- End of /client/.output/public/ contents ---"
+
+FROM golang:1.23-alpine AS go-builder
 
 WORKDIR /app
 
@@ -14,8 +28,14 @@ RUN go mod download
 
 COPY . .
 
-#COPY paysenta.db .
+COPY --from=nuxt-builder /client/.output/public ./client/dist
 
-EXPOSE 8080
+RUN echo "--- Contents of /app/client/dist/ after COPY ---" && \
+    ls -lA /app/client/dist/ && \
+    echo "--- End of /app/client/dist/ contents ---"
+
+
+
+EXPOSE 3000
 
 CMD ["air", "-c", ".air.toml"]
