@@ -21,15 +21,15 @@ type Invoice struct {
 	UserID uint `gorm:"not null;index"`
 	User   User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 
-	InvoiceNumber     string `gorm:"type:varchar(100);not null"`
+	InvoiceNumber     string `gorm:"type:varchar(100);null"`
 	IssuerName        string `gorm:"type:varchar(255);null"`
 	IssuerBankAccount string `gorm:"type:varchar(100);null"`
 	IssuerBankName    string `gorm:"type:varchar(100);null"`
 	DebtorName        string `gorm:"type:varchar(255);null"`
 
-	Amount   float64 `gorm:"type:decimal(18,2);not null"`
-	Currency string  `gorm:"type:varchar(3);not null"`
-	DueDate  *time.Time
+	Amount   float64    `gorm:"type:decimal(18,2);null"`
+	Currency string     `gorm:"type:varchar(3);null"`
+	DueDate  *time.Time `gorm:"null"`
 
 	Status           InvoiceStatus `gorm:"type:varchar(30);default:'pending_review';not null"`
 	OriginalFilePath string        `gorm:"type:varchar(500);null"`
@@ -48,6 +48,7 @@ type Invoice struct {
 	FinancingFeePercentage  *float64 `gorm:"type:decimal(5,2);null"`
 	FinancedAmount          *float64 `gorm:"type:decimal(18,2);null"`
 	DisbursementReceiptPath *string  `gorm:"type:varchar(500);null"`
+	ProcessingError         *string  `gorm:"type:text;null"`
 
 	Transactions []Transaction `gorm:"foreignKey:InvoiceID"`
 }

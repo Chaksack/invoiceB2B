@@ -117,12 +117,14 @@ func main() {
 	authService := services.NewAuthService(userRepo, kycRepo, jwtService, emailService, otpService, notificationService, activityLogSvc, cfg)
 	userService := services.NewUserService(userRepo, kycRepo, activityLogSvc)
 	invoiceService := services.NewInvoiceService(invoiceRepo, userRepo, transactionRepo, fileService, notificationService, activityLogSvc, emailService, cfg)
-	adminService := services.NewAdminService(userRepo, kycRepo, staffRepo, invoiceRepo, transactionRepo, activityLogSvc, emailService, notificationService, fileService, cfg) // Added cfg
+	adminService := services.NewAdminService(userRepo, kycRepo, staffRepo, invoiceRepo, transactionRepo, activityLogSvc, emailService, notificationService, fileService, cfg)
+	internalService := services.NewInternalService(invoiceRepo, activityLogSvc) // New InternalService
 
 	authHandler := handlers.NewAuthHandler(authService, customValidator.Validator)
 	userHandler := handlers.NewUserHandler(userService, customValidator.Validator)
 	invoiceHandler := handlers.NewInvoiceHandler(invoiceService, fileService, customValidator.Validator)
 	adminHandler := handlers.NewAdminHandler(adminService, fileService, customValidator.Validator)
+	internalHandler := handlers.NewInternalHandler(internalService, customValidator.Validator)
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
@@ -150,12 +152,14 @@ func main() {
 	// JWT Middleware instance
 	authMiddleware := middleware.NewAuthMiddleware(jwtService)
 	adminMiddleware := middleware.NewAdminMiddleware(staffRepo)
+	internalApiMiddleware := middleware.NewInternalAPIMiddleware(cfg.InternalAPIKey)
 
 	apiV1 := app.Group("/api/v1")
 	routes.SetupAuthRoutes(apiV1, authHandler, authMiddleware)
 	routes.SetupUserRoutes(apiV1, userHandler, authMiddleware)
 	routes.SetupInvoiceRoutes(apiV1, invoiceHandler, authMiddleware, adminMiddleware)
 	routes.SetupAdminRoutes(apiV1, adminHandler, authMiddleware, adminMiddleware)
+	routes.SetupInternalRoutes(apiV1, internalHandler, internalApiMiddleware)
 
 	app.Get("/api/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{

@@ -7,6 +7,7 @@ import (
 	"invoiceB2B/internal/utils"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -37,10 +38,14 @@ func (h *InvoiceHandler) UploadInvoice(c *fiber.Ctx) error {
 		return utils.HandleError(c, fiber.StatusBadRequest, "Invoice file is required.", err)
 	}
 
-	allowedExtensions := map[string]bool{".pdf": true, ".csv": true}
-	ext := filepath.Ext(file.Filename)
+	// Updated allowed extensions
+	allowedExtensions := map[string]bool{
+		".pdf": true, ".csv": true,
+		".jpeg": true, ".jpg": true, ".png": true,
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename)) // Use ToLower for case-insensitivity
 	if !allowedExtensions[ext] {
-		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid file type. Only PDF and CSV are allowed.", nil)
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid file type. Allowed: PDF, CSV, JPEG, JPG, PNG.", nil)
 	}
 	if err := h.fileService.ValidateFileSize(file.Size); err != nil {
 		return utils.HandleError(c, fiber.StatusBadRequest, err.Error(), err)
@@ -56,6 +61,7 @@ func (h *InvoiceHandler) UploadInvoice(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(invoiceResponse)
 }
 
+// ... (rest of invoice_handler.go methods remain the same)
 func (h *InvoiceHandler) GetUserInvoices(c *fiber.Ctx) error {
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	userIDStr := claims["user_id"].(string)

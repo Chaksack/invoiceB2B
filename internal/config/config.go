@@ -46,6 +46,7 @@ type Config struct {
 	OTPExpirationMinutes time.Duration
 	UploadsDir           string
 	MaxUploadSizeMB      int64
+	InternalAPIKey       string
 }
 
 // LoadConfig loads configuration from .env file or environment variables
@@ -75,7 +76,7 @@ func LoadConfig(path string) (*Config, error) {
 		RedisAddr:                              getEnv("REDIS_ADDR", "localhost:6379"),
 		RedisPassword:                          getEnv("REDIS_PASSWORD", ""),
 		RabbitMQURL:                            getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
-		RabbitMQEventExchangeName:              getEnv("RABBITMQ_EVENT_EXCHANGE_NAME", "invoice_events_exchange"), // Updated exchange name
+		RabbitMQEventExchangeName:              getEnv("RABBITMQ_EVENT_EXCHANGE_NAME", "invoice_events_exchange"),
 		RabbitMQUserRegisteredRoutingKey:       getEnv("RABBITMQ_USER_REGISTERED_ROUTING_KEY", "user.registered"),
 		RabbitMQInvoiceUploadedRoutingKey:      getEnv("RABBITMQ_INVOICE_UPLOADED_ROUTING_KEY", "invoice.uploaded"),
 		RabbitMQInvoiceStatusUpdatedRoutingKey: getEnv("RABBITMQ_INVOICE_STATUS_UPDATED_ROUTING_KEY", "invoice.status.updated"),
@@ -94,6 +95,7 @@ func LoadConfig(path string) (*Config, error) {
 		OTPExpirationMinutes: time.Duration(otpExpMinutes) * time.Minute,
 		UploadsDir:           getEnv("UPLOADS_DIR", "./uploads"),
 		MaxUploadSizeMB:      maxUploadSizeMB,
+		InternalAPIKey:       getEnv("INTERNAL_API_KEY", "default-internal-key-please-change"), // New
 	}
 
 	cfg.DSN = fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=UTC",
@@ -110,6 +112,9 @@ func LoadConfig(path string) (*Config, error) {
 
 	if cfg.JWTSecret == "supersecretkey" || cfg.JWTSecret == "your_very_secret_key_for_jwt_change_this_please" {
 		fmt.Println("WARNING: JWT_SECRET is set to a default/example value. Please change this in your .env file for production!")
+	}
+	if cfg.InternalAPIKey == "default-internal-key-please-change" {
+		fmt.Println("WARNING: INTERNAL_API_KEY is set to a default value. Please change this in your .env file for production!")
 	}
 
 	return cfg, nil
