@@ -1,0 +1,244 @@
+{
+  "name": "PDF Invoice Processing Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "upload-invoice",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-upload",
+      "name": "Webhook - Upload Invoice",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "invoice-upload"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "multiplex",
+        "options": {}
+      },
+      "id": "merge-data",
+      "name": "Merge Invoice Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "operation": "extractText",
+        "options": {
+          "cleanText": true
+        }
+      },
+      "id": "pdf-extract",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.pdf",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract key invoice data from PDF text\nconst text = $input.first().json.text;\n\n// Define regex patterns for common invoice data\nconst patterns = {\n  invoiceNumber: /(?:invoice\\s*#?|inv\\s*#?|invoice\\s+no\\.?|invoice\\s+number)\\s*:?\\s*([A-Z0-9-]+)/i,\n  invoiceDate: /(?:date|invoice\\s+date|dated?)\\s*:?\\s*(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4}|\\d{4}[\\/\\-]\\d{1,2}[\\/\\-]\\d{1,2})/i,\n  dueDate: /(?:due\\s+date|payment\\s+due)\\s*:?\\s*(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4}|\\d{4}[\\/\\-]\\d{1,2}[\\/\\-]\\d{1,2})/i,\n  totalAmount: /(?:total|amount\\s+due|grand\\s+total|balance\\s+due)\\s*:?\\s*\\$?([0-9,]+\\.?\\d{0,2})/i,\n  subtotal: /(?:subtotal|sub\\s+total)\\s*:?\\s*\\$?([0-9,]+\\.?\\d{0,2})/i,\n  tax: /(?:tax|vat|gst)\\s*:?\\s*\\$?([0-9,]+\\.?\\d{0,2})/i,\n  vendorName: /(?:from|bill\\s+from|vendor|company)\\s*:?\\s*([A-Za-z0-9\\s&.,'-]+)(?:\\n|$)/i,\n  customerName: /(?:to|bill\\s+to|customer|client)\\s*:?\\s*([A-Za-z0-9\\s&.,'-]+)(?:\\n|$)/i\n};\n\n// Extract data using patterns\nfunction extractData(text, patterns) {\n  const extracted = {};\n  \n  for (const [key, pattern] of Object.entries(patterns)) {\n    const match = text.match(pattern);\n    if (match) {\n      extracted[key] = match[1].trim();\n    } else {\n      extracted[key] = null;\n    }\n  }\n  \n  return extracted;\n}\n\n// Clean and format extracted data\nfunction formatData(data) {\n  // Clean amounts - remove commas and convert to float\n  ['totalAmount', 'subtotal', 'tax'].forEach(field => {\n    if (data[field]) {\n      data[field] = parseFloat(data[field].replace(/,/g, ''));\n    }\n  });\n  \n  // Format dates to YYYY-MM-DD\n  ['invoiceDate', 'dueDate'].forEach(field => {\n    if (data[field]) {\n      try {\n        const date = new Date(data[field]);\n        if (!isNaN(date.getTime())) {\n          data[field] = date.toISOString().split('T')[0];\n        }\n      } catch (e) {\n        data[field] = null;\n      }\n    }\n  });\n  \n  // Clean text fields\n  ['vendorName', 'customerName'].forEach(field => {\n    if (data[field]) {\n      data[field] = data[field].replace(/\\s+/g, ' ').trim();\n      // Limit length to prevent database issues\n      if (data[field].length > 100) {\n        data[field] = data[field].substring(0, 100);\n      }\n    }\n  });\n  \n  return data;\n}\n\nconst extractedData = extractData(text, patterns);\nconst formattedData = formatData(extractedData);\n\n// Add metadata\nformattedData.extractedAt = new Date().toISOString();\nformattedData.originalText = text.substring(0, 1000); // Store first 1000 chars for reference\n\nreturn { json: formattedData };"
+      },
+      "id": "extract-data",
+      "name": "Extract Invoice Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "name"
+        },
+        "table": {
+          "__rl": true,
+          "value": "invoices",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "invoice_number": "={{ $json.invoiceNumber }}",
+            "invoice_date": "={{ $json.invoiceDate }}",
+            "due_date": "={{ $json.dueDate }}",
+            "vendor_name": "={{ $json.vendorName }}",
+            "customer_name": "={{ $json.customerName }}",
+            "subtotal": "={{ $json.subtotal }}",
+            "tax_amount": "={{ $json.tax }}",
+            "total_amount": "={{ $json.totalAmount }}",
+            "extracted_at": "={{ $json.extractedAt }}",
+            "original_text": "={{ $json.originalText }}",
+            "status": "processed"
+          }
+        },
+        "options": {}
+      },
+      "id": "postgres-insert",
+      "name": "Insert to PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1420, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-creds",
+          "name": "PostgreSQL Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.invoiceNumber }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-data",
+      "name": "Validate Required Data",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Invoice processed successfully\",\n  \"data\": {\n    \"invoice_number\": \"{{ $json.invoice_number }}\",\n    \"total_amount\": \"{{ $json.total_amount }}\",\n    \"vendor_name\": \"{{ $json.vendor_name }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1640, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"message\": \"Failed to extract required invoice data. Please ensure the PDF contains a valid invoice with invoice number.\",\n  \"error\": \"Missing required fields\"\n}",
+        "responseCode": 400,
+        "options": {}
+      },
+      "id": "error-response",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log the error and return structured error info\nconst error = $input.first().error;\nconst context = $input.first().json;\n\nconsole.error('Invoice processing failed:', error);\n\nreturn {\n  json: {\n    success: false,\n    error: error?.message || 'Unknown error occurred',\n    timestamp: new Date().toISOString(),\n    context: context\n  }\n};"
+      },
+      "id": "error-handler",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1420, 500]
+    }
+  ],
+  "connections": {
+    "Webhook - Upload Invoice": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Extract Invoice Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Invoice Data": {
+      "main": [
+        [
+          {
+            "node": "Validate Required Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Required Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Invoice Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Invoice Data": {
+      "main": [
+        [
+          {
+            "node": "Insert to PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert to PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2024-01-15T10:00:00.000Z",
+  "versionId": "1"
+}

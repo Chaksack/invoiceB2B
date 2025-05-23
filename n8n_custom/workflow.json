@@ -3,20 +3,23 @@
   "nodes": [
     {
       "parameters": {
-        "queueName": "invoice_processing_queue",
+        "queue": "invoice_processing_queue",
         "options": {
-          "ackMode": "ackOnSuccess"
+          "durable": true,
+          "jsonParseBody": "={{ true }}",
+          "prefetchCount": 1,
+          "acknowledge": "executionFinishesSuccessfully"
         }
       },
       "name": "RabbitMQ Trigger",
-      "type": "n8n-nodes-base.rabbitMqTrigger",
+      "type": "n8n-nodes-base.rabbitmqTrigger",
       "typeVersion": 1,
       "position": [
         450,
         300
       ],
       "credentials": {
-        "rabbitMq": {
+        "rabbitmq": {
           "id": "QrnXtBE9e8nl6KRj",
           "name": "LocalAppRabbitMQ"
         }

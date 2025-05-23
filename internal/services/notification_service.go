@@ -43,7 +43,7 @@ func NewNotificationService(cfg *config.Config) (NotificationService, error) {
 
 	if err := ns.connect(); err != nil {
 		log.Printf("Initial RabbitMQ connection failed: %v. Will retry in background.", err)
-		go ns.handleReconnect() // Start background reconnection attempts
+		go ns.handleReconnect()
 	}
 
 	return ns, nil
