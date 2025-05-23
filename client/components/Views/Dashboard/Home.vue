@@ -1,18 +1,54 @@
 <template>
-  <main>
+  <main class="bg-gray-100">
 
-    <section class="bg-customGreen border-b rounded-b-2xl ">
+    <section>
       <div class="flex mb-2 gap-8 pt-10 items-center py-2 px-4 mx-auto max-w-screen-xl ">
+        <div>
           <h2 class="text-2xl tracking-tight font-bold text-black">Welcome,
             <span class=" bg-gradient-to-r from-sky-500 via-purple-500 to-pink-500 bg-clip-text text-transparent " >
             Andrew Chakdahah </span></h2>
+          <p class="mt-2">Submit, track, and fund your business invoices with ease.
+          </p>
+        </div>
+
+
+        <div class="ml-auto">
+          <Dialog>
+            <DialogTrigger as-child>
+              <Button class="text-white bg-black"><Upload />Upload Invoice</Button>
+            </DialogTrigger>
+            <DialogContent class="sm:max-w-[425px] shadow-lg">
+              <DialogHeader>
+                <DialogTitle>Upload Invoice</DialogTitle>
+                <DialogDescription>
+                  Upload your invoice here (pdf, csv, xlsx)
+                </DialogDescription>
+              </DialogHeader>
+              <div class="grid w-full max-w-sm items-center gap-1.5">
+                <Label for="picture">Inovice</Label>
+                <Input id="picture" type="file" />
+              </div>
+
+              <DialogFooter>
+                <Button type="submit">
+                  Upload Invoice
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
+
+
+
     </section>
 
-    <div class="relative bg-gray-700 isolate flex items-center gap-x-6 overflow-hidden bg-gray-50 px-6 py-2.5 sm:px-3.5 sm:before:flex-1">
+    <div class="relative bg-red-500 isolate flex items-center gap-x-6 overflow-hidden bg-gray-50 px-6 py-2.5 sm:px-3.5 sm:before:flex-1">
       <div class="flex  flex-wrap items-center gap-x-4 gap-y-2">
-        <p class="text-sm/6 text-white">
-          <strong class="font-semibold">Compliance Form Incomplete</strong><svg viewBox="0 0 2 2" class="mx-2 inline size-0.5 fill-current" aria-hidden="true"><circle cx="1" cy="1" r="1" /></svg>To get more out of your score kindly complete the compliance forms.
+        <p class="text-sm/6 text-white flex items-center">
+          <FileWarning class="mx-2" /> <strong class="font-semibold">Compliance Form Incomplete</strong>
+          <svg viewBox="0 0 2 2" class="mx-2 inline size-0.5 fill-current" aria-hidden="true"><circle cx="1" cy="1" r="1" /></svg>
+          To get more out of your score kindly complete the compliance forms.
         </p>
         <NuxtLink to="/compliance" class="flex-none rounded-full bg-blue-500 px-3.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">Complete now <span aria-hidden="true">&rarr;</span></NuxtLink>
       </div>
@@ -24,36 +60,50 @@
       </div>
     </div>
 
+    <div class=" mx-auto mt-2 grid w-full max-w-6xl flex-1 auto-rows-max gap-6 lg:gap-8">
+
+      <section class="flex justify-center w-full">
+        <div class="grid w-full max-w-4xl items-start justify-items-center gap-4 sm:grid-cols-2 md:grid-cols-3">
+          <Card class="w-full rounded-lg text-black">
+            <CardHeader class="p-4">
+              <CardTitle class="flex items-center text-blue-500 text-2xl font-bold mt-1">
+                <FileText class="mr-4"/>
+                56
+              </CardTitle>
+              <CardDescription class="font-medium text-lg text-black">Total Invoices</CardDescription>
+              <CardDescription class="font-medium text-xs">Submitted to date</CardDescription>
+
+            </CardHeader>
+          </Card>
+          <Card class="w-full rounded-lg text-black">
+            <CardHeader class="p-4">
+              <CardTitle class="flex items-center text-2xl text-green-600 font-bold mt-1">
+                <CircleCheck class="mr-4 fill-current"  stroke="#ffffff" stroke-width="" stroke-linecap="round" stroke-linejoin="round"/>
+                39
+              </CardTitle>
+              <CardDescription class="font-medium text-lg text-black">Approved</CardDescription>
+              <CardDescription class="font-medium text-xs">Eligible for funding</CardDescription>
+            </CardHeader>
+          </Card>
+          <Card class=" w-full rounded-lg text-black">
+            <CardHeader class="p-4">
+              <CardTitle class="flex text-2xl font-bold text-yellow-500 mt-1">
+                <HandCoins class="mr-4 items-center"/>  GHS 198,00
+              </CardTitle>
+              <CardDescription class="font-medium text-lg text-black">Total Funded</CardDescription>
+              <CardDescription class="font-medium text-xs">Received from bank</CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+      </section>
+
+
+    </div>
+
     <section class="bg-gray-100">
       <div class="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 lg:px-6">
         <div class="flex items-center">
           <h2 class="mb-2 text-xl tracking-tight font-semibold text-black">Invoices</h2>
-
-          <div class="ml-auto">
-            <Dialog>
-              <DialogTrigger as-child>
-                <Button class="text-white bg-black"><Upload />Upload Invoice</Button>
-              </DialogTrigger>
-              <DialogContent class="sm:max-w-[425px] shadow-lg">
-                <DialogHeader>
-                  <DialogTitle>Upload Invoice</DialogTitle>
-                  <DialogDescription>
-                    Upload your invoice here (pdf, csv, xlsx)
-                  </DialogDescription>
-                </DialogHeader>
-                  <div class="grid w-full max-w-sm items-center gap-1.5">
-                    <Label for="picture">Inovice</Label>
-                    <Input id="picture" type="file" />
-                  </div>
-
-                <DialogFooter>
-                  <Button type="submit">
-                    Upload Invoice
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
         </div>
 
 
@@ -76,10 +126,11 @@
                     <div class="text-lg text-muted-foreground">
                       548625
                     </div>
+                    <Badge class="bg-green-200 text-green-800"><CircleCheck class="w-8 h-8"/>Approved</Badge>
                   </div>
                   <div class=" gap-4 ml-auto  md:flex">
                     <div class="text-sm">
-                      Loan Amount:
+                      Invoice Amount:
                       <div class="text-2xl text-black font-semibold">
                         GHS 12,569
                       </div>
@@ -261,10 +312,11 @@
                     <div class="text-lg text-muted-foreground">
                       548625
                     </div>
+                    <Badge class="bg-blue-200 text-blue-800"><Clock class="w-8 h-8"/>Pending</Badge>
                   </div>
                   <div class=" gap-4 ml-auto  md:flex">
                     <div class="text-sm">
-                      Loan Amount:
+                      Invoice Amount:
                       <div class="text-2xl text-black font-semibold">
                         GHS 12,569
                       </div>
@@ -427,7 +479,6 @@
               </AccordionItem>
             </Accordion>
           </div>
-
         </div>
 
       </div>
@@ -442,12 +493,12 @@ import {
   Eye,
   CreditCard,
   CircleCheckBig,
-  Package2,
-  Search,
-  Users,
+  FileWarning ,
+  FileText ,
+  CircleCheck ,
   BookUser,
-  Check,
-  Truck,
+  HandCoins ,
+  Clock ,
   AlertCircle, Plus
 } from 'lucide-vue-next'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
@@ -457,6 +508,7 @@ import { Stepper, StepperDescription, StepperIndicator, StepperItem, StepperSepa
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from "~/components/ui/dialog";
 import {Input} from "~/components/ui/input";
 import {Button} from "~/components/ui/button";
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "~/components/ui/card";
 
 const steps = [{
   step: 1,
