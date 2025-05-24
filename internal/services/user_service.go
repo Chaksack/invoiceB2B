@@ -23,7 +23,7 @@ type UserService interface {
 type userService struct {
 	userRepo           repositories.UserRepository
 	kycRepo            repositories.KYCRepository
-	activityLogService ActivityLogService // Added
+	activityLogService ActivityLogService
 }
 
 func NewUserService(userRepo repositories.UserRepository, kycRepo repositories.KYCRepository, activityLogService ActivityLogService) UserService {
@@ -80,22 +80,23 @@ func (s *userService) UpdateUserProfile(ctx context.Context, userID uint, req dt
 }
 
 func (s *userService) SubmitOrUpdateKYC(ctx context.Context, userID uint, req dtos.SubmitKYCRequest) (*models.KYCDetail, error) {
-	_, err := s.userRepo.FindByID(ctx, userID)
+	user, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil {
+		log.Printf("SubmitOrUpdateKYC: User not found for ID %d: %v", userID, err)
 		return nil, ErrUserNotFound
 	}
 
 	kycDetail, err := s.kycRepo.FindByUserID(ctx, userID)
 	isNewSubmission := false
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		log.Printf("Error finding KYC for user %d: %v", userID, err)
-		return nil, fmt.Errorf("could not retrieve existing KYC: %w", err)
-	}
-
-	if kycDetail == nil {
-		isNewSubmission = true
-		kycDetail = &models.KYCDetail{
-			UserID: userID,
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			isNewSubmission = true
+			kycDetail = &models.KYCDetail{
+				UserID: userID,
+			}
+		} else {
+			log.Printf("SubmitOrUpdateKYC: Error finding KYC for user %d: %v", userID, err)
+			return nil, fmt.Errorf("could not retrieve existing KYC details: %w", err)
 		}
 	}
 
@@ -109,15 +110,29 @@ func (s *userService) SubmitOrUpdateKYC(ctx context.Context, userID uint, req dt
 
 	updatedKYC, err := s.kycRepo.CreateOrUpdate(ctx, kycDetail)
 	if err != nil {
-		log.Printf("Error creating/updating KYC for user %d: %v", userID, err)
+		log.Printf("SubmitOrUpdateKYC: Error creating/updating KYC for user %d: %v", userID, err)
 		return nil, fmt.Errorf("could not save KYC information: %w", err)
 	}
 
+	if user.KYCID == nil || (updatedKYC != nil && *user.KYCID != updatedKYC.ID) {
+		user.KYCID = &updatedKYC.ID
+		if _, updateErr := s.userRepo.Update(ctx, user); updateErr != nil {
+			log.Printf("SubmitOrUpdateKYC: CRITICAL - Failed to update User.KYCID for UserID %d with KYCDetail.ID %d: %v", userID, updatedKYC.ID, updateErr)
+		} else {
+			log.Printf("SubmitOrUpdateKYC: Successfully updated User.KYCID for UserID %d to %d", userID, updatedKYC.ID)
+		}
+	}
+
+	// 6. Log the activity.
 	action := "USER_KYC_UPDATED"
 	if isNewSubmission {
 		action = "USER_KYC_SUBMITTED"
 	}
-	_ = s.activityLogService.LogActivity(ctx, nil, &userID, action, fmt.Sprintf("User ID %d %s KYC information.", userID, action), "")
+	if s.activityLogService != nil {
+		_ = s.activityLogService.LogActivity(ctx, nil, &userID, action,
+			map[string]interface{}{"kyc_id": updatedKYC.ID, "status": updatedKYC.Status},
+			"")
+	}
 
 	return updatedKYC, nil
 }

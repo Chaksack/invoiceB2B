@@ -33,27 +33,39 @@
           "string": [
             {
               "name": "invoiceId",
-              "value": "={{ $json.body.invoice_id }}"
+              "value": "={{ $json.body[0].content.invoice_id }}"
             },
             {
               "name": "userId",
-              "value": "={{ $json.body.user_id }}"
+              "value": "={{ $json.body[0].content.user_id }}"
             },
             {
               "name": "relativeFilePath",
-              "value": "={{ $json.body.file_path }}"
+              "value": "={{ $json.body[0].content.file_path }}"
             },
             {
               "name": "originalFilename",
-              "value": "={{ $json.body.original_filename }}"
+              "value": "={{ $json.body[0].content.original_filename }}"
             },
             {
               "name": "absoluteFilePath",
-              "value": "={{ '/mnt/invoice_uploads/' + $json.body.file_path }}"
+              "value": "={{ '/mnt/invoice_uploads/' + $json.body[0].content.file_path }}"
             },
             {
               "name": "fileExtension",
-              "value": "={{ $json.body.original_filename.split('.').pop().toLowerCase() }}"
+              "value": "={{ $json.body[0].content.original_filename.split('.').pop().toLowerCase() }}"
+            },
+            {
+              "name": "companyName",
+              "value": "={{ $json.body[0].content.company_name }}"
+            },
+            {
+              "name": "uploadedAt",
+              "value": "={{ $json.body[0].content.uploaded_at }}"
+            },
+            {
+              "name": "userEmail",
+              "value": "={{ $json.body[0].content.user_email }}"
             }
           ]
         },

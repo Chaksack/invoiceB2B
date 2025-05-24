@@ -73,7 +73,7 @@ func LoadConfig(path string) (*Config, error) {
 		currentAppEnv = getEnv("APP_ENV", "development")
 	}
 
-	smtpPort, _ := strconv.Atoi(getEnv("SMTP_PORT", "587"))
+	smtpPort, _ := strconv.Atoi(getEnv("SMTP_PORT", "465"))
 	accessTokenExpMinutes, _ := strconv.Atoi(getEnv("JWT_ACCESS_TOKEN_EXPIRATION_MINUTES", "15"))
 	refreshTokenExpDays, _ := strconv.Atoi(getEnv("JWT_REFRESH_TOKEN_EXPIRATION_DAYS", "7"))
 	otpExpMinutes, _ := strconv.Atoi(getEnv("OTP_EXPIRATION_MINUTES", "5"))
@@ -108,11 +108,11 @@ func LoadConfig(path string) (*Config, error) {
 		JWTAccessTokenExpirationMinutes: time.Duration(accessTokenExpMinutes) * time.Minute,
 		JWTRefreshTokenExpirationDays:   time.Duration(refreshTokenExpDays) * 24 * time.Hour,
 
-		SMTPHost:        getEnv("SMTP_HOST", "smtp.example.com"),
+		SMTPHost:        getEnv("SMTP_HOST", "smtp.gmail.com"),
 		SMTPPort:        smtpPort,
-		SMTPUser:        getEnv("SMTP_USER", ""),
-		SMTPPassword:    getEnv("SMTP_PASSWORD", ""),
-		SMTPSenderEmail: getEnv("SMTPSenderEmail", "Invoice App <no-reply@example.com>"), // Note: Key is SMTPSenderEmail, not SMTP_SENDER_EMAIL
+		SMTPUser:        getEnv("SMTP_USER", "andrew.sackey@syentia.io"),
+		SMTPPassword:    getEnv("SMTP_PASSWORD", "xyspnvdkrwabrnmb"),
+		SMTPSenderEmail: getEnv("SMTPSenderEmail", "Invoice App <no-reply@syentia.io>"),
 
 		OTPExpirationMinutes: time.Duration(otpExpMinutes) * time.Minute,
 		UploadsDir:           getEnv("UPLOADS_DIR", "./uploads"),

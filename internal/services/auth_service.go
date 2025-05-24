@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"golang.org/x/crypto/bcrypt"
 	"invoiceB2B/internal/config"
 	"invoiceB2B/internal/dtos"
 	"invoiceB2B/internal/models"
@@ -14,15 +15,17 @@ import (
 )
 
 var (
-	ErrUserNotFound        = errors.New("user not found")
-	ErrInvalidCredentials  = errors.New("invalid email or password")
-	ErrEmailExists         = errors.New("user with this email already exists")
-	ErrOTPInvalidOrExpired = errors.New("otp is invalid or has expired")
-	Err2FANotEnabled       = errors.New("2fa is not enabled for this user")
-	ErrAccountNotActive    = errors.New("user account is not active")
-	ErrKYCNotApproved      = errors.New("user kyc not approved")
-	ErrRefreshTokenInvalid = errors.New("refresh token is invalid or expired")
-	ErrTokenBlacklisted    = errors.New("token has been blacklisted")
+	ErrUserNotFound          = errors.New("user not found")
+	ErrInvalidCredentials    = errors.New("invalid email or password")
+	ErrEmailExists           = errors.New("user with this email already exists")
+	ErrOTPInvalidOrExpired   = errors.New("otp is invalid or has expired")
+	Err2FANotEnabled         = errors.New("2fa is not enabled for this user")
+	ErrAccountNotActive      = errors.New("user account is not active")
+	ErrKYCNotApproved        = errors.New("user kyc not approved")
+	ErrRefreshTokenInvalid   = errors.New("refresh token is invalid or expired")
+	ErrTokenBlacklisted      = errors.New("token has been blacklisted")
+	ErrFailedToGenerateToken = errors.New("failed to generate token")
+	ErrFailedToInitiate2FA   = errors.New("failed to initiate 2FA")
 )
 
 type AuthService interface {
@@ -37,6 +40,7 @@ type AuthService interface {
 
 type authService struct {
 	userRepo            repositories.UserRepository
+	staffRepo           repositories.StaffRepository
 	kycRepo             repositories.KYCRepository
 	jwtService          JWTService
 	emailService        EmailService
@@ -48,6 +52,7 @@ type authService struct {
 
 func NewAuthService(
 	userRepo repositories.UserRepository,
+	staffRepo repositories.StaffRepository,
 	kycRepo repositories.KYCRepository,
 	jwtService JWTService,
 	emailService EmailService,
@@ -58,6 +63,7 @@ func NewAuthService(
 ) AuthService { // Return the interface type
 	return &authService{ // Return a pointer to the struct that implements the interface
 		userRepo:            userRepo,
+		staffRepo:           staffRepo,
 		kycRepo:             kycRepo,
 		jwtService:          jwtService,
 		emailService:        emailService,
@@ -122,68 +128,185 @@ func (s *authService) RegisterUser(ctx context.Context, user *models.User) (*mod
 }
 
 func (s *authService) LoginUser(ctx context.Context, email, password string) (*dtos.LoginUserResponse, error) {
+	// Attempt to find and authenticate as a regular user first
 	user, err := s.userRepo.FindByEmail(ctx, email)
-	if err != nil || user == nil {
-		return nil, ErrInvalidCredentials
+	if err == nil && user != nil { // User found by email
+		// Ensure models.CheckPasswordHash uses bcrypt.CompareHashAndPassword
+		if !models.CheckPasswordHash(password, user.PasswordHash) {
+			// Password mismatch for user, proceed to check if it's a staff account
+		} else { // Password matches for user
+			if !user.IsActive {
+				return nil, ErrAccountNotActive
+			}
+
+			userInfo := &dtos.UserResponse{
+				ID:           user.ID,
+				Email:        user.Email,
+				FirstName:    user.FirstName,
+				LastName:     user.LastName,
+				CompanyName:  user.CompanyName,
+				IsActive:     user.IsActive,
+				TwoFAEnabled: user.TwoFAEnabled,
+			}
+
+			if user.TwoFAEnabled {
+				userIDStr := strconv.FormatUint(uint64(user.ID), 10)
+				otp, err := s.otpService.GenerateAndStoreOTP(ctx, userIDStr)
+				if err != nil {
+					log.Printf("Failed to generate OTP for user %s: %v", user.Email, err)
+					return nil, ErrFailedToInitiate2FA
+				}
+
+				go func() {
+					subject := "Your 2FA Login Code"
+					body := fmt.Sprintf("Hi %s,\n\nYour One-Time Password for login is: %s\nIt will expire in %d minutes.\n\nThanks,\nThe Team", user.FirstName, otp, int(s.cfg.OTPExpirationMinutes.Minutes()))
+					if emailErr := s.emailService.SendEmail(user.Email, subject, body); emailErr != nil {
+						log.Printf("Failed to send 2FA OTP email to %s: %v", user.Email, emailErr)
+					}
+				}()
+
+				return &dtos.LoginUserResponse{
+					User:          userInfo,
+					Message:       "OTP sent to your email for 2FA verification.",
+					TwoFARequired: true,
+					Role:          "user",
+					RedirectPath:  "/2fa",
+				}, nil
+			}
+
+			accessToken, accessExp, err := s.jwtService.GenerateAccessToken(user)
+			if err != nil {
+				return nil, fmt.Errorf("%w: %v", ErrFailedToGenerateToken, err)
+			}
+			refreshToken, _, err := s.jwtService.GenerateRefreshToken(user)
+			if err != nil {
+				return nil, fmt.Errorf("%w: %v", ErrFailedToGenerateToken, err)
+			}
+
+			_ = s.activityLogService.LogActivity(ctx, nil, &user.ID, "USER_LOGIN_SUCCESS", fmt.Sprintf("User %s logged in successfully.", user.Email), "")
+
+			return &dtos.LoginUserResponse{
+				User:                 userInfo,
+				AccessToken:          accessToken,
+				RefreshToken:         refreshToken,
+				AccessTokenExpiresAt: accessExp.Unix(),
+				Message:              "Login successful.",
+				TwoFARequired:        false,
+				Role:                 "user",
+				RedirectPath:         "/home",
+			}, nil
+		}
 	}
 
-	if !models.CheckPasswordHash(password, user.PasswordHash) {
-		return nil, ErrInvalidCredentials
-	}
-
-	if !user.IsActive {
-		return nil, ErrAccountNotActive
-	}
-
-	userResponse := dtos.UserResponse{ // Correctly map *models.User to dtos.UserResponse
-		ID:           user.ID,
-		Email:        user.Email,
-		FirstName:    user.FirstName,
-		LastName:     user.LastName,
-		CompanyName:  user.CompanyName,
-		IsActive:     user.IsActive,
-		TwoFAEnabled: user.TwoFAEnabled,
-	}
-
-	if user.TwoFAEnabled {
-		userIDStr := strconv.FormatUint(uint64(user.ID), 10)
-		otp, err := s.otpService.GenerateAndStoreOTP(ctx, userIDStr)
-		if err != nil {
-			log.Printf("Failed to generate OTP for user %s: %v", user.Email, err)
-			return nil, fmt.Errorf("failed to initiate 2FA: %w", err)
+	staff, staffErr := s.staffRepo.FindByEmail(ctx, email)
+	if staffErr == nil && staff != nil { // Staff found by email
+		err := bcrypt.CompareHashAndPassword([]byte(staff.PasswordHash), []byte(password))
+		if err != nil { // Password mismatch for staff
+			return nil, ErrInvalidCredentials
 		}
 
-		go func() {
-			subject := "Your 2FA Login Code"
-			body := fmt.Sprintf("Hi %s,\n\nYour One-Time Password for login is: %s\nIt will expire in %d minutes.\n\nThanks,\nThe Team", user.FirstName, otp, int(s.cfg.OTPExpirationMinutes.Minutes()))
-			if emailErr := s.emailService.SendEmail(user.Email, subject, body); emailErr != nil {
-				log.Printf("Failed to send 2FA OTP email to %s: %v", user.Email, emailErr)
-			}
-		}()
+		if !staff.IsActive {
+			return nil, ErrAccountNotActive
+		}
 
-		return &dtos.LoginUserResponse{User: userResponse, TwoFARequired: true, Message: "OTP sent to your email for 2FA verification."}, nil
+		staffInfo := &dtos.UserResponse{
+			ID:        staff.ID,
+			Email:     staff.Email,
+			FirstName: staff.FirstName,
+			LastName:  staff.LastName,
+			IsActive:  staff.IsActive,
+		}
+
+		accessToken, accessExp, err := s.jwtService.GenerateAccessTokenForStaff(staff)
+		if err != nil {
+			return nil, fmt.Errorf("%w for staff: %v", ErrFailedToGenerateToken, err)
+		}
+		refreshToken, _, err := s.jwtService.GenerateRefreshTokenForStaff(staff)
+		if err != nil {
+			return nil, fmt.Errorf("%w for staff: %v", ErrFailedToGenerateToken, err)
+		}
+
+		activityDetails := fmt.Sprintf("Staff %s (Role: %s) logged in successfully.", staff.Email, staff.Role)
+		_ = s.activityLogService.LogActivity(ctx, &staff.ID, nil, "STAFF_LOGIN_SUCCESS", activityDetails, "")
+
+		return &dtos.LoginUserResponse{
+			User:                 staffInfo,
+			AccessToken:          accessToken,
+			RefreshToken:         refreshToken,
+			AccessTokenExpiresAt: accessExp.Unix(),
+			Message:              "Staff login successful.",
+			TwoFARequired:        false,
+			Role:                 staff.Role,
+			RedirectPath:         "/admin",
+		}, nil
 	}
 
-	accessToken, accessExp, err := s.jwtService.GenerateAccessToken(user)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate access token: %w", err)
-	}
-	refreshToken, _, err := s.jwtService.GenerateRefreshToken(user)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
-	}
-
-	_ = s.activityLogService.LogActivity(ctx, nil, &user.ID, "USER_LOGIN_SUCCESS", fmt.Sprintf("User %s logged in successfully.", user.Email), "")
-
-	return &dtos.LoginUserResponse{
-		User:                 userResponse, // Use the mapped DTO
-		AccessToken:          accessToken,
-		RefreshToken:         refreshToken,
-		TwoFARequired:        false,
-		AccessTokenExpiresAt: accessExp.Unix(),
-		Message:              "Login successful.",
-	}, nil
+	return nil, ErrInvalidCredentials
 }
+
+//func (s *authService) LoginUser(ctx context.Context, email, password string) (*dtos.LoginUserResponse, error) {
+//	user, err := s.userRepo.FindByEmail(ctx, email)
+//	if err != nil || user == nil {
+//		return nil, ErrInvalidCredentials
+//	}
+//
+//	if !models.CheckPasswordHash(password, user.PasswordHash) {
+//		return nil, ErrInvalidCredentials
+//	}
+//
+//	if !user.IsActive {
+//		return nil, ErrAccountNotActive
+//	}
+//
+//	userResponse := dtos.UserResponse{ // Correctly map *models.User to dtos.UserResponse
+//		ID:           user.ID,
+//		Email:        user.Email,
+//		FirstName:    user.FirstName,
+//		LastName:     user.LastName,
+//		CompanyName:  user.CompanyName,
+//		IsActive:     user.IsActive,
+//		TwoFAEnabled: user.TwoFAEnabled,
+//	}
+//
+//	if user.TwoFAEnabled {
+//		userIDStr := strconv.FormatUint(uint64(user.ID), 10)
+//		otp, err := s.otpService.GenerateAndStoreOTP(ctx, userIDStr)
+//		if err != nil {
+//			log.Printf("Failed to generate OTP for user %s: %v", user.Email, err)
+//			return nil, fmt.Errorf("failed to initiate 2FA: %w", err)
+//		}
+//
+//		go func() {
+//			subject := "Your 2FA Login Code"
+//			body := fmt.Sprintf("Hi %s,\n\nYour One-Time Password for login is: %s\nIt will expire in %d minutes.\n\nThanks,\nThe Team", user.FirstName, otp, int(s.cfg.OTPExpirationMinutes.Minutes()))
+//			if emailErr := s.emailService.SendEmail(user.Email, subject, body); emailErr != nil {
+//				log.Printf("Failed to send 2FA OTP email to %s: %v", user.Email, emailErr)
+//			}
+//		}()
+//
+//		return &dtos.LoginUserResponse{User: userResponse, TwoFARequired: true, Message: "OTP sent to your email for 2FA verification."}, nil
+//	}
+//
+//	accessToken, accessExp, err := s.jwtService.GenerateAccessToken(user)
+//	if err != nil {
+//		return nil, fmt.Errorf("failed to generate access token: %w", err)
+//	}
+//	refreshToken, _, err := s.jwtService.GenerateRefreshToken(user)
+//	if err != nil {
+//		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+//	}
+//
+//	_ = s.activityLogService.LogActivity(ctx, nil, &user.ID, "USER_LOGIN_SUCCESS", fmt.Sprintf("User %s logged in successfully.", user.Email), "")
+//
+//	return &dtos.LoginUserResponse{
+//		User:                 userResponse, // Use the mapped DTO
+//		AccessToken:          accessToken,
+//		RefreshToken:         refreshToken,
+//		TwoFARequired:        false,
+//		AccessTokenExpiresAt: accessExp.Unix(),
+//		Message:              "Login successful.",
+//	}, nil
+//}
 
 func (s *authService) VerifyOTP(ctx context.Context, email, otp string) (*dtos.LoginUserResponse, error) {
 	user, err := s.userRepo.FindByEmail(ctx, email)
@@ -219,7 +342,7 @@ func (s *authService) VerifyOTP(ctx context.Context, email, otp string) (*dtos.L
 		log.Printf("Warning: Failed to delete OTP for user %s after verification: %v", userIDStr, err)
 	}
 
-	userResponse := dtos.UserResponse{ // Correctly map *models.User to dtos.UserResponse
+	userResponse := dtos.UserResponse{
 		ID:           user.ID,
 		Email:        user.Email,
 		FirstName:    user.FirstName,
@@ -232,12 +355,14 @@ func (s *authService) VerifyOTP(ctx context.Context, email, otp string) (*dtos.L
 	_ = s.activityLogService.LogActivity(ctx, nil, &user.ID, "USER_LOGIN_2FA_SUCCESS", fmt.Sprintf("User %s logged in successfully via 2FA.", user.Email), "")
 
 	return &dtos.LoginUserResponse{
-		User:                 userResponse, // Use the mapped DTO
+		User:                 &userResponse,
 		AccessToken:          accessToken,
 		RefreshToken:         refreshToken,
 		TwoFARequired:        false,
 		AccessTokenExpiresAt: accessExp.Unix(),
 		Message:              "OTP verified successfully. Login complete.",
+		Role:                 "user",
+		RedirectPath:         "/home",
 	}, nil
 }
 

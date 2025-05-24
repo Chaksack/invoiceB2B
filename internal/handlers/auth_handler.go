@@ -70,45 +70,15 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		return utils.HandleValidationError(c, errs)
 	}
 
-	result, err := h.authService.LoginUser(c.Context(), req.Email, req.Password)
+	// The authService.LoginUser now returns the dtos.LoginUserResponse directly
+	loginResponse, err := h.authService.LoginUser(c.Context(), req.Email, req.Password)
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusUnauthorized, "Login failed", err)
 	}
 
-	if result.TwoFARequired {
-		return c.Status(fiber.StatusOK).JSON(dtos.LoginUserResponse{
-			Message:       "OTP sent to your email for 2FA verification.",
-			TwoFARequired: true,
-			User: dtos.UserResponse{
-				ID:           result.User.ID, // User field in LoginUserResponse is dtos.UserResponse
-				Email:        result.User.Email,
-				FirstName:    result.User.FirstName,
-				LastName:     result.User.LastName,
-				CompanyName:  result.User.CompanyName,
-				IsActive:     result.User.IsActive,
-				TwoFAEnabled: result.User.TwoFAEnabled,
-			},
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(dtos.LoginUserResponse{
-		User: dtos.UserResponse{
-			ID:           result.User.ID,
-			Email:        result.User.Email,
-			FirstName:    result.User.FirstName,
-			LastName:     result.User.LastName,
-			CompanyName:  result.User.CompanyName,
-			IsActive:     result.User.IsActive,
-			TwoFAEnabled: result.User.TwoFAEnabled,
-		},
-		AccessToken:          result.AccessToken,
-		RefreshToken:         result.RefreshToken,
-		Message:              "Login successful.",
-		TwoFARequired:        false,
-		AccessTokenExpiresAt: result.AccessTokenExpiresAt,
-	})
+	// loginResponse already contains all necessary fields including Role and RedirectPath
+	return c.Status(fiber.StatusOK).JSON(loginResponse)
 }
-
 func (h *AuthHandler) Verify2FA(c *fiber.Ctx) error {
 	var req dtos.VerifyOTPRequest
 	if err := c.BodyParser(&req); err != nil {

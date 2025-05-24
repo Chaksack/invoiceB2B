@@ -16,10 +16,10 @@ const otpChars = "0123456789"
 
 type OTPService interface {
 	GenerateAndStoreOTP(ctx context.Context, userID string) (string, error)
-	VerifyOTP(ctx context.Context, userID, otp string) (bool, error)
+	VerifyOTP(ctx context.Context, userID string, otp string) (bool, error)
 	DeleteOTP(ctx context.Context, userID string) error
-	BlacklistToken(ctx context.Context, token string, duration time.Duration) error
-	IsTokenBlacklisted(ctx context.Context, token string) (bool, error)
+	BlacklistToken(ctx context.Context, tokenStr string, expiry time.Duration) error // Added for Logout
+	IsTokenBlacklisted(ctx context.Context, tokenStr string) (bool, error)           // Added for RefreshToken
 }
 
 type otpService struct {

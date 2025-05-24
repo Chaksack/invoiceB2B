@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"invoiceB2B/internal/dtos"
 	"net/http"
 	"os"
 	"path/filepath" // Ensure filepath is imported
+	"strings"
 	"time"
 
 	"invoiceB2B/internal/config"
@@ -102,11 +104,27 @@ func main() {
 	transactionRepo := repositories.NewTransactionRepository(db)
 
 	activityLogSvc := services.NewActivityLogService(activityLogRepo)
-	authService := services.NewAuthService(userRepo, kycRepo, jwtService, emailService, otpService, notificationService, activityLogSvc, cfg)
+	authService := services.NewAuthService(userRepo, staffRepo, kycRepo, jwtService, emailService, otpService, notificationService, activityLogSvc, cfg)
 	userService := services.NewUserService(userRepo, kycRepo, activityLogSvc)
 	invoiceService := services.NewInvoiceService(invoiceRepo, userRepo, transactionRepo, fileService, notificationService, activityLogSvc, emailService, cfg)
-	adminService := services.NewAdminService(userRepo, kycRepo, staffRepo, invoiceRepo, transactionRepo, activityLogSvc, emailService, notificationService, fileService, cfg)
 	internalService := services.NewInternalService(invoiceRepo, activityLogSvc)
+
+	// Initialize AdminService (pass all dependencies, including staffRepo)
+	adminService := services.NewAdminService(
+		userRepo,
+		kycRepo,
+		staffRepo,
+		invoiceRepo,
+		transactionRepo,
+		activityLogSvc,
+		emailService,
+		nil,
+		fileService,
+		cfg,
+	)
+
+	// --- Create Superadmin User (if not exists) ---
+	createSuperAdminIfNotExists(adminService, cfg)
 
 	authHandler := handlers.NewAuthHandler(authService, customValidator.Validator)
 	userHandler := handlers.NewUserHandler(userService, customValidator.Validator)
@@ -219,5 +237,47 @@ func setupNuxtFrontendServers(app *fiber.App, projects []NuxtProjectConfig) {
 		log.Infof("Nuxt ('%s'): Serving static files from URLPath '%s' using filesystem root '%s'",
 			project.Name, project.URLPath, absDistPath)
 
+	}
+}
+
+// createSuperAdminIfNotExists function
+func createSuperAdminIfNotExists(adminService services.AdminService, cfg *config.Config) {
+	superAdminEmail := os.Getenv("SUPERADMIN_EMAIL")
+	superAdminPassword := os.Getenv("SUPERADMIN_PASSWORD")
+	superAdminFirstName := os.Getenv("SUPERADMIN_FIRSTNAME")
+	superAdminLastName := os.Getenv("SUPERADMIN_LASTNAME")
+	superAdminRole := "admin"
+
+	if superAdminEmail == "" || superAdminPassword == "" {
+		log.Info("Superadmin credentials (SUPERADMIN_EMAIL, SUPERADMIN_PASSWORD) not found in environment variables. Skipping superadmin creation.")
+		return
+	}
+	if superAdminFirstName == "" {
+		superAdminFirstName = "Super" // Default value
+	}
+	if superAdminLastName == "" {
+		superAdminLastName = "Admin" // Default value
+	}
+
+	// The CreateStaff service method already checks if the email exists.
+	// It returns an error if the staff member already exists.
+	superAdminReq := dtos.CreateStaffRequest{
+		Email:     superAdminEmail,
+		Password:  superAdminPassword, // This will be hashed by CreateStaff
+		FirstName: superAdminFirstName,
+		LastName:  superAdminLastName,
+		Role:      superAdminRole,
+	}
+
+	log.Infof("Attempting to create/verify superadmin: %s", superAdminEmail)
+	_, err := adminService.CreateStaff(context.Background(), superAdminReq)
+	if err != nil {
+		if strings.Contains(err.Error(), "staff with this email already exists") {
+			log.Infof("Superadmin with email %s already exists. No action taken.", superAdminEmail)
+		} else {
+			log.Infof("Failed to create superadmin %s: %v", superAdminEmail, err)
+		}
+	} else {
+		log.Infof("Superadmin %s created successfully with role %s.", superAdminEmail, superAdminRole)
 	}
 }
