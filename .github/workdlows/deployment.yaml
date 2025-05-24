@@ -1,0 +1,318 @@
+name: CI/CD with ECS Deployment & Approval
+
+on:
+  push:
+    branches:
+      - main # Or your default/production branch
+  pull_request:
+    branches:
+      - main # Or your default/production branch
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  id-token: write   # Required for AWS OIDC authentication
+  pull-requests: write # For SonarQube comments or PR labels
+
+jobs:
+  lint-and-test:
+    name: Lint, Test & Scan PR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required for SonarQube for full analysis history
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22' # Adjust to your project's Go version (e.g., 1.21, 1.22)
+
+      - name: Cache Go modules
+        uses: actions/cache@v4 # Updated to v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run linter
+        run: |
+          echo "INFO: Linting step placeholder. Replace with your actual linting commands."
+          # Example for golangci-lint:
+          # curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.57.2 # Or your desired version
+          # $(go env GOPATH)/bin/golangci-lint run ./...
+          exit 0 # Simulate success
+
+      - name: Run tests
+        run: |
+          echo "INFO: Testing step placeholder. Replace with your actual test commands."
+          # Example:
+          # go test -v -race -coverprofile=coverage.out ./...
+          exit 0 # Simulate success
+
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v2.0.0 # Pinned to a specific version
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          # SONAR_PROJECT_KEY: "your_project_key" # Optional: if not auto-detected
+          # SONAR_ORGANIZATION: "your_organization_key" # Optional: if needed for SonarCloud/SonarQube Enterprise
+
+      # Optional: Fail job if Quality Gate is red.
+      # - name: SonarQube Quality Gate check
+      #   uses: sonarsource/sonarqube-quality-gate-action@v1.0.0 # Pinned to a specific version
+      #   timeout-minutes: 5
+      #   env:
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #     SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }} # Only if using self-managed SonarQube
+
+  notify-pr-review-needed:
+    name: Notify PR Review Needed
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    steps:
+      - name: Get short SHA for PR head
+        id: short_sha_pr
+        run: echo "sha=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Send Slack Notification for PR Review
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "PR opened by `${{ github.actor }}` needs review: <${{ github.event.pull_request.html_url }}|#${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}>",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": { "type": "mrkdwn", "text": "👀 *Pull Request Needs Review*\nPR <${{ github.event.pull_request.html_url }}|#${{ github.event.pull_request.number }} \"${{ github.event.pull_request.title }}\"> by `${{ github.actor }}` is ready for review." }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    { "type": "mrkdwn", "text": "Repository: `${{ github.repository }}`" },
+                    { "type": "mrkdwn", "text": "Branch: `${{ github.event.pull_request.head.ref }}`" },
+                    { "type": "mrkdwn", "text": "Commit: `${{ steps.short_sha_pr.outputs.sha }}`" }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  build-and-push-api-to-ecr:
+    name: Build & Push API Image to ECR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [] # Runs independently on merge to main, branch protection rules should enforce PR checks
+    environment:
+      name: production # Configure this environment in GitHub Settings > Environments with required reviewers for approval
+      # URL to view the pushed image in ECR console
+      url: https://${{ secrets.AWS_REGION }}.console.aws.amazon.com/ecr/repositories/private/${{ steps.extract-account-id.outputs.account_id }}/${{ secrets.ECR_REPOSITORY_API }}/image/${{ steps.build-image.outputs.image_tag }}/details
+
+    outputs:
+      ecr_image_uri: ${{ steps.build-image.outputs.ecr_image_uri }}
+      image_tag: ${{ steps.build-image.outputs.image_tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }} # e.g., arn:aws:iam::123456789012:role/GitHubAction-ECRAccess
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Extract AWS Account ID from Role ARN
+        id: extract-account-id
+        run: |
+          ACCOUNT_ID=$(echo "${{ secrets.AWS_ROLE_TO_ASSUME }}" | cut -d':' -f5)
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+          if [ -z "$ACCOUNT_ID" ]; then
+            echo "Error: Could not parse AWS_ACCOUNT_ID from AWS_ROLE_TO_ASSUME."
+            exit 1
+          fi
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push API image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY_API: ${{ secrets.ECR_REPOSITORY_API }} # Your API ECR repository name
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          echo "Building API Docker image..."
+          # Assumes Dockerfile for API is at the root of the repo, as per your docker-compose.yml 'api' service
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_API:$IMAGE_TAG -f Dockerfile .
+          echo "Pushing API Docker image to ECR: $ECR_REGISTRY/$ECR_REPOSITORY_API:$IMAGE_TAG"
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_API:$IMAGE_TAG
+          echo "ecr_image_uri=$ECR_REGISTRY/$ECR_REPOSITORY_API:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "Successfully pushed $ECR_REGISTRY/$ECR_REPOSITORY_API:$IMAGE_TAG"
+
+  deploy-to-ecs:
+    name: Deploy to ECS
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-and-push-api-to-ecr # Depends on the API image being built and pushed
+    environment:
+      name: production # Uses the same environment, so approval for build-and-push covers this too.
+      # Or define a separate environment (e.g., 'ecs-deployment') if a distinct approval is needed here.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_ECS_DEPLOY }} # Specific IAM Role for ECS deployment
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Install/Check Docker ECS integration (Conceptual)
+        run: |
+          echo "Checking Docker version with ECS integration capability..."
+          docker version
+          # GitHub-hosted runners usually have a recent Docker version.
+          # For self-hosted, ensure Docker is up-to-date and includes ECS integration.
+          # If needed: curl -L https://raw.githubusercontent.com/docker/compose-cli/main/scripts/install/install_linux.sh | sh
+
+      - name: Prepare ECS-specific Docker Compose file
+        env:
+          API_IMAGE_URI: ${{ needs.build-and-push-api-to-ecr.outputs.ecr_image_uri }}
+          AWS_REGION_ENV: ${{ secrets.AWS_REGION }}
+          ECS_CLUSTER_NAME_ENV: ${{ secrets.ECS_CLUSTER_NAME }} # Define this secret
+          # Add other necessary env vars for templating your docker-compose.ecs.yml
+          # For example, RDS endpoints, ElastiCache endpoints, if using managed services.
+          # DB_USER_SECRET_ARN: ${{ secrets.DB_USER_SECRET_ARN }}
+          # DB_PASSWORD_SECRET_ARN: ${{ secrets.DB_PASSWORD_SECRET_ARN }}
+        run: |
+          echo "Preparing docker-compose.ecs.yml..."
+          # This is a CRITICAL step. You MUST adapt your local docker-compose.yml
+          # (from the 'docker_compose_sonarqube' artifact) for ECS.
+          #
+          # Key changes needed:
+          # 1. API Service:
+          #    - Replace 'build' with 'image: ${API_IMAGE_URI}'.
+          #    - Remove 'container_name'. ECS manages this.
+          #    - Remove local 'volumes' (e.g., './go.mod'). Source code should be in the image.
+          #    - Configuration: './config' volume needs rethinking. Bake into image, use ConfigMaps (via S3/Parameter Store), or AWS AppConfig.
+          #    - 'env_file: .env': Replace with ECS secrets (AWS Secrets Manager or SSM Parameter Store).
+          #    - 'logging': Configure 'awslogs' driver.
+          #
+          # 2. Stateful Services (postgres, redis, rabbitmq, n8n, sonarqube):
+          #    - OPTION A (Recommended for Production): Use AWS Managed Services (RDS, ElastiCache, Amazon MQ).
+          #      Remove these services from 'docker-compose.ecs.yml'.
+          #      Update 'api' and 'n8n' environment variables to point to these managed services (pass endpoints/credentials as secrets).
+          #    - OPTION B (Running as containers on ECS - more complex):
+          #      Keep service definitions but:
+          #        - Remove 'container_name'.
+          #        - Volumes ('postgres_data', 'redis_data', etc.): MUST be mapped to Amazon EFS for persistence.
+          #          Use 'x-aws-volumes' extension or define EFS mount points in task definitions.
+          #        - './uploads' for n8n: Use EFS or S3.
+          #        - Networking: Service discovery or ALB for inter-service communication (e.g., api -> postgres).
+          #        - Secrets: Use ECS secrets for passwords (e.g., RABBITMQ_DEFAULT_PASS).
+          #
+          # 3. N8N Configuration:
+          #    - 'GO_API_BASE_URL': Update to the 'api' service's ECS service discovery name or ALB DNS.
+          #
+          # 4. SonarQube Configuration (if on ECS):
+          #    - 'SONAR_JDBC_URL': Point to RDS or the ECS 'postgres' service discovery name.
+          #
+          # This script should dynamically create 'docker-compose.ecs.yml' using 'envsubst', 'sed', 'awk', 'yq',
+          # or a dedicated templating tool based on your chosen strategy.
+          # The example below is a VERY simplified placeholder.
+
+          cp docker-compose.yml docker-compose.ecs.yml # Start with a copy
+
+          # Example using sed to replace API image (very basic, adapt carefully):
+          # Note: secrets.ECR_REPOSITORY_API should be the name of the api service in docker-compose if different
+          sed -i "s|build:.*|image: ${API_IMAGE_URI}|g" docker-compose.ecs.yml
+          sed -i "/services:.*api:/,/^ *[^ ]/{/build:/d;}" docker-compose.ecs.yml # Attempt to remove build context for api
+          # Add more sed/awk/yq commands here to:
+          # - Remove container_name from all services
+          # - Configure awslogs driver for all services
+          # - Replace env_file with references to ECS secrets
+          # - Configure EFS volumes if running stateful services on ECS
+          # - Adjust depends_on if some services are now managed
+          # - Update N8N's GO_API_BASE_URL, SonarQube's SONAR_JDBC_URL
+
+          echo "--- Generated docker-compose.ecs.yml (Review Carefully) ---"
+          cat docker-compose.ecs.yml
+          echo "----------------------------------------------------------"
+          # IMPORTANT: Validate this generated file thoroughly.
+
+      - name: Deploy to ECS using Docker CLI
+        env:
+          COMPOSE_PROJECT_NAME: "myinvoiceapp" # Used by docker-compose to name resources in ECS/CloudFormation
+          # Ensure AWS_REGION and ECS_CLUSTER_NAME are available if not using --context
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECS_CLUSTER_NAME: ${{ secrets.ECS_CLUSTER_NAME }}
+        run: |
+          echo "Deploying services from docker-compose.ecs.yml to ECS cluster: ${ECS_CLUSTER_NAME}"
+          # Ensure your Docker CLI context is configured for ECS, or AWS credentials/region are set.
+          # This command will translate docker-compose.ecs.yml into CloudFormation and deploy/update services.
+          # Prerequisites:
+          # 1. An existing ECS Cluster (${{ secrets.ECS_CLUSTER_NAME }}).
+          # 2. IAM permissions for the assumed role to manage ECS, CloudFormation, ECR, IAM (for task roles), ELB, etc.
+          # 3. VPC, subnets, security groups configured.
+          # 4. (Optional but recommended) An Application Load Balancer (ALB) for services like 'api', 'n8n', 'sonarqube'.
+          #    The `docker ecs compose` command can help set this up if configured in the compose file using x-aws extensions.
+
+          # Example command (ensure your Docker context is set to your ECS cluster or use explicit params):
+          # docker context use your-ecs-context-name # If you have one pre-configured
+          # docker ecs compose -f docker-compose.ecs.yml --project-name ${COMPOSE_PROJECT_NAME} up
+
+          # Or, if not using a pre-set context and relying on env vars for AWS CLI:
+          docker ecs compose --cluster ${ECS_CLUSTER_NAME} --aws-region ${AWS_REGION} \
+            -f docker-compose.ecs.yml \
+            --project-name ${COMPOSE_PROJECT_NAME} up
+
+          # Note: `docker ecs compose up` can take time as it provisions/updates CloudFormation stacks.
+          # Add `--debug` for more verbose output if troubleshooting.
+          echo "ECS deployment initiated. Monitor progress in AWS Console (ECS & CloudFormation)."
+
+  notify-deployment-status:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build-and-push-api-to-ecr, deploy-to-ecs] # Depends on both build and deploy jobs
+    steps:
+      - name: Get short SHA for main push
+        id: short_sha_main
+        run: echo "sha=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Send Slack Notification for Deployment Status
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "${{ needs.deploy-to-ecs.result == 'success' && '✅ ECS Deployment Successful' || (needs.build-and-push-api-to-ecr.result != 'success' && '❌ API Image Build/Push Failed' || '❌ ECS Deployment Failed') }} for `${{ github.repository }}`",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ needs.deploy-to-ecs.result == 'success' && '✅ *ECS Deployment Successful*' || (needs.build-and-push-api-to-ecr.result != 'success' && '❌ *API Image Build/Push Failed*' || '❌ *ECS Deployment Failed*') }}\nRepository: `${{ github.repository }}`\nBranch: `${{ github.ref_name }}`"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    { "type": "mrkdwn", "text": "Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|`${{ steps.short_sha_main.outputs.sha }}`>" },
+                    { "type": "mrkdwn", "text": "Triggered by: `${{ github.actor }}`" },
+                    { "type": "mrkdwn", "text": "API ECR Image: `${{ needs.build-and-push-api-to-ecr.outputs.ecr_image_uri || 'N/A' }}`" },
+                    { "type": "mrkdwn", "text": "Workflow Run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>" }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

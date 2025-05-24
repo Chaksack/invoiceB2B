@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath" // Ensure filepath is imported
 	"time"
 
 	"invoiceB2B/internal/config"
@@ -16,24 +17,22 @@ import (
 	"invoiceB2B/internal/routes"
 	"invoiceB2B/internal/services"
 	"invoiceB2B/internal/utils"
-	"path/filepath"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/log"
+	"github.com/gofiber/fiber/v2/log" // Use Fiber's logger
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
-	"github.com/gofiber/fiber/v2/middleware/logger"
+	flogger "github.com/gofiber/fiber/v2/middleware/logger" // Alias Fiber's logger middleware
 )
 
 type NuxtProjectConfig struct {
 	Name     string
 	URLPath  string
-	DistPath string
+	DistPath string // Should be relative to the application's working directory, e.g., "./client/dist"
 }
 
 func main() {
-	// Load configuration
 	cfg, err := config.LoadConfig(".")
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
@@ -53,32 +52,22 @@ func main() {
 		}
 	}
 
-	// Initialize Validator
 	customValidator := utils.NewCustomValidator()
-
-	// Initialize Database
 	db, err := database.ConnectDB(cfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	log.Info("Database connected successfully.")
 
-	// Auto-migrate schema
-	log.Info("Running database migrations...")
 	err = db.AutoMigrate(
-		&models.User{},
-		&models.Staff{},
-		&models.KYCDetail{},
-		&models.Invoice{},
-		&models.Transaction{},
-		&models.ActivityLog{},
+		&models.User{}, &models.Staff{}, &models.KYCDetail{},
+		&models.Invoice{}, &models.Transaction{}, &models.ActivityLog{},
 	)
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 	log.Info("Database migrations completed.")
 
-	// Initialize Redis
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.RedisAddr,
 		Password: cfg.RedisPassword,
@@ -90,15 +79,14 @@ func main() {
 	}
 	log.Info("Redis connected successfully.")
 
-	// Initialize Notification Service (RabbitMQ)
 	notificationService, err := services.NewNotificationService(cfg)
 	if err != nil {
-		// Depending on how critical RabbitMQ is at startup,
-		// you might log a warning and continue, or terminate.
 		log.Infof("Warning: Failed to initialize Notification Service (RabbitMQ): %v. Some event notifications might not work.", err)
 	} else {
 		log.Info("Notification Service (RabbitMQ) initialized.")
-		defer notificationService.Close()
+		if notificationService != nil { // Ensure service is not nil before deferring Close
+			defer notificationService.Close()
+		}
 	}
 
 	jwtService := services.NewJWTService(cfg)
@@ -118,7 +106,7 @@ func main() {
 	userService := services.NewUserService(userRepo, kycRepo, activityLogSvc)
 	invoiceService := services.NewInvoiceService(invoiceRepo, userRepo, transactionRepo, fileService, notificationService, activityLogSvc, emailService, cfg)
 	adminService := services.NewAdminService(userRepo, kycRepo, staffRepo, invoiceRepo, transactionRepo, activityLogSvc, emailService, notificationService, fileService, cfg)
-	internalService := services.NewInternalService(invoiceRepo, activityLogSvc) // New InternalService
+	internalService := services.NewInternalService(invoiceRepo, activityLogSvc)
 
 	authHandler := handlers.NewAuthHandler(authService, customValidator.Validator)
 	userHandler := handlers.NewUserHandler(userService, customValidator.Validator)
@@ -126,30 +114,26 @@ func main() {
 	adminHandler := handlers.NewAdminHandler(adminService, fileService, customValidator.Validator)
 	internalHandler := handlers.NewInternalHandler(internalService, customValidator.Validator)
 
-	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
 		ErrorHandler: utils.GlobalErrorHandler,
 	})
 
-	// Configuration for Nuxt projects
 	nuxtProjects := []NuxtProjectConfig{
 		{Name: "Dashboard", URLPath: "/", DistPath: "./client/dist"},
 	}
 	setupNuxtFrontendServers(app, nuxtProjects)
 
-	// Middleware
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS",
 	}))
-	app.Use(logger.New(logger.Config{
+	app.Use(flogger.New(flogger.Config{
 		Format:     "[${time}] ${ip} ${status} - ${latency} ${method} ${path} ${error}\n",
 		TimeFormat: "02-Jan-2006 15:04:05",
 		TimeZone:   "Local",
 	}))
 
-	// JWT Middleware instance
 	authMiddleware := middleware.NewAuthMiddleware(jwtService)
 	adminMiddleware := middleware.NewAdminMiddleware(staffRepo)
 	internalApiMiddleware := middleware.NewInternalAPIMiddleware(cfg.InternalAPIKey)
@@ -185,19 +169,55 @@ func main() {
 
 func setupNuxtFrontendServers(app *fiber.App, projects []NuxtProjectConfig) {
 	for _, project := range projects {
-		distPath := project.DistPath
-		if _, err := os.Stat(distPath); os.IsNotExist(err) {
-			log.Warnf("Nuxt.js distribution path for '%s' not found at '%s'. This app will not be served.", project.Name, distPath)
+		relativeDistPath := project.DistPath // e.g., "./client/dist"
+
+		absDistPath, err := filepath.Abs(relativeDistPath)
+		if err != nil {
+			log.Errorf("Nuxt ('%s'): Error getting absolute path for DistPath '%s': %v", project.Name, relativeDistPath, err)
 			continue
 		}
+		log.Infof("Nuxt ('%s'): project.URLPath='%s', relativeDistPath='%s', absoluteDistPathForStat='%s'",
+			project.Name, project.URLPath, relativeDistPath, absDistPath)
 
-		// Serve the static files for the Nuxt project
+		if _, err := os.Stat(absDistPath); os.IsNotExist(err) {
+			log.Warnf("Nuxt ('%s'): Distribution DIRECTORY NOT FOUND at absolute path: '%s' (from relative '%s'). This Nuxt app will not be served.",
+				project.Name, absDistPath, relativeDistPath)
+			continue
+		} else if err != nil {
+			log.Warnf("Nuxt ('%s'): Error stating distribution DIRECTORY at absolute path: '%s': %v. This Nuxt app will not be served.",
+				project.Name, absDistPath, err)
+			continue
+		}
+		log.Infof("Nuxt ('%s'): Distribution DIRECTORY found at absolute path: '%s'", project.Name, absDistPath)
+
+		// Specific handler for "/" if project.URLPath is "/"
+		if project.URLPath == "/" {
+			app.Get("/", func(c *fiber.Ctx) error {
+				// Construct absolute path to index.html
+				absIndexPath := filepath.Join(absDistPath, "index.html")
+				log.Infof("Nuxt ('%s') - GET / handler: Checking for index.html at absolute path '%s'", project.Name, absIndexPath)
+
+				if _, err := os.Stat(absIndexPath); os.IsNotExist(err) {
+					log.Errorf("Nuxt ('%s') - GET / handler: index.html NOT FOUND by os.Stat at absolute path '%s'", project.Name, absIndexPath)
+					return c.Status(fiber.StatusNotFound).SendString(fmt.Sprintf("index.html not found by debug handler (abs path: %s)", absIndexPath))
+				} else if err != nil {
+					log.Errorf("Nuxt ('%s') - GET / handler: Error stating index.html at absolute path '%s': %v", project.Name, absIndexPath, err)
+					return c.Status(fiber.StatusInternalServerError).SendString("Error checking for index.html")
+				}
+				log.Infof("Nuxt ('%s') - GET / handler: Attempting to serve index.html from absolute path '%s'", project.Name, absIndexPath)
+				return c.SendFile(absIndexPath)
+			})
+		}
+
+		// General static file serving
 		app.Use(project.URLPath, filesystem.New(filesystem.Config{
-			Root:         http.Dir(distPath),
+			Root:         http.Dir(absDistPath), // http.Dir needs a valid filesystem path
 			Browse:       false,
-			Index:        "index.html",
-			NotFoundFile: filepath.Join(distPath, "index.html"),
+			Index:        "index.html",                             // Relative to Root
+			NotFoundFile: filepath.Join(absDistPath, "index.html"), // Absolute path for robustness
 		}))
-		log.Infof("Serving Nuxt app '%s' from URL path '%s' using directory '%s'", project.Name, project.URLPath, distPath)
+		log.Infof("Nuxt ('%s'): Serving static files from URLPath '%s' using filesystem root '%s'",
+			project.Name, project.URLPath, absDistPath)
+
 	}
 }

@@ -1,30 +1,41 @@
-# Stage 1: Build the Go application
-FROM golang:1.21-alpine AS builder
+FROM node:18-alpine AS nuxt-builder
+
+WORKDIR /client
+
+COPY client/package*.json ./
+RUN npm install
+
+COPY client/ .
+
+RUN npm run generate
+
+RUN echo "--- Contents of /client/.output/public/ after Nuxt build ---" && \
+    ls -lA /client/.output/public/ && \
+    echo "--- End of /client/.output/public/ contents ---"
+
+FROM golang:1.23-alpine AS go-builder
 
 WORKDIR /app
 
-# Install git for private repositories if needed
-# RUN apk add --no-cache git
+RUN apk update && apk add --no-cache sqlite build-base
 
-# Copy go.mod and go.sum first to leverage Docker cache
+RUN go install github.com/air-verse/air@latest
+
+ENV CGO_ENABLED=1
+
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-# Build the application for the cmd/api service
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/api_server ./cmd/api/main.go
+COPY --from=nuxt-builder /client/.output/public ./client/dist
 
-# Stage 2: Create the final small image
-FROM alpine:latest
+RUN echo "--- Contents of /app/client/dist/ after COPY ---" && \
+    ls -lA /app/client/dist/ && \
+    echo "--- End of /app/client/dist/ contents ---"
 
-WORKDIR /app
 
-# Copy the built binary from the builder stage
-COPY --from=builder /app/api_server .
 
-# Expose the port the app runs on
 EXPOSE 3000
 
-# Command to run the application
-CMD ["./api_server"]
+CMD ["air", "-c", ".air.toml"]
