@@ -4,9 +4,7 @@ const loading  = ref(false);
 
 <template>
   <div>
-    <ViewsNavMenu />
-    <LazyViewsPublicHome />
-    <ViewsNavFooter />
+    <LazyViewsAuthLogin />
   </div>
 
 </template>
