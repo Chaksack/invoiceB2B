@@ -1,30 +1,30 @@
 {
-  "name": "Invoice Processing Workflow",
+  "name": "Invoice Processing",
   "nodes": [
     {
       "parameters": {
         "queue": "invoice_processing_queue",
         "options": {
+          "assertQueue": true,
+          "acknowledge": "executionFinishesSuccessfully",
           "durable": true,
-          "jsonParseBody": "={{ true }}",
-          "prefetchCount": 1,
-          "acknowledge": "executionFinishesSuccessfully"
+          "jsonParseBody": "={{ true }}"
         }
       },
       "name": "RabbitMQ Trigger",
       "type": "n8n-nodes-base.rabbitmqTrigger",
       "typeVersion": 1,
       "position": [
-        450,
-        300
+        -600,
+        200
       ],
+      "id": "4ca604bb-d2eb-410c-8ff8-60601c475989",
       "credentials": {
         "rabbitmq": {
           "id": "QrnXtBE9e8nl6KRj",
           "name": "LocalAppRabbitMQ"
         }
-      },
-      "id": "e6f4b2b1-1b2f-4c3d-8a8e-9f0d1b2c3d4e"
+      }
     },
     {
       "parameters": {
@@ -33,39 +33,39 @@
           "string": [
             {
               "name": "invoiceId",
-              "value": "={{ $json.body[0].content.invoice_id }}"
+              "value": "={{ $json.content.invoice_id }}"
             },
             {
               "name": "userId",
-              "value": "={{ $json.body[0].content.user_id }}"
+              "value": "={{ $json.content.user_id }}"
             },
             {
               "name": "relativeFilePath",
-              "value": "={{ $json.body[0].content.file_path }}"
+              "value": "={{ $json.content.file_path }}"
             },
             {
               "name": "originalFilename",
-              "value": "={{ $json.body[0].content.original_filename }}"
+              "value": "={{ $json.content.original_filename }}"
             },
             {
               "name": "absoluteFilePath",
-              "value": "={{ '/mnt/invoice_uploads/' + $json.body[0].content.file_path }}"
+              "value": "={{ '/mnt/invoice_uploads/' + $json.content.file_path }}"
             },
             {
               "name": "fileExtension",
-              "value": "={{ $json.body[0].content.original_filename.split('.').pop().toLowerCase() }}"
+              "value": "={{ $json.content.original_filename.split('.').pop().toLowerCase() }}"
             },
             {
               "name": "companyName",
-              "value": "={{ $json.body[0].content.company_name }}"
+              "value": "={{ $json.content.company_name }}"
             },
             {
-              "name": "uploadedAt",
-              "value": "={{ $json.body[0].content.uploaded_at }}"
+              "name": "uploadedAT",
+              "value": "={{ $json.content.uploaded_at }}"
             },
             {
               "name": "userEmail",
-              "value": "={{ $json.body[0].content.user_email }}"
+              "value": "={{ $json.content.user_email }}"
             }
           ]
         },
@@ -75,27 +75,27 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 1,
       "position": [
-        650,
-        300
+        -400,
+        200
       ],
-      "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+      "id": "31f83e26-c337-427b-8320-00b0bddf4207"
     },
     {
       "parameters": {
-        "dataPropertyName": "={{ $json.fileExtension }}",
-        "conditions": {
-          "string": [
+        "dataType": "string",
+        "rules": {
+          "rules": [
             {
-              "value1": "pdf",
-              "operation": "equal"
+              "value2": "pdf"
             },
             {
-              "value1": "csv",
-              "operation": "equal"
+              "value2": "csv",
+              "output": 1
             },
             {
-              "value1": "^(jpeg|jpg|png)$",
-              "operation": "regex"
+              "operation": "notRegex",
+              "value2": "jpeg|jpg|png",
+              "output": 2
             }
           ]
         }
@@ -104,24 +104,23 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 1,
       "position": [
-        850,
-        300
+        -200,
+        200
       ],
-      "id": "b2c3d4e5-f6a7-8901-2345-678901bcdef0"
+      "id": "31c1aac6-d56f-437e-ac1d-d14db8d921b4"
     },
     {
       "parameters": {
-        "filePath": "={{ $json.absoluteFilePath }}",
-        "options": {}
+        "filePath": "={{ $json.absoluteFilePath }}"
       },
       "name": "Read PDF File",
       "type": "n8n-nodes-base.readBinaryFile",
       "typeVersion": 1,
       "position": [
-        1050,
-        100
+        0,
+        0
       ],
-      "id": "c3d4e5f6-a7b8-9012-3456-789012cdef01"
+      "id": "4c31b9b4-6ba6-45a6-b8aa-02a1ce629563"
     },
     {
       "parameters": {
@@ -131,10 +130,10 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        1250,
-        100
+        200,
+        0
       ],
-      "id": "d4e5f6a7-b8c9-0123-4567-890123def012"
+      "id": "7d87d0fe-6a5e-4803-a720-4171b8905554"
     },
     {
       "parameters": {
@@ -144,28 +143,10 @@
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
       "position": [
-        1450,
-        100
+        400,
+        0
       ],
-      "id": "e5f6a7b8-c9d0-1234-5678-901234ef0123"
-    },
-    {
-      "parameters": {
-        "filePath": "={{ $json.absoluteFilePath }}",
-        "options": {
-          "fileFormat": "csv",
-          "hasHeader": true,
-          "delimiter": ","
-        }
-      },
-      "name": "Parse CSV File",
-      "type": "n8n-nodes-base.spreadsheetFile",
-      "typeVersion": 1.1,
-      "position": [
-        1050,
-        300
-      ],
-      "id": "f6a7b8c9-d0e1-2345-6789-012345f01234"
+      "id": "7bc0d250-998e-4061-b401-e76dc17f2c13"
     },
     {
       "parameters": {
@@ -175,24 +156,23 @@
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
       "position": [
-        1250,
-        300
+        200,
+        200
       ],
-      "id": "a7b8c9d0-e1f2-3456-7890-123456012345"
+      "id": "b6473ce4-f51c-423f-9589-cc3dd78e073b"
     },
     {
       "parameters": {
-        "filePath": "={{ $json.absoluteFilePath }}",
-        "options": {}
+        "filePath": "={{ $json.absoluteFilePath }}"
       },
       "name": "Read Image File",
       "type": "n8n-nodes-base.readBinaryFile",
       "typeVersion": 1,
       "position": [
-        1050,
-        500
+        0,
+        400
       ],
-      "id": "b8c9d0e1-f2a3-4567-8901-234567123456"
+      "id": "87a5f526-26e2-497a-a62b-b6019168326a"
     },
     {
       "parameters": {
@@ -202,10 +182,10 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        1250,
-        500
+        200,
+        400
       ],
-      "id": "c9d0e1f2-a3b4-5678-9012-345678234567"
+      "id": "f48f930e-4d27-4426-9fa7-d7aee22ae1db"
     },
     {
       "parameters": {
@@ -215,10 +195,10 @@
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
       "position": [
-        1450,
-        500
+        400,
+        400
       ],
-      "id": "d0e1f2a3-b4c5-6789-0123-456789345678"
+      "id": "18c92ddc-f938-4edb-9d3b-fd852489b386"
     },
     {
       "parameters": {},
@@ -226,10 +206,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1650,
-        300
+        600,
+        200
       ],
-      "id": "e1f2a3b4-c5d6-7890-1234-567890456789"
+      "id": "7dcdcfcf-613f-4f9f-8d28-fc4797dea255"
     },
     {
       "parameters": {
@@ -291,33 +271,25 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 1,
       "position": [
-        1850,
-        300
+        800,
+        200
       ],
-      "id": "f2a3b4c5-d6e7-8901-2345-678901567890"
+      "id": "026c7253-72e7-44eb-b374-4f8174fcbe58"
     },
     {
       "parameters": {
         "url": "={{ $env.GO_API_BASE_URL }}/internal/invoices/{{ $json.invoiceId }}/processed-data",
         "authentication": "headerAuth",
-        "requestMethod": "PUT",
-        "jsonBody": "={{ JSON.stringify({\n  \"jsonData\": $json.jsonDataString,\n  \"extractedInvoiceNumber\": $json.extractedInvoiceNumber,\n  \"extractedAmount\": $json.extractedAmount || null,\n  \"extractedCurrency\": $json.extractedCurrency,\n  \"extractedDueDate\": $json.extractedDueDate,\n  \"extractedDebtorName\": $json.extractedDebtorName,\n  \"extractedIssuerName\": $json.extractedIssuerName,\n  \"extractedIssuerBankAccount\": $json.extractedIssuerBankAccount,\n  \"extractedIssuerBankName\": $json.extractedIssuerBankName,\n  \"processingError\": null, // Success path\n  \"newStatus\": $json.newStatus\n}) }}",
         "options": {}
       },
       "name": "HTTP - Update Go API (Success)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
       "position": [
-        2050,
-        300
+        1000,
+        200
       ],
-      "credentials": {
-        "headerAuth": {
-          "id": "6ryrt52wvkOo0bGh",
-          "name": "GoAppInternalAPIKey"
-        }
-      },
-      "id": "a3b4c5d6-e7f8-9012-3456-789012678901"
+      "id": "a7351897-e7c8-475d-9db8-9b1d38cf6646"
     },
     {
       "parameters": {
@@ -344,35 +316,55 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 1,
       "position": [
-        1250,
-        700
+        200,
+        600
       ],
-      "id": "b4c5d6e7-f8a9-0123-4567-890123789012"
+      "id": "4324f22a-403b-4263-a424-bb4db0de0c4c"
     },
     {
       "parameters": {
         "url": "={{ $env.GO_API_BASE_URL }}/internal/invoices/{{ $json.invoiceId }}/processed-data",
-        "authentication": "headerAuth",
-        "requestMethod": "PUT",
-        "jsonBody": "={{ JSON.stringify({\n  \"processingError\": $json.errorMessage,\n  \"newStatus\": \"processing_failed\"\n}) }}",
         "options": {}
       },
       "name": "HTTP - Update Go API (Error)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
       "position": [
-        1450,
-        700
+        400,
+        600
       ],
-      "credentials": {
-        "headerAuth": {
-          "id": "GoAppInternalAPIKey",
-          "name": "GoAppInternalAPIKey"
-        }
+      "id": "57acd60a-aabf-44f8-a121-da5f6c1a2ba5"
+    },
+    {
+      "parameters": {
+        "resource": "spreadsheet",
+        "title": "invoice",
+        "sheetsUi": {
+          "sheetValues": [
+            {
+              "title": "1"
+            }
+          ]
+        },
+        "options": {}
       },
-      "id": "c5d6e7f8-a9b0-1234-5678-901234890123"
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        0,
+        200
+      ],
+      "id": "865c1e3f-5252-4523-b1cf-e84facf27290",
+      "name": "Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "tzaAe8wQROYWROYI",
+          "name": "Google Sheets account"
+        }
+      }
     }
   ],
+  "pinData": {},
   "connections": {
     "RabbitMQ Trigger": {
       "main": [
@@ -407,23 +399,16 @@
         ],
         [
           {
-            "node": "Parse CSV File",
+            "node": "Google Sheets",
             "type": "main",
-            "index": 1
+            "index": 0
           }
         ],
         [
           {
             "node": "Read Image File",
             "type": "main",
-            "index": 2
-          }
-        ],
-        [
-          {
-            "node": "Set - Error Details",
-            "type": "main",
-            "index": 3
+            "index": 0
           }
         ]
       ]
@@ -446,11 +431,7 @@
             "node": "Function - Extract PDF Data",
             "type": "main",
             "index": 0
-          }
-        ]
-      ],
-      "error": [
-        [
+          },
           {
             "node": "Set - Error Details",
             "type": "main",
@@ -464,17 +445,6 @@
         [
           {
             "node": "Merge Success",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse CSV File": {
-      "main": [
-        [
-          {
-            "node": "Function - Map CSV Data",
             "type": "main",
             "index": 0
           }
@@ -510,11 +480,7 @@
             "node": "Function - Extract OCR Data",
             "type": "main",
             "index": 0
-          }
-        ]
-      ],
-      "error": [
-        [
+          },
           {
             "node": "Set - Error Details",
             "type": "main",
@@ -557,7 +523,7 @@
       ]
     },
     "HTTP - Update Go API (Success)": {
-      "error": [
+      "main": [
         [
           {
             "node": "Set - Error Details",
@@ -577,11 +543,28 @@
           }
         ]
       ]
+    },
+    "Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Function - Map CSV Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1"
   },
-  "id": "workflow_invoice_processing_12345"
+  "versionId": "6a66e05f-37c8-4657-8693-93540a379442",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b2f4a68af9a00c3b1e8de80e090a4b1d068c3ac5e3dfbc626a0a9fbdc3dbf927"
+  },
+  "id": "Xm4pcA1VJPaKsWmt",
+  "tags": []
 }

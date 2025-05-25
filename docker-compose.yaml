@@ -12,6 +12,8 @@ services:
       - ./main.go:/app/main.go
       - ./internal:/app/internal
       - ./config:/app/config
+      - ./uploads:/mnt/invoice_uploads
+
     depends_on:
       - postgres
       - redis

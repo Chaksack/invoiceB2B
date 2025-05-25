@@ -132,6 +132,7 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, userID uint, req dto
 		log.Printf("Error saving invoice file for user %d: %v", userID, err)
 		return nil, fmt.Errorf("failed to save invoice file: %w", err)
 	}
+	log.Printf("Invoice file saved: relativePath=%s, originalFileName=%s", relativePath, originalFileName)
 
 	now := time.Now()
 	invoice := &models.Invoice{
