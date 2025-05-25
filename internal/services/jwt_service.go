@@ -13,6 +13,8 @@ import (
 type JWTService interface {
 	GenerateAccessToken(user *models.User) (string, time.Time, error)
 	GenerateRefreshToken(user *models.User) (string, time.Time, error)
+	GenerateAccessTokenForStaff(staff *models.Staff) (string, time.Time, error)
+	GenerateRefreshTokenForStaff(staff *models.Staff) (string, time.Time, error)
 	ValidateToken(tokenString string, isRefreshToken bool) (jwt.MapClaims, error)
 }
 
@@ -55,6 +57,40 @@ func (s *jwtService) generateToken(user *models.User, expirationTime time.Durati
 		return "", time.Time{}, fmt.Errorf("failed to sign token: %w", err)
 	}
 	return tokenString, expiration, nil
+}
+
+func (s *jwtService) generateTokenForStaff(staff *models.Staff, expirationTime time.Duration, isRefreshToken bool) (string, time.Time, error) {
+	expiration := time.Now().Add(expirationTime)
+	claims := &Claims{
+		UserID: strconv.FormatUint(uint64(staff.ID), 10),
+		Email:  staff.Email,
+		Role:   "staff",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expiration),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "invoice-financing-app",
+		},
+	}
+	if isRefreshToken {
+		claims.RegisteredClaims.Subject = "refresh_token"
+	} else {
+		claims.RegisteredClaims.Subject = "access_token"
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(s.cfg.JWTSecret))
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("failed to sign token: %w", err)
+	}
+	return tokenString, expiration, nil
+}
+
+func (s *jwtService) GenerateAccessTokenForStaff(staff *models.Staff) (string, time.Time, error) {
+	return s.generateTokenForStaff(staff, s.cfg.JWTAccessTokenExpirationMinutes, false)
+}
+
+func (s *jwtService) GenerateRefreshTokenForStaff(staff *models.Staff) (string, time.Time, error) {
+	return s.generateTokenForStaff(staff, s.cfg.JWTRefreshTokenExpirationDays, true)
 }
 
 func (s *jwtService) GenerateAccessToken(user *models.User) (string, time.Time, error) {

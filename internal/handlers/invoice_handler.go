@@ -43,7 +43,7 @@ func (h *InvoiceHandler) UploadInvoice(c *fiber.Ctx) error {
 		".pdf": true, ".csv": true,
 		".jpeg": true, ".jpg": true, ".png": true,
 	}
-	ext := strings.ToLower(filepath.Ext(file.Filename)) // Use ToLower for case-insensitivity
+	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if !allowedExtensions[ext] {
 		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid file type. Allowed: PDF, CSV, JPEG, JPG, PNG.", nil)
 	}
@@ -61,7 +61,6 @@ func (h *InvoiceHandler) UploadInvoice(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(invoiceResponse)
 }
 
-// ... (rest of invoice_handler.go methods remain the same)
 func (h *InvoiceHandler) GetUserInvoices(c *fiber.Ctx) error {
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	userIDStr := claims["user_id"].(string)

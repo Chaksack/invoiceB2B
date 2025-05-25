@@ -101,28 +101,55 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, userID uint, req dto
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
+
+	// --- START DEBUG LOGS --- (Can be removed after confirming fix)
+	log.Printf("CreateInvoice DEBUG: For UserID %d:", userID)
+	if user.KYCDetail == nil {
+		log.Printf("CreateInvoice DEBUG: user.KYCDetail IS NIL.")
+	} else {
+		log.Printf("CreateInvoice DEBUG: user.KYCDetail.ID is '%d', user.KYCDetail.Status is '%s'. models.KYCApproved is '%s'.", user.KYCDetail.ID, user.KYCDetail.Status, models.KYCApproved)
+		log.Printf("CreateInvoice DEBUG: Is user.KYCDetail.Status == models.KYCApproved? %t", user.KYCDetail.Status == models.KYCApproved)
+	}
+	// --- END DEBUG LOGS ---
+
 	if user.KYCDetail == nil || user.KYCDetail.Status != models.KYCApproved {
+		log.Printf("CreateInvoice INFO: KYC check failed for UserID %d. KYCDetail present: %t. Status from DB: '%s'. Expected status: '%s'.",
+			userID,
+			user.KYCDetail != nil,
+			func() string {
+				if user.KYCDetail != nil {
+					return string(user.KYCDetail.Status)
+				}
+				return "N/A"
+			}(),
+			models.KYCApproved)
 		return nil, ErrKYCNotApprovedForInvoiceUpload
 	}
 
-	relativePath, originalFileName, err := s.fileService.SaveFile(req.File, "invoices") // Get originalFileName too
+	// Assuming req.File is of type *multipart.FileHeader or compatible with fileService.SaveFile
+	relativePath, originalFileName, err := s.fileService.SaveFile(req.File, "invoices")
 	if err != nil {
 		log.Printf("Error saving invoice file for user %d: %v", userID, err)
 		return nil, fmt.Errorf("failed to save invoice file: %w", err)
 	}
+	log.Printf("Invoice file saved: relativePath=%s, originalFileName=%s", relativePath, originalFileName)
 
 	now := time.Now()
 	invoice := &models.Invoice{
 		UserID:           userID,
-		Status:           models.InvoicePendingReview,
+		Status:           models.InvoicePendingReview, // Ensure models.InvoicePendingReview is defined
 		OriginalFilePath: relativePath,
 		UploadedAt:       now,
-		// InvoiceNumber will be set by the async worker or based on filename initially
-		InvoiceNumber: originalFileName, // Or a generated one
+		InvoiceNumber:    originalFileName, // Or a generated one
+		JSONData:         "{}",             // Corrected: Initialize with an empty JSON object string
+		// Initialize other nullable fields to their zero values or specific defaults if needed
+		// GORM handles zero values for basic types (0 for float64, "" for string, nil for *time.Time)
+		// which will translate to NULL in the DB if the column is nullable.
 	}
 
 	if err := s.invoiceRepo.Create(ctx, invoice); err != nil {
-		log.Printf("Error creating invoice record for user %d: %v", userID, err)
+		// The log from the repository might be more specific, but this adds service-level context.
+		log.Printf("Error creating invoice record in service for user %d, file %s: %v", userID, originalFileName, err)
 		return nil, fmt.Errorf("failed to create invoice record: %w", err)
 	}
 
@@ -131,23 +158,27 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, userID uint, req dto
 		subject := "Invoice Submission Confirmation"
 		body := fmt.Sprintf("Hi %s,\n\nYour invoice '%s' (ID: %d) has been successfully submitted and is pending review.\n\nThanks,\nThe Team",
 			user.FirstName, originalFileName, invoice.ID)
-		if emailErr := s.emailService.SendEmail(user.Email, subject, body); emailErr != nil {
-			log.Printf("Failed to send invoice submission confirmation email to %s for invoice %d: %v", user.Email, invoice.ID, emailErr)
+		if s.emailService != nil { // Check if emailService is initialized
+			if emailErr := s.emailService.SendEmail(user.Email, subject, body); emailErr != nil {
+				log.Printf("Failed to send invoice submission confirmation email to %s for invoice %d: %v", user.Email, invoice.ID, emailErr)
+			}
+		} else {
+			log.Println("EmailService is not initialized, skipping invoice submission email.")
 		}
 	}()
 
 	eventPayload := map[string]interface{}{
 		"invoice_id":        invoice.ID,
 		"user_id":           userID,
-		"user_email":        user.Email,       // For admin notification context
-		"company_name":      user.CompanyName, // For admin notification context
+		"user_email":        user.Email,
+		"company_name":      user.CompanyName,
 		"file_path":         relativePath,
-		"original_filename": req.File.Filename,
+		"original_filename": originalFileName, // Use the filename obtained from SaveFile
 		"uploaded_at":       invoice.UploadedAt.Format(time.RFC3339),
 	}
-	if s.notificationSvc != nil {
+	if s.notificationSvc != nil { // Check if notificationSvc is initialized
 		err = s.notificationSvc.PublishEvent(
-			s.cfg.RabbitMQEventExchangeName,
+			s.cfg.RabbitMQEventExchangeName, // Ensure cfg fields are correct
 			s.cfg.RabbitMQInvoiceUploadedRoutingKey,
 			eventPayload,
 		)
@@ -156,10 +187,16 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, userID uint, req dto
 		} else {
 			log.Printf("Published invoice.uploaded event for admin notification: Invoice ID %d", invoice.ID)
 		}
+	} else {
+		log.Println("NotificationService is not initialized, skipping invoice.uploaded event.")
 	}
 
-	_ = s.activityLogSvc.LogActivity(ctx, nil, &userID, "INVOICE_UPLOADED",
-		map[string]interface{}{"invoice_id": invoice.ID, "filename": req.File.Filename}, "")
+	if s.activityLogSvc != nil { // Check if activityLogSvc is initialized
+		_ = s.activityLogSvc.LogActivity(ctx, nil, &userID, "INVOICE_UPLOADED",
+			map[string]interface{}{"invoice_id": invoice.ID, "filename": originalFileName}, "")
+	} else {
+		log.Println("ActivityLogService is not initialized, skipping INVOICE_UPLOADED log.")
+	}
 
 	resp := mapInvoiceToResponse(invoice)
 	return &resp, nil
@@ -203,6 +240,11 @@ func (s *invoiceService) GetReceiptPathForUser(ctx context.Context, invoiceID, u
 		return "", "", ErrReceiptNotFound
 	}
 
+	// Ensure fileService is not nil before calling
+	if s.fileService == nil {
+		log.Println("FileService is not initialized in GetReceiptPathForUser.")
+		return "", "", errors.New("file service unavailable")
+	}
 	absPath, err := s.fileService.GetAbsPath(*invoice.DisbursementReceiptPath)
 	if err != nil {
 		return "", "", fmt.Errorf("receipt file path error: %w", err)

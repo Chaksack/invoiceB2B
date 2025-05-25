@@ -60,12 +60,11 @@ func (r *userRepository) FindByID(ctx context.Context, id uint) (*models.User, e
 
 func (r *userRepository) FindByIDWithKYC(ctx context.Context, id uint) (*models.User, error) {
 	var user models.User
-	err := r.db.WithContext(ctx).Preload("KYCDetail").First(&user, "id = ?", id).Error
+	err := r.db.WithContext(ctx).Preload("KYCDetail").First(&user, id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("user not found")
+			return nil, nil
 		}
-		log.Printf("Error finding user by ID %d with KYC in DB: %v", id, err)
 		return nil, err
 	}
 	return &user, nil

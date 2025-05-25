@@ -1,5 +1,3 @@
-version: '3.8' # Added version for better compatibility and feature access
-
 services:
   api:
     build:
@@ -14,6 +12,8 @@ services:
       - ./main.go:/app/main.go
       - ./internal:/app/internal
       - ./config:/app/config
+      - ./uploads:/mnt/invoice_uploads
+
     depends_on:
       - postgres
       - redis
@@ -21,7 +21,7 @@ services:
     env_file:
       - .env
     environment:
-      - APP_ENV=${APP_ENV:-development}
+      - APP_ENV=${APP_ENV:-production}
     restart: unless-stopped
 
   postgres:

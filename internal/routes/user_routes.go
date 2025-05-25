@@ -14,6 +14,6 @@ func SetupUserRoutes(router fiber.Router, userHandler *handlers.UserHandler, aut
 	userGroup.Put("/profile", userHandler.UpdateUserProfile)
 
 	kycGroup := userGroup.Group("/kyc")
-	kycGroup.Post("", userHandler.SubmitKYC)   // Submit or update KYC info
-	kycGroup.Get("", userHandler.GetKYCStatus) // Get current KYC status
+	kycGroup.Post("", userHandler.SubmitKYC)
+	kycGroup.Get("", userHandler.GetKYCStatus)
 }

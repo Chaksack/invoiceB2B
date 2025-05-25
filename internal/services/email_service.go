@@ -21,7 +21,7 @@ type emailService struct {
 func NewEmailService(cfg *config.Config) EmailService {
 	port := cfg.SMTPPort
 	if port == 0 {
-		port = 587
+		port = 465
 	}
 
 	d := mail.NewDialer(cfg.SMTPHost, port, cfg.SMTPUser, cfg.SMTPPassword)
@@ -33,7 +33,7 @@ func NewEmailService(cfg *config.Config) EmailService {
 }
 
 func (s *emailService) SendEmail(to, subject, body string) error {
-	if s.cfg.AppEnv != "production" && (s.cfg.SMTPHost == "smtp.example.com" || s.cfg.SMTPHost == "") {
+	if s.cfg.AppEnv != "production" && (s.cfg.SMTPHost == "smtp.gmail.com" || s.cfg.SMTPHost == "") {
 		log.Printf("DEV MODE: Email not sent. To: %s, Subject: %s, Body: %s\n", to, subject, body)
 		return nil
 	}
@@ -56,7 +56,7 @@ func (s *emailService) SendEmail(to, subject, body string) error {
 }
 
 func (s *emailService) SendEmailWithAttachment(to, subject, body, attachmentPath, attachmentName string) error {
-	if s.cfg.AppEnv != "production" && (s.cfg.SMTPHost == "smtp.example.com" || s.cfg.SMTPHost == "") {
+	if s.cfg.AppEnv != "production" && (s.cfg.SMTPHost == "smtp.gmail.com") {
 		log.Printf("DEV MODE: Email with attachment not sent. To: %s, Subject: %s, Attachment: %s, Body: %s\n", to, subject, attachmentName, body)
 		return nil
 	}
@@ -67,7 +67,7 @@ func (s *emailService) SendEmailWithAttachment(to, subject, body, attachmentPath
 	m.SetHeader("Subject", subject)
 	m.SetBody("text/html", body)
 	if attachmentPath != "" {
-		m.Attach(attachmentPath, mail.Rename(attachmentName)) // Use mail.Rename to set the display name of the attachment
+		m.Attach(attachmentPath, mail.Rename(attachmentName))
 	}
 
 	log.Printf("Attempting to send email with attachment '%s' to %s from %s via %s:%d", attachmentName, to, s.cfg.SMTPSenderEmail, s.cfg.SMTPHost, s.cfg.SMTPPort)

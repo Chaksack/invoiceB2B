@@ -11,11 +11,11 @@ type RegisterUserRequest struct {
 type UserResponse struct {
 	ID           uint   `json:"id"`
 	Email        string `json:"email"`
-	FirstName    string `json:"firstName"`
-	LastName     string `json:"lastName"`
-	CompanyName  string `json:"companyName"`
+	FirstName    string `json:"firstName,omitempty"`
+	LastName     string `json:"lastName,omitempty"`
+	CompanyName  string `json:"companyName,omitempty"`
 	IsActive     bool   `json:"isActive"`
-	TwoFAEnabled bool   `json:"twoFaEnabled"`
+	TwoFAEnabled bool   `json:"twoFAEnabled,omitempty"`
 }
 
 type RegisterUserResponse struct {
@@ -29,12 +29,14 @@ type LoginUserRequest struct {
 }
 
 type LoginUserResponse struct {
-	User                 UserResponse `json:"user"`
-	AccessToken          string       `json:"accessToken"`
-	RefreshToken         string       `json:"refreshToken"`
-	Message              string       `json:"message"`
-	TwoFARequired        bool         `json:"twoFaRequired"`
-	AccessTokenExpiresAt int64        `json:"accessTokenExpiresAt"`
+	User                 *UserResponse `json:"user,omitempty"` // Basic info for the logged-in entity
+	AccessToken          string        `json:"accessToken,omitempty"`
+	RefreshToken         string        `json:"refreshToken,omitempty"`
+	Message              string        `json:"message"`
+	TwoFARequired        bool          `json:"twoFARequired"` // True if user 2FA (not staff 2FA) is triggered
+	AccessTokenExpiresAt int64         `json:"accessTokenExpiresAt,omitempty"`
+	Role                 string        `json:"role"`         // e.g., "user", "admin", "super_admin"
+	RedirectPath         string        `json:"redirectPath"` // Suggested frontend redirect path, e.g., "/home", "/2fa", "/admin"
 }
 
 type RefreshTokenRequest struct {
