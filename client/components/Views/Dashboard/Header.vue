@@ -28,7 +28,6 @@
 
 
     <div class="flex items-center">
-      <p class="pr-2">Andrew Chakdahah</p>
       <Avatar class="relative overflow-visible">
         <AvatarFallback class="text-black"> AC </AvatarFallback>
       </Avatar>
@@ -47,4 +46,9 @@ import {
   NavigationMenuTrigger,
   NavigationMenuViewport,
 } from '~/components/ui/navigation-menu'
+import {useCookie} from "#app";
+import axios from "axios";
+import {onMounted, ref} from "vue";
+
+
 </script>
