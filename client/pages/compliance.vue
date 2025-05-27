@@ -4,8 +4,8 @@ const loading  = ref(false);
 
 <template>
   <div>
-    <ViewsAdminDashboardHeader />
-    <LazyViewsAdminDashboardCompliance />
+    <ViewsDashboardHeader />
+    <LazyViewsDashboardCompliance />
   </div>
 
 </template>

@@ -1,65 +1,86 @@
 <template>
   <main class="bg-gray-100 font-inter">
-
-    <section>
-      <div class="flex mb-2 gap-8 pt-10 items-center py-2 px-4 mx-auto max-w-screen-xl ">
-        <div>
-          <h3 v-if="isLoadingUser && !user">Loading user...</h3>
-          <h3 v-else-if="userError">{{ userError }}</h3>
-          <div v-if="user">
-            <h2 class="text-2xl tracking-tight font-bold text-black">Welcome,
-              <span class=" bg-gradient-to-r from-sky-500 via-purple-500 to-pink-500 bg-clip-text text-transparent ">
+    <Toaster richColors position="top-right" /> <section>
+    <div class="flex mb-2 gap-8 pt-10 items-center py-2 px-4 mx-auto max-w-screen-xl ">
+      <div>
+        <h3 v-if="isLoadingUser && !user">Loading user...</h3>
+        <h3 v-else-if="userError">{{ userError }}</h3>
+        <div v-if="user">
+          <h2 class="text-2xl tracking-tight font-bold text-black">Welcome,
+            <span class=" bg-gradient-to-r from-sky-500 via-purple-500 to-pink-500 bg-clip-text text-transparent ">
                 {{ user.firstName }} {{ user.lastName }}
               </span>
-            </h2>
-            <p class="mt-2 text-gray-600">Submit, track, and fund your business invoices with ease.</p>
-            <p class="mt-1 text-sm text-gray-500">Company: {{ user.companyName }} | KYC Status: <span :class="kycStatusClass(user.kycStatus)">{{ user.kycStatus }}</span></p>
-          </div>
-          <div v-else-if="!isLoadingUser && !userError && !user">
-            <h2 class="text-2xl tracking-tight font-bold text-black">Welcome!</h2>
-            <p class="mt-2 text-gray-600">Could not load user details. Please ensure you are logged in.</p>
-          </div>
+          </h2>
+          <p class="mt-2 text-gray-600">Submit, track, and fund your business invoices with ease.</p>
+          <p class="mt-1 text-sm text-gray-500">Company: {{ user.companyName }} | KYC Status: <span :class="kycStatusClass(user.kycStatus)">{{ user.kycStatus }}</span></p>
         </div>
-
-        <div class="ml-auto">
-          <Dialog>
-            <DialogTrigger as-child>
-              <Button class="text-white bg-black rounded-md hover:bg-gray-800 transition-colors">
-                <Upload class="mr-2 h-4 w-4" />Upload Invoice
-              </Button>
-            </DialogTrigger>
-            <DialogContent class="sm:max-w-[425px] shadow-lg rounded-lg">
-              <DialogHeader>
-                <DialogTitle>Upload Invoice</DialogTitle>
-                <DialogDescription>
-                  Upload your invoice file (PDF, CSV, XLSX formats supported).
-                </DialogDescription>
-              </DialogHeader>
-              <div class="grid w-full max-w-sm items-center gap-1.5 py-4">
-                <Label for="invoiceFile">Invoice File</Label>
-                <Input id="invoiceFile" type="file" @change="handleFileSelect" accept=".pdf,.csv,.xlsx,.xls" class="rounded-md"/>
-                <p v-if="fileUploadError" class="text-red-500 text-sm mt-1">{{ fileUploadError }}</p>
-              </div>
-              <DialogFooter>
-                <Button @click="submitInvoice" :disabled="isUploadingInvoice || !selectedFile" class="rounded-md">
-                  <span v-if="isUploadingInvoice">Uploading...</span>
-                  <span v-else>Upload Invoice</span>
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+        <div v-else-if="!isLoadingUser && !userError && !user">
+          <h2 class="text-2xl tracking-tight font-bold text-black">Welcome!</h2>
+          <p class="mt-2 text-gray-600">Could not load user details. Please ensure you are logged in.</p>
         </div>
       </div>
-    </section>
 
-    <div v-if="user && user.kycStatus !== 'Approved' && user.kycStatus !== 'Verified'" class="relative bg-red-500 isolate flex items-center gap-x-6 overflow-hidden bg-gray-50 px-6 py-2.5 sm:px-3.5 sm:before:flex-1 mb-6">
+      <div class="ml-auto">
+        <Dialog v-model:open="isUploadDialogOpen">
+          <DialogTrigger as-child>
+            <Button @click="isUploadDialogOpen = true" class="text-white bg-black rounded-md hover:bg-gray-800 transition-colors">
+              <Upload class="mr-2 h-4 w-4" />Upload Invoice
+            </Button>
+          </DialogTrigger>
+          <DialogContent class="sm:max-w-[425px] shadow-lg rounded-lg">
+            <DialogHeader>
+              <DialogTitle>Upload Invoice</DialogTitle>
+              <DialogDescription>
+                Upload your invoice file (PDF, CSV, XLSX formats supported).
+              </DialogDescription>
+            </DialogHeader>
+            <div class="grid w-full max-w-sm items-center gap-1.5 py-4">
+              <Label for="invoiceFile">Invoice File</Label>
+              <Input id="invoiceFile" type="file" @change="handleFileSelect" accept=".pdf,.csv,.xlsx,.xls" class="rounded-md"/>
+              <p v-if="fileUploadError" class="text-red-500 text-sm mt-1">{{ fileUploadError }}</p>
+            </div>
+            <DialogFooter>
+              <Button @click="submitInvoice" :disabled="isUploadingInvoice || !selectedFile" class="rounded-md">
+                <span v-if="isUploadingInvoice">Uploading...</span>
+                <span v-else>Upload Invoice</span>
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  </section>
+
+    <div v-if="user && user.kycStatus !== 'approved' && user.kycStatus !== 'Verified'" class="relative bg-red-500 isolate flex items-center gap-x-6 overflow-hidden bg-gray-50 px-6 py-2.5 sm:px-3.5 sm:before:flex-1 mb-6">
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
         <p class="text-sm/6 text-white flex items-center">
           <FileWarning class="mr-2 h-5 w-5" /> <strong class="font-semibold">Compliance Form Incomplete</strong>
           <svg viewBox="0 0 2 2" class="mx-2 inline size-0.5 fill-current" aria-hidden="true"><circle cx="1" cy="1" r="1" /></svg>
           To get more out of your score kindly complete the compliance forms.
         </p>
-        <NuxtLink to="/compliance" class="flex-none rounded-full bg-blue-500 px-3.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">Complete now <span aria-hidden="true">&rarr;</span></NuxtLink>
+        <Dialog v-model:open="isUploadDialogOpen"> <DialogTrigger as-child>
+          <Button @click="isUploadDialogOpen = true" class="text-white bg-black rounded-md hover:bg-gray-800 transition-colors">
+            Complete now
+          </Button>
+        </DialogTrigger>
+          <DialogContent class="sm:max-w-[425px] shadow-lg rounded-lg">
+            <DialogHeader>
+              <DialogTitle>Complete KYC</DialogTitle>
+              <DialogDescription>
+                Upload your business registration files (PDF, CSV, XLSX formats supported).
+              </DialogDescription>
+            </DialogHeader>
+            <div class="grid w-full max-w-sm items-center gap-1.5 py-4">
+              <Label for="kycFile">Business Registration</Label> <Input id="kycFile" type="file" @change="handleFileSelect" accept=".pdf,.csv,.xlsx,.xls" class="rounded-md"/> <p v-if="fileUploadError" class="text-red-500 text-sm mt-1">{{ fileUploadError }}</p>
+            </div>
+            <DialogFooter>
+              <Button @click="submitInvoice" :disabled="isUploadingInvoice || !selectedFile" class="rounded-md">
+                <span v-if="isUploadingInvoice">Uploading...</span>
+                <span v-else>Upload Business files</span>
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
       <div class="flex flex-1 justify-end">
         <button type="button" class="-m-3 p-3 focus-visible:outline-offset-[-4px]" @click="dismissComplianceBanner">
@@ -118,10 +139,10 @@
           <p>{{ invoicesError }}</p>
         </div>
         <div v-else-if="invoices.length === 0" class="text-center py-10 text-gray-600 flex flex-col items-center">
-        <Ban class="w-18 h-18 mb-4 text-black" />
-        <p class=" text-2xl font-semibold text-black">No invoices found. </p>
-        <p>  Upload your first invoice to get started!</p>
-      </div>
+          <Ban class="w-12 h-12 mb-4 text-gray-400" />
+          <p class=" text-2xl font-semibold">No invoices found. </p>
+          <p>  Upload your first invoice to get started!</p>
+        </div>
 
         <div v-else class="space-y-4">
           <div v-for="invoice in invoices" :key="invoice.id" class="bg-white rounded-lg p-4 shadow-lg hover:shadow-xl transition-shadow">
@@ -143,14 +164,14 @@
                     </div>
                     <Badge :class="getInvoiceStatusBadgeClass(invoice.status)" class="py-1 px-3 rounded-full text-xs">
                       <component :is="getInvoiceStatusIcon(invoice.status)" class="w-4 h-4 mr-1"/>
-                      {{ invoice.status ? formatStatus(invoice.status) : 'Unknown' }}
+                      {{ formatStatus(invoice.status) }}
                     </Badge>
                   </div>
                   <div class="gap-4 ml-auto md:flex items-center text-right">
                     <div class="text-sm">
                       Invoice Amount:
                       <div class="text-xl text-black font-semibold">
-                        GHS {{ (invoice.totalAmount || 0).toLocaleString() }}
+                        {{ invoice.currency || 'GHS' }} {{ (invoice.totalAmount || 0).toLocaleString() }}
                       </div>
                     </div>
                   </div>
@@ -211,9 +232,9 @@
                         <TableRow>
                           <TableHead>ID</TableHead>
                           <TableHead>ITEM & DESCRIPTION</TableHead>
-                          <TableHead class="text-right">UNIT PRICE (GHS)</TableHead>
+                          <TableHead class="text-right">UNIT PRICE ({{ invoice.currency || 'GHS' }})</TableHead>
                           <TableHead class="text-right">QUANTITY</TableHead>
-                          <TableHead class="text-right">AMOUNT (GHS)</TableHead>
+                          <TableHead class="text-right">AMOUNT ({{ invoice.currency || 'GHS' }})</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -240,20 +261,20 @@
                         <div class="col-span-1 text-sm">
                           <div class="flex items-center">
                             <p>Sub Total</p>
-                            <p class="text-black font-semibold ml-auto">GHS {{ invoice.subTotalAmount?.toLocaleString() || '0.00' }}</p>
+                            <p class="text-black font-semibold ml-auto">{{ invoice.currency || 'GHS' }} {{ invoice.subTotalAmount?.toLocaleString() || '0.00' }}</p>
                           </div>
                           <div class="flex items-center">
                             <p>Tax Rate ({{ invoice.taxRatePercentage || 0 }}%)</p>
-                            <p class="text-black font-semibold ml-auto">GHS {{ invoice.taxAmount?.toLocaleString() || '0.00' }}</p>
+                            <p class="text-black font-semibold ml-auto">{{ invoice.currency || 'GHS' }} {{ invoice.taxAmount?.toLocaleString() || '0.00' }}</p>
                           </div>
                           <hr class="my-1 border-gray-300">
                           <div class="flex items-center font-bold">
                             <p>Total</p>
-                            <p class="text-black ml-auto">GHS {{ invoice.totalAmount?.toLocaleString() || '0.00' }}</p>
+                            <p class="text-black ml-auto">{{ invoice.currency || 'GHS' }} {{ invoice.totalAmount?.toLocaleString() || '0.00' }}</p>
                           </div>
                           <div class="flex items-center text-green-600">
                             <p>Balance Due</p>
-                            <p class="font-semibold ml-auto">GHS {{ invoice.balanceDue?.toLocaleString() || '0.00' }}</p>
+                            <p class="font-semibold ml-auto">{{ invoice.currency || 'GHS' }} {{ invoice.balanceDue?.toLocaleString() || '0.00' }}</p>
                           </div>
                         </div>
                       </div>
@@ -278,7 +299,7 @@
                             <p class="text-gray-500">Account Type:</p><p class="text-black font-medium">{{ currentReceipt.accountType }}</p>
                             <p class="text-gray-500">Account Number:</p><p class="text-black font-medium">{{ currentReceipt.accountNumber }}</p>
                             <p class="text-gray-500">Account Name:</p><p class="text-black font-medium">{{ currentReceipt.accountName }}</p>
-                            <p class="text-gray-500">Amount:</p><p class="text-black font-medium">GHS {{ currentReceipt.amount?.toLocaleString() }}</p>
+                            <p class="text-gray-500">Amount:</p><p class="text-black font-medium">{{ invoice.currency || 'GHS' }} {{ currentReceipt.amount?.toLocaleString() }}</p>
                             <p class="text-gray-500">Transfer Date:</p><p class="text-black font-medium">{{ formatDate(currentReceipt.transferDate) }}</p>
                             <p class="text-gray-500">Purpose:</p><p class="text-black font-medium col-span-2">{{ currentReceipt.purpose }}</p>
                           </div>
@@ -313,27 +334,27 @@ import { ref, onMounted, computed, h } from 'vue'
 import axios from 'axios'
 import {
   Upload, Download, Eye, CreditCard, CircleCheckBig, FileWarning, FileText,
-  CircleCheck, BookUser, HandCoins, Clock, AlertCircle, CircleX,BadgeAlert,Ban
+  CircleCheck, BookUser, HandCoins, Clock, AlertCircle, CircleX, Ban
 } from 'lucide-vue-next'
 import { useCookie } from '#app';
+import { Toaster, toast } from 'vue-sonner'
 
+// Shadcn-vue components
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Stepper, StepperDescription, StepperIndicator, StepperItem, StepperSeparator, StepperTitle, StepperTrigger } from '@/components/ui/stepper'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Label } from '@/components/ui/label'
 
-const NuxtLink = h('a');
+// const NuxtLink = h('a'); // Not used, can be removed if not needed elsewhere
 
 // API Configuration
-const API_BASE_URL = 'http://localhost:3000/api/v1'
-
-// Retrieve the token from cookie
+const API_BASE_URL = 'http://localhost:3000/api/v1' // Ensure this is correct for your environment
 const tokenCookie = useCookie('token');
 const authToken = tokenCookie.value || null;
 
@@ -357,6 +378,7 @@ const invoicesError = ref<string | null>(null)
 const selectedFile = ref<File | null>(null)
 const isUploadingInvoice = ref(false)
 const fileUploadError = ref<string | null>(null)
+const isUploadDialogOpen = ref(false);
 
 const currentReceipt = ref<any>(null)
 const isLoadingReceipt = ref(false)
@@ -415,44 +437,87 @@ const fetchInvoices = async () => {
       invoiceDataArray = response.data.invoices;
     }
     else if (response.status === 200 && response.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
-      console.warn("Invoice API returned 200 OK with a non-array payload. Assuming no invoices if no known array wrapper found.", response.data);
+      console.warn("Invoice API returned 200 OK with a non-array payload. Assuming empty list.", response.data);
       invoiceDataArray = [];
     }
     else if (!Array.isArray(response.data)) {
-      console.error("Invoice API response.data is not an array and not a recognized wrapped array structure.", response.data);
-      throw new Error("Invoice data received from API is not in the expected array format.");
+      console.error("Invoice API response.data is not an array.", response.data);
+      throw new Error("Invoice data from API is not in expected array format.");
     }
 
-
     invoices.value = invoiceDataArray.map((inv: any) => {
+      let parsedJsonData: any = null;
+      if (inv.jsonData && typeof inv.jsonData === 'string') {
+        try {
+          parsedJsonData = JSON.parse(inv.jsonData);
+        } catch (e) {
+          console.error(`Failed to parse jsonData for invoice ID ${inv.id}:`, e, inv.jsonData);
+        }
+      }
+
+      // Initialize with base inv values, then override with parsedJsonData if available
+      let customerName = inv.customer?.name || inv.companyName || 'Unknown Customer';
+      let invoiceNumber = inv.invoiceNumber || String(inv.id); // Ensure invoiceNumber is a string
+      let invoiceDate = inv.invoiceDate || inv.createdAt;
+      let items: any[] = inv.items || [];
+      let currency = inv.currency || 'GHS'; // Default currency
+
+      if (parsedJsonData) {
+        customerName = parsedJsonData.billedTo || customerName;
+        invoiceNumber = parsedJsonData.extractedInvoiceNumber || invoiceNumber;
+        // Ensure invoiceDate from jsonData is used if present
+        // The format "30 July 2025" should be parsable by new Date()
+        invoiceDate = parsedJsonData.invoiceDate || invoiceDate;
+        currency = parsedJsonData.extractedCurrency || currency;
+
+        if (parsedJsonData.lineItems && Array.isArray(parsedJsonData.lineItems)) {
+          items = parsedJsonData.lineItems.map((item: any, index: number) => ({
+            id: item.id || `jsonItem-${inv.id}-${index + 1}`, // Generate a unique ID if not present
+            name: item.item || 'N/A',
+            description: item.description || '', // jsonData might not have description
+            unitPrice: parseFloat(item.unitPrice) || 0,
+            quantity: parseInt(item.quantity, 10) || 0,
+            amount: parseFloat(item.total) || 0, // 'total' from jsonData lineItem maps to 'amount'
+          }));
+        }
+      }
+
+      // Normalize status: trim whitespace and convert to uppercase
+      const normalizedStatus = inv.status ? String(inv.status).trim().toUpperCase() : 'UNKNOWN';
+
+      // Overall totals from the main inv object.
+      // If these need to be recalculated from 'items' derived from jsonData,
+      // that logic would go here. For now, using inv's top-level values.
       const totalAmount = parseFloat(inv.totalAmount);
-      const subTotal = parseFloat(inv.subTotal);
-      const tax = parseFloat(inv.tax);
+      const subTotal = parseFloat(inv.subTotal); // inv.subTotal might be named subTotalAmount in your API
+      const tax = parseFloat(inv.tax); // inv.tax might be named taxAmount
       const balanceDue = parseFloat(inv.balanceDue);
 
       return {
-        ...inv,
-        customerName: inv.customer?.name || inv.companyName || 'Unknown Customer',
-        invoiceNumber: inv.invoiceNumber || inv.id,
+        ...inv, // Spread original inv for any other fields
+        id: inv.id, // Ensure id is explicitly carried over
+        customerName: customerName,
+        invoiceNumber: invoiceNumber,
         totalAmount: !isNaN(totalAmount) ? totalAmount : 0,
-        subTotalAmount: !isNaN(subTotal) ? subTotal : 0,
-        taxAmount: !isNaN(tax) ? tax : 0,
-        balanceDue: !isNaN(balanceDue) ? balanceDue : ( !isNaN(totalAmount) ? totalAmount : 0),
-        taxRatePercentage: inv.taxRate || 0,
-        items: inv.items || [],
-        status: inv.status || 'UNKNOWN',
-        invoiceDate: inv.invoiceDate || inv.createdAt,
+        subTotalAmount: !isNaN(subTotal) ? subTotal : 0, // Use this for display
+        taxAmount: !isNaN(tax) ? tax : 0, // Use this for display
+        balanceDue: !isNaN(balanceDue) ? balanceDue : (!isNaN(totalAmount) ? totalAmount : 0),
+        taxRatePercentage: parseFloat(inv.taxRate) || 0,
+        items: items,
+        status: normalizedStatus,
+        invoiceDate: invoiceDate, // Already determined above
         dueDate: inv.dueDate,
-        paymentTerms: inv.terms,
-        customerAddress: inv.customer?.address || {}
+        paymentTerms: inv.terms || inv.paymentTerms, // Check for common variations
+        customerAddress: inv.customer?.address || {},
+        currency: currency, // Add currency to the invoice object
       };
     }).sort((a: any, b: any) => {
       const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : 0;
       const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : 0;
-      return dateB - dateA;
+      return dateB - dateA; // Sort by most recent invoiceDate first
     });
 
-  } catch (err: any) { // Explicitly type err as any or a more specific error type
+  } catch (err: any) {
     console.error('Error during fetchInvoices processing:', err);
     if (err.response) {
       console.error('Axios error response data:', err.response.data);
@@ -473,60 +538,73 @@ const fetchInvoices = async () => {
 };
 
 const handleFileSelect = (event: Event) => {
-  const target = event.target as HTMLInputElement
+  const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
-    selectedFile.value = target.files[0]
-    fileUploadError.value = null
+    selectedFile.value = target.files[0];
+    console.log('File selected:', selectedFile.value);
+    fileUploadError.value = null;
   } else {
-    selectedFile.value = null
+    selectedFile.value = null;
   }
-}
+};
 
 const submitInvoice = async () => {
   if (!authToken) {
-    fileUploadError.value = "Authentication token not found. Please log in.";
+    toast.error("Authentication token not found. Please log in.");
     isUploadingInvoice.value = false;
     return;
   }
   if (!selectedFile.value) {
-    fileUploadError.value = "Please select a file to upload."
-    return
+    fileUploadError.value = "Please select a file to upload.";
+    return;
   }
-  isUploadingInvoice.value = true
-  fileUploadError.value = null
-  const formData = new FormData()
-  formData.append('file', selectedFile.value)
+
+  console.log('Submitting invoice with file:', selectedFile.value);
+
+  isUploadingInvoice.value = true;
+  fileUploadError.value = null;
+  const formData = new FormData();
+  formData.append('invoiceFile', selectedFile.value); // Make sure 'invoiceFile' matches backend expectation
 
   try {
+    // Use a specific Axios client for file uploads if Content-Type needs to be multipart/form-data
     const uploadApiClient = axios.create({
       baseURL: API_BASE_URL,
       headers: {
         ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
-        'Content-Type': 'multipart/form-data',
+        // 'Content-Type': 'multipart/form-data', // Axios usually sets this automatically for FormData
       }
     });
     const response = await uploadApiClient.post('/invoices', formData);
 
-    console.log('Invoice uploaded:', response.data)
-    await fetchInvoices()
-    selectedFile.value = null
-    alert('Invoice uploaded successfully!');
+    console.log('Invoice uploaded:', response.data);
+    toast.success('Invoice uploaded successfully!');
+    await fetchInvoices(); // Refresh the list
+    selectedFile.value = null; // Clear the selected file
+    isUploadDialogOpen.value = false; // Close the dialog
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
-      console.error('API Error (Upload):', err.response.status, err.response.data)
+      console.error('API Error (Upload):', err.response.status, err.response.data);
+      const errorMessage = err.response.data?.message || err.response.data?.error || 'Failed to upload invoice';
       if (err.response.status === 401 || err.response.status === 403) {
-        fileUploadError.value = `Authentication error: ${err.response.data?.message || 'Please log in again.'}`;
+        toast.error(`Authentication error: ${errorMessage}`);
       } else {
-        fileUploadError.value = `Upload Error ${err.response.status}: ${err.response.data?.message || 'Failed to upload invoice'}`
+        // Display specific error in the dialog if it's a validation error for the file
+        if (err.response.status === 400 && (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes("invoice file"))) {
+          fileUploadError.value = `Upload Error: ${errorMessage}`;
+        } else {
+          toast.error(`Upload Error ${err.response.status}: ${errorMessage}`);
+        }
       }
     } else {
-      console.error('Failed to upload invoice:', err)
-      fileUploadError.value = 'An unexpected error occurred during upload.'
+      console.error('Failed to upload invoice:', err);
+      toast.error('An unexpected error occurred during upload.');
     }
   } finally {
-    isUploadingInvoice.value = false
+    isUploadingInvoice.value = false;
   }
-}
+};
+
 
 // --- Receipt Logic ---
 const fetchReceiptDetails = async (invoiceId: string | number) => {
@@ -544,10 +622,11 @@ const fetchReceiptDetails = async (invoiceId: string | number) => {
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       console.error('API Error (View Receipt):', err.response.status, err.response.data)
+      const errorMessage = err.response.data?.message || 'Failed to fetch receipt';
       if (err.response.status === 401 || err.response.status === 403) {
-        receiptError.value = `Authentication error: ${err.response.data?.message || 'Please log in again.'}`;
+        receiptError.value = `Authentication error: ${errorMessage}`;
       } else {
-        receiptError.value = `Error ${err.response.status}: ${err.response.data?.message || 'Failed to fetch receipt'}`
+        receiptError.value = `Error ${err.response.status}: ${errorMessage}`
       }
     } else {
       console.error('Failed to fetch receipt:', err)
@@ -560,11 +639,14 @@ const fetchReceiptDetails = async (invoiceId: string | number) => {
 
 const triggerDownloadReceipt = async (invoiceId: string | number) => {
   if (!authToken) {
-    alert("Authentication token not found. Please log in.");
+    toast.error("Authentication token not found. Please log in.");
     return;
   }
+  toast.info("Preparing download...");
   try {
-    const response = await apiClient.get(`/invoices/${invoiceId}/receipt`, {
+    // Determine if it's a receipt or invoice PDF based on status (already handled by v-if in template)
+    // The endpoint /invoices/${invoiceId}/receipt seems to be generic for "downloadable PDF"
+    const response = await apiClient.get(`/invoices/${invoiceId}/receipt`, { // Assuming this endpoint serves both
       responseType: 'blob',
     })
     const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/pdf' })
@@ -572,7 +654,7 @@ const triggerDownloadReceipt = async (invoiceId: string | number) => {
     link.href = URL.createObjectURL(blob)
 
     const contentDisposition = response.headers['content-disposition'];
-    let filename = `invoice-${invoiceId}-receipt.pdf`;
+    let filename = `invoice-${invoiceId}-document.pdf`; // Generic filename
     if (contentDisposition) {
       const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
       if (filenameMatch && filenameMatch.length === 2)
@@ -584,13 +666,25 @@ const triggerDownloadReceipt = async (invoiceId: string | number) => {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(link.href)
+    toast.success("Download started: " + filename);
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
-      console.error('API Error (Download Receipt):', err.response.status, err.response.data)
-      alert(`Error ${err.response.status}: Failed to download receipt. If the error persists, please try logging in again.`)
+      console.error('API Error (Download Document):', err.response.status, err.response.data)
+      // Attempt to parse error from blob if response is blob
+      if (err.response.data instanceof Blob && err.response.data.type === "application/json") {
+        const errorText = await err.response.data.text();
+        try {
+          const errorJson = JSON.parse(errorText);
+          toast.error(`Error ${err.response.status}: ${errorJson.message || 'Failed to download. Please try again.'}`);
+        } catch (parseError) {
+          toast.error(`Error ${err.response.status}: Failed to download. Please try again.`);
+        }
+      } else {
+        toast.error(`Error ${err.response.status}: ${err.response.data?.message || 'Failed to download. Please try again.'}`);
+      }
     } else {
-      console.error('Failed to download receipt:', err)
-      alert('An unexpected error occurred while downloading the receipt.')
+      console.error('Failed to download document:', err)
+      toast.error('An unexpected error occurred while downloading the document.')
     }
   }
 }
@@ -601,7 +695,7 @@ const summaryStats = computed(() => {
   const approved = invoices.value.filter(inv => inv.status === 'APPROVED' || inv.status === 'DISBURSED' || inv.status === 'PAID').length
   const funded = invoices.value
       .filter(inv => inv.status === 'DISBURSED' || inv.status === 'PAID')
-      .reduce((sum, inv) => sum + (parseFloat(inv.fundedAmount || inv.totalAmount) || 0), 0)
+      .reduce((sum, inv) => sum + (parseFloat(inv.fundedAmount || inv.totalAmount) || 0), 0) // Ensure fundedAmount or totalAmount is parsed
 
   return {
     totalInvoices: invoices.value.length,
@@ -618,49 +712,67 @@ const predefinedSteps = [
   { step: 5, title: 'Paid', description: 'Invoice has been paid by customer.', icon: HandCoins },
 ]
 
+// This map should cover all normalized statuses from your backend
 const invoiceStatusToStepMap: Record<string, number> = {
   'SUBMITTED': 1,
+  'PENDING_ADMIN_REVIEW': 2, // Added based on your example JSON
   'PENDING_APPROVAL': 2,
   'UNDER_REVIEW': 2,
   'APPROVED': 3,
   'DISBURSED': 4,
   'PAID': 5,
-  'REJECTED': 0,
-  'CANCELLED': 0,
+  'REJECTED': 0, // Represents a failed/terminal state not on the happy path
+  'CANCELLED': 0, // Represents a failed/terminal state
+  'PROCESSING_FAILED': 0, // Example
+  'UNKNOWN': 0,
 }
 
 const getStepForInvoiceStatus = (status: string): number => {
-  return invoiceStatusToStepMap[status?.toUpperCase()] || 0
+  // Status is already normalized (uppercase, trimmed) in fetchInvoices
+  const step = invoiceStatusToStepMap[status];
+  if (typeof step === 'undefined') {
+    console.warn(`Unknown status encountered for stepper: "${status}" for invoice. Defaulting to step 0.`);
+    return 0;
+  }
+  // console.log(`getStepForInvoiceStatus - Input (normalized): "${status}", Mapped Step: ${step}`); // Keep for debugging if needed
+  return step;
 }
 
 const formatStatus = (status: string): string => {
-  if (!status) return 'Unknown';
-  return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  // Status is already normalized
+  if (!status || status === 'UNKNOWN') return 'Unknown';
+  return status
+      .replace(/_/g, ' ')
+      .toLowerCase()
+      .replace(/\b\w/g, char => char.toUpperCase());
 }
 
 const getInvoiceStatusBadgeClass = (status: string): string => {
-  const s = status?.toUpperCase();
-  if (s === 'APPROVED' || s === 'DISBURSED' || s === 'PAID') return 'bg-green-100 text-green-800';
-  if (s === 'PENDING_APPROVAL' || s === 'UNDER_REVIEW' || s === 'SUBMITTED') return 'bg-blue-100 text-blue-800';
-  if (s === 'REJECTED' || s === 'CANCELLED') return 'bg-red-100 text-red-800';
-  return 'bg-gray-100 text-gray-800';
+  // Status is already normalized
+  if (status === 'APPROVED' || status === 'DISBURSED' || status === 'PAID') return 'bg-green-100 text-green-800';
+  if (status === 'PENDING_APPROVAL' || status === 'UNDER_REVIEW' || status === 'SUBMITTED' || status === 'PENDING_ADMIN_REVIEW') return 'bg-blue-100 text-blue-800';
+  if (status === 'REJECTED' || status === 'CANCELLED' || status === 'PROCESSING_FAILED') return 'bg-red-100 text-red-800';
+  return 'bg-gray-100 text-gray-800'; // Default for UNKNOWN or other statuses
 }
 
 const getInvoiceStatusIcon = (status: string) => {
-  const s = status?.toUpperCase();
-  if (s === 'APPROVED' || s === 'DISBURSED' || s === 'PAID') return CircleCheck;
-  if (s === 'PENDING_APPROVAL' || s === 'UNDER_REVIEW' || s === 'SUBMITTED') return Clock;
-  if (s === 'REJECTED' || s === 'CANCELLED') return AlertCircle;
-  return FileText;
+  // Status is already normalized
+  if (status === 'APPROVED' || status === 'DISBURSED' || status === 'PAID') return CircleCheck;
+  if (status === 'PENDING_APPROVAL' || status === 'UNDER_REVIEW' || status === 'SUBMITTED' || status === 'PENDING_ADMIN_REVIEW') return Clock;
+  if (status === 'REJECTED' || status === 'CANCELLED' || status === 'PROCESSING_FAILED') return AlertCircle;
+  return FileText; // Default icon
 }
 
 const formatDate = (dateString?: string | Date): string => {
   if (!dateString) return 'N/A';
   try {
-    return new Date(dateString).toLocaleDateString('en-GB', {
+    // Handles ISO strings like "2025-05-27T15:17:34.90605Z"
+    // and also "30 July 2025"
+    return new Date(dateString).toLocaleDateString('en-GB', { // Using 'en-GB' for dd/mm/yyyy format
       day: '2-digit', month: 'short', year: 'numeric'
     });
   } catch (e) {
+    console.warn("Invalid date string for formatDate:", dateString);
     return 'Invalid Date';
   }
 }
@@ -670,14 +782,14 @@ const kycStatusClass = (status: string | undefined) => {
   const s = status.toLowerCase();
   if (s === 'approved' || s === 'verified') return 'text-green-500 font-semibold';
   if (s === 'pending' || s === 'submitted') return 'text-yellow-500 font-semibold';
-  if (s === 'rejected' || s === 'not submitted') return 'text-red-500 font-semibold';
+  if (s === 'rejected' || s === 'not submitted' || s === 'incomplete') return 'text-red-500 font-semibold';
   return 'text-gray-500';
 }
 
 const dismissComplianceBanner = (event: MouseEvent) => {
   const banner = (event.currentTarget as HTMLElement)?.closest('.relative.bg-red-500');
   if (banner) {
-    banner.remove();
+    banner.remove(); // Simple removal, no state saved for this
   }
 }
 
@@ -689,13 +801,15 @@ onMounted(() => {
   } else {
     userError.value = "You are not logged in. Please log in to view your dashboard.";
     invoicesError.value = "Please log in to view invoices.";
+    toast.info("Please log in to access all features.", {
+      description: "Authentication token not found."
+    })
   }
 })
 
 </script>
 
 <style>
-/* Ensure Inter font is loaded if not globally available via Tailwind config */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 body {
@@ -712,12 +826,13 @@ body {
   color: #a0a0a0;
 }
 
+/* Stepper custom styles if needed, assuming your Stepper component styles these internally or via props */
 .stepper-item-active .stepper-indicator {
-  background-color: #0042c9; /* Using a distinct blue for active step */
-  color: white;
+  /* background-color: #0042c9; */ /* Example, if not handled by component */
+  /* color: white; */
 }
 .stepper-item-completed .stepper-indicator {
-  background-color: green;
-  color: white;
+  /* background-color: green; */ /* Example, if not handled by component */
+  /* color: white; */
 }
 </style>

@@ -146,7 +146,7 @@ const register = async () => {
       localStorage.setItem('token', token);
       localStorage.setItem('email', email.value);
       toast.success('Success:', {description: 'successMessage'});
-      await navigateTo('/home');
+      await navigateTo('/login');
 
     }
   } catch (error) {

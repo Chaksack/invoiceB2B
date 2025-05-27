@@ -1,7 +1,14 @@
 <template>
   <div>
-    <NuxtLoadingIndicator />
+    <NuxtLayout>
+      <CookieConsentBanner v-if="!cookieConsentGiven" @consentGiven="handleConsentGiven" />
+      <Toaster richColors position="top-right" />
+      <NuxtLoadingIndicator />
     <NuxtPage />
-    <NuxtLayout />
+    </NuxtLayout >
   </div>
 </template>
+<script setup lang="ts">
+import { Toaster } from 'vue-sonner';
+import CookieConsentBanner from '~/components/Views/CookieConsentBanner.vue';
+</script>

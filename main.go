@@ -22,16 +22,16 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/log" // Use Fiber's logger
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
-	flogger "github.com/gofiber/fiber/v2/middleware/logger" // Alias Fiber's logger middleware
+	flogger "github.com/gofiber/fiber/v2/middleware/logger"
 )
 
 type NuxtProjectConfig struct {
 	Name     string
 	URLPath  string
-	DistPath string // Should be relative to the application's working directory, e.g., "./client/dist"
+	DistPath string
 }
 
 func main() {
@@ -142,7 +142,7 @@ func main() {
 	setupNuxtFrontendServers(app, nuxtProjects)
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
+		AllowOrigins: "http://localhost:5000,http://localhost:3000,http://localhost:3001",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS",
 	}))

@@ -3,28 +3,250 @@
   "nodes": [
     {
       "parameters": {
-        "queue": "invoice_processing_queue",
-        "options": {
-          "assertQueue": true,
-          "acknowledge": "executionFinishesSuccessfully",
-          "durable": true,
-          "jsonParseBody": "={{ true }}"
-        }
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "invoiceId",
+              "value": "={{ $node[\"Set - Prepare Initial Data\"].json.invoiceId }}"
+            },
+            {
+              "name": "errorMessage",
+              "value": "={{ $error.message || 'Unknown processing error' }}"
+            },
+            {
+              "name": "errorDetails",
+              "value": "={{ JSON.stringify($error) }}"
+            }
+          ]
+        },
+        "options": {}
       },
-      "name": "RabbitMQ Trigger",
-      "type": "n8n-nodes-base.rabbitmqTrigger",
+      "name": "Set - Error Details",
+      "type": "n8n-nodes-base.set",
       "typeVersion": 1,
       "position": [
-        -600,
+        740,
+        580
+      ],
+      "id": "480b8dd9-fe86-4d77-95fd-335a0f645fef"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://api:3000/api/v1/internal/invoices/{{ $json.invoiceId }}/processed-data",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-API-Key",
+              "value": "your-strong-internal-api-key-for-n8n"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "jsonData",
+              "value": "={{ $json.jsonData }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "HTTP - Update Go API (Success)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1000,
         200
       ],
-      "id": "4ca604bb-d2eb-410c-8ff8-60601c475989",
-      "credentials": {
-        "rabbitmq": {
-          "id": "QrnXtBE9e8nl6KRj",
-          "name": "LocalAppRabbitMQ"
+      "id": "e3b15dd2-cec7-4fcf-ba2f-1743f9785107"
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "invoiceId",
+              "value": "={{ $node[\"Set - Prepare Initial Data\"].json.invoiceId }}"
+            },
+            {
+              "name": "jsonData",
+              "value": "={{ $json.jsonData || '{}' }}"
+            },
+            {
+              "name": "extractedInvoiceNumber",
+              "value": "={{ $json.extractedInvoiceNumber }}"
+            },
+            {
+              "name": "extractedCurrency",
+              "value": "={{ $json.extractedCurrency }}"
+            },
+            {
+              "name": "extractedDueDate",
+              "value": "={{ $json.invoiceDate }}"
+            },
+            {
+              "name": "extractedDebtorName",
+              "value": "={{ $json.extractedDebtorName }}"
+            },
+            {
+              "name": "extractedIssuerName",
+              "value": "={{ $json.extractedIssuerName }}"
+            },
+            {
+              "name": "extractedIssuerBankAccount",
+              "value": "={{ $json.extractedIssuerBankAccount }}"
+            },
+            {
+              "name": "extractedIssuerBankName",
+              "value": "={{ $json.extractedIssuerBankName }}"
+            },
+            {
+              "name": "newStatus",
+              "value": "pending_admin_review"
+            }
+          ],
+          "number": [
+            {
+              "name": "extractedAmount",
+              "value": "={{ $json.extractedAmount }}"
+            }
+          ],
+          "boolean": []
+        },
+        "options": {}
+      },
+      "name": "Set - API Payload (Success)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        800,
+        200
+      ],
+      "id": "c731eadc-362d-42f6-8bb3-2432a23389ea"
+    },
+    {
+      "parameters": {},
+      "name": "Merge Success",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        600,
+        200
+      ],
+      "id": "f6bbbc30-46d5-4ede-a427-13824e9dd1e0"
+    },
+    {
+      "parameters": {
+        "functionCode": "const text = $json.stdout;\nconst extractedData = {};\n\n// --- Your custom OCR text parsing logic here ---\n// This is highly dependent on invoice layout and OCR quality.\nlet match = text.match(/Invoice No[:\\s]+([A-Za-z0-9-]+)/i);\nif (match && match[1]) extractedData.extractedInvoiceNumber = match[1].trim();\n\n// ... more robust regex for other fields ...\n\nextractedData.jsonData = JSON.stringify(extractedData);\nreturn [{ json: extractedData }];"
+      },
+      "name": "Function - Extract OCR Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        400,
+        400
+      ],
+      "id": "4c5db358-6eea-414e-98b8-6d533d6be8fa"
+    },
+    {
+      "parameters": {
+        "command": "=tesseract \"{{ $json.absoluteFilePath }}\" stdout -l eng --psm 6"
+      },
+      "name": "Execute Tesseract OCR",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        200,
+        400
+      ],
+      "id": "a0ba816e-c135-4ae1-9ed6-d981ad61cf04"
+    },
+    {
+      "parameters": {
+        "filePath": "={{ $json.absoluteFilePath }}"
+      },
+      "name": "Read Image File",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        0,
+        400
+      ],
+      "id": "ae18347c-22d9-44b6-9619-b1d1898f9622"
+    },
+    {
+      "parameters": {
+        "functionCode": "const items = [{ json: {} }];\nconst csvRow = $json[0]; // Assuming first row has the main invoice data\n\nif (csvRow) {\n  items[0].json.extractedInvoiceNumber = csvRow.InvoiceNumber;\n  items[0].json.extractedAmount = parseFloat(csvRow.Amount);\n  items[0].json.extractedCurrency = csvRow.Currency;\n  items[0].json.extractedDueDate = csvRow.DueDate; // Ensure YYYY-MM-DD\n  items[0].json.extractedDebtorName = csvRow.DebtorName;\n  items[0].json.extractedIssuerName = csvRow.IssuerName;\n  items[0].json.extractedIssuerBankAccount = csvRow.IssuerBankAccount;\n  items[0].json.extractedIssuerBankName = csvRow.IssuerBankName;\n}\n\nitems[0].json.jsonData = JSON.stringify(items[0].json);\nreturn items;"
+      },
+      "name": "Function - Map CSV Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        200,
+        200
+      ],
+      "id": "0cc5b56c-b64d-4779-a3fb-c8b0ea66741b"
+    },
+    {
+      "parameters": {
+        "functionCode": "const text = $json.text || '';\nconst extractedData = {\n  lineItems: [],\n  accountDetails: {}\n};\n\nif (text) {\n  // Invoice number\n  let match = text.match(/Invoice No\\.?\\s*([A-Za-z0-9-]+)/i);\n  if (match && match[1]) extractedData.extractedInvoiceNumber = match[1].trim();\n\n  // Invoice date\n  match = text.match(/(\\d{1,2} [A-Za-z]+ \\d{4})/);\n  if (match && match[1]) extractedData.invoiceDate = match[1];\n\n  // Billed to\n  match = text.match(/Billed to:\\s*(.+?)\\n/);\n  if (match && match[1]) extractedData.billedTo = match[1].trim();\n\n  // Total amount\n  match = text.match(/Total\\s*\\$([\\d,]+\\.\\d{2})/i);\n  if (match && match[1]) {\n    try {\n      extractedData.extractedAmount = parseFloat(match[1].replace(/,/g, ''));\n    } catch (e) {\n      console.error('Error parsing amount:', e);\n    }\n  }\n\n  // Currency\n  if (text.includes('$')) {\n    extractedData.extractedCurrency = 'USD';\n  } else {\n    match = text.match(/\\b(USD|EUR|GBP|GHS)\\b/i);\n    if (match && match[1]) {\n      extractedData.extractedCurrency = match[1].toUpperCase();\n    }\n  }\n\n  // Account details\n  match = text.match(/Account Name:\\s*(.+?)\\n/i);\n  if (match && match[1]) extractedData.accountDetails.accountName = match[1].trim();\n\n  match = text.match(/Account No:\\s*([0-9-]+)/i);\n  if (match && match[1]) extractedData.accountDetails.accountNumber = match[1].trim();\n\n  match = text.match(/([A-Za-z ]+Bank)/);\n  if (match && match[1]) extractedData.accountDetails.bankName = match[1].trim();\n\n  // Line items\n  const lines = text.split('\\n');\n  const itemRegex = /^(.+?)\\s+(\\d+)\\s+\\$(\\d+(?:,\\d{3})*(?:\\.\\d{2})?)\\s+\\$(\\d+(?:,\\d{3})*(?:\\.\\d{2})?)$/;\n  let startCollecting = false;\n\n  for (let i = 0; i < lines.length; i++) {\n    if (lines[i].includes('Item') && lines[i].includes('Quantity')) {\n      startCollecting = true;\n      continue;\n    }\n    if (startCollecting) {\n      const itemMatch = lines[i].match(itemRegex);\n      if (itemMatch) {\n        extractedData.lineItems.push({\n          item: itemMatch[1].trim(),\n          quantity: parseInt(itemMatch[2]),\n          unitPrice: parseFloat(itemMatch[3].replace(/,/g, '')),\n          total: parseFloat(itemMatch[4].replace(/,/g, ''))\n        });\n      } else if (lines[i].startsWith('Subtotal')) {\n        break;\n      }\n    }\n  }\n}\n\nextractedData.jsonData = JSON.stringify(extractedData, null, 2);\nreturn [{ json: extractedData }];\n"
+      },
+      "name": "Function - Extract PDF Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        400,
+        0
+      ],
+      "id": "cf167ca5-7da8-46d1-a1f4-2ce01a4d4cad"
+    },
+    {
+      "parameters": {
+        "filePath": "={{ $json.absoluteFilePath }}"
+      },
+      "name": "Read PDF File",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "fe57d1b0-7380-4fef-a342-4487ebc80237"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.fileExtension }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "pdf"
+            },
+            {
+              "value2": "csv",
+              "output": 1
+            },
+            {
+              "operation": "regex",
+              "value2": "jpeg|jpg|png",
+              "output": 2
+            }
+          ]
         }
-      }
+      },
+      "name": "Switch - File Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        200
+      ],
+      "id": "abb67946-f11f-4b44-a79a-0e6b18ef195b"
     },
     {
       "parameters": {
@@ -78,433 +300,60 @@
         -400,
         200
       ],
-      "id": "31f83e26-c337-427b-8320-00b0bddf4207"
+      "id": "4a352284-623d-481e-9ca0-2a92e07923bf"
     },
     {
       "parameters": {
-        "dataType": "string",
-        "rules": {
-          "rules": [
-            {
-              "value2": "pdf"
-            },
-            {
-              "value2": "csv",
-              "output": 1
-            },
-            {
-              "operation": "notRegex",
-              "value2": "jpeg|jpg|png",
-              "output": 2
-            }
-          ]
+        "queue": "invoice_processing_queue",
+        "options": {
+          "assertQueue": true,
+          "acknowledge": "executionFinishesSuccessfully",
+          "durable": true,
+          "jsonParseBody": "={{ true }}"
         }
       },
-      "name": "Switch - File Type",
-      "type": "n8n-nodes-base.switch",
+      "name": "RabbitMQ Trigger",
+      "type": "n8n-nodes-base.rabbitmqTrigger",
       "typeVersion": 1,
       "position": [
-        -200,
+        -600,
         200
       ],
-      "id": "31c1aac6-d56f-437e-ac1d-d14db8d921b4"
-    },
-    {
-      "parameters": {
-        "filePath": "={{ $json.absoluteFilePath }}"
-      },
-      "name": "Read PDF File",
-      "type": "n8n-nodes-base.readBinaryFile",
-      "typeVersion": 1,
-      "position": [
-        0,
-        0
-      ],
-      "id": "4c31b9b4-6ba6-45a6-b8aa-02a1ce629563"
-    },
-    {
-      "parameters": {
-        "command": "=pdftotext \"{{ $json.absoluteFilePath }}\" -"
-      },
-      "name": "Execute pdftotext",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
-      "position": [
-        200,
-        0
-      ],
-      "id": "7d87d0fe-6a5e-4803-a720-4171b8905554"
-    },
-    {
-      "parameters": {
-        "functionCode": "const text = $json.stdout;\nconst extractedData = {};\n\n// Example: Invoice Number\nlet match = text.match(/Invoice No[:\\s]+([A-Za-z0-9-]+)/i);\nif (match && match[1]) extractedData.extractedInvoiceNumber = match[1].trim();\n\n// Example: Amount\nmatch = text.match(/(?:Total Amount|Amount Due|Total)[:\\s$€£]*([\\d,]+\\.\\d{2})/i);\nif (match && match[1]) {\n  try {\n    extractedData.extractedAmount = parseFloat(match[1].replace(/,/g, ''));\n  } catch(e) { console.error('Error parsing amount from PDF:', e); }\n}\n\n// Example: Currency\nmatch = text.match(/\\b(USD|EUR|GBP|GHS)\\b/i);\nif (match && match[1]) extractedData.extractedCurrency = match[1].toUpperCase();\n\n// Example: Due Date (placeholder - needs robust parsing)\n// match = text.match(/Due Date[:\\s]+(\\d{1,2}[-\\/]\\d{1,2}[-\\/]\\d{2,4})/i);\n// if (match && match[1]) extractedData.extractedDueDate = 'YYYY-MM-DD'; // Format this\n\n// Example: Debtor Name\n// match = text.match(/(?:Bill To|Customer|Client)[:\\s\\n]+([^\\n]+)/i);\n// if (match && match[1]) extractedData.extractedDebtorName = match[1].trim();\n\n\nextractedData.jsonData = JSON.stringify(extractedData);\nreturn [{ json: extractedData }];"
-      },
-      "name": "Function - Extract PDF Data",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 1,
-      "position": [
-        400,
-        0
-      ],
-      "id": "7bc0d250-998e-4061-b401-e76dc17f2c13"
-    },
-    {
-      "parameters": {
-        "functionCode": "const items = [{ json: {} }];\nconst csvRow = $json[0]; // Assuming first row has the main invoice data\n\nif (csvRow) {\n  items[0].json.extractedInvoiceNumber = csvRow.InvoiceNumber;\n  items[0].json.extractedAmount = parseFloat(csvRow.Amount);\n  items[0].json.extractedCurrency = csvRow.Currency;\n  items[0].json.extractedDueDate = csvRow.DueDate; // Ensure YYYY-MM-DD\n  items[0].json.extractedDebtorName = csvRow.DebtorName;\n  items[0].json.extractedIssuerName = csvRow.IssuerName;\n  items[0].json.extractedIssuerBankAccount = csvRow.IssuerBankAccount;\n  items[0].json.extractedIssuerBankName = csvRow.IssuerBankName;\n}\n\nitems[0].json.jsonData = JSON.stringify(items[0].json);\nreturn items;"
-      },
-      "name": "Function - Map CSV Data",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 1,
-      "position": [
-        200,
-        200
-      ],
-      "id": "b6473ce4-f51c-423f-9589-cc3dd78e073b"
-    },
-    {
-      "parameters": {
-        "filePath": "={{ $json.absoluteFilePath }}"
-      },
-      "name": "Read Image File",
-      "type": "n8n-nodes-base.readBinaryFile",
-      "typeVersion": 1,
-      "position": [
-        0,
-        400
-      ],
-      "id": "87a5f526-26e2-497a-a62b-b6019168326a"
-    },
-    {
-      "parameters": {
-        "command": "=tesseract \"{{ $json.absoluteFilePath }}\" stdout -l eng --psm 6"
-      },
-      "name": "Execute Tesseract OCR",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
-      "position": [
-        200,
-        400
-      ],
-      "id": "f48f930e-4d27-4426-9fa7-d7aee22ae1db"
-    },
-    {
-      "parameters": {
-        "functionCode": "const text = $json.stdout;\nconst extractedData = {};\n\n// --- Your custom OCR text parsing logic here ---\n// This is highly dependent on invoice layout and OCR quality.\nlet match = text.match(/Invoice No[:\\s]+([A-Za-z0-9-]+)/i);\nif (match && match[1]) extractedData.extractedInvoiceNumber = match[1].trim();\n\n// ... more robust regex for other fields ...\n\nextractedData.jsonData = JSON.stringify(extractedData);\nreturn [{ json: extractedData }];"
-      },
-      "name": "Function - Extract OCR Data",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 1,
-      "position": [
-        400,
-        400
-      ],
-      "id": "18c92ddc-f938-4edb-9d3b-fd852489b386"
-    },
-    {
-      "parameters": {},
-      "name": "Merge Success",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        600,
-        200
-      ],
-      "id": "7dcdcfcf-613f-4f9f-8d28-fc4797dea255"
-    },
-    {
-      "parameters": {
-        "keepOnlySet": true,
-        "values": {
-          "string": [
-            {
-              "name": "invoiceId",
-              "value": "={{ $node[\"Set - Prepare Initial Data\"].json.invoiceId }}"
-            },
-            {
-              "name": "jsonDataString",
-              "value": "={{ $json.json.jsonData || '{}' }}"
-            },
-            {
-              "name": "extractedInvoiceNumber",
-              "value": "={{ $json.json.extractedInvoiceNumber }}"
-            },
-            {
-              "name": "extractedCurrency",
-              "value": "={{ $json.json.extractedCurrency }}"
-            },
-            {
-              "name": "extractedDueDate",
-              "value": "={{ $json.json.extractedDueDate }}"
-            },
-            {
-              "name": "extractedDebtorName",
-              "value": "={{ $json.json.extractedDebtorName }}"
-            },
-            {
-              "name": "extractedIssuerName",
-              "value": "={{ $json.json.extractedIssuerName }}"
-            },
-            {
-              "name": "extractedIssuerBankAccount",
-              "value": "={{ $json.json.extractedIssuerBankAccount }}"
-            },
-            {
-              "name": "extractedIssuerBankName",
-              "value": "={{ $json.json.extractedIssuerBankName }}"
-            },
-            {
-              "name": "newStatus",
-              "value": "pending_admin_review"
-            }
-          ],
-          "number": [
-            {
-              "name": "extractedAmount",
-              "value": "={{ $json.json.extractedAmount }}"
-            }
-          ],
-          "boolean": []
-        },
-        "options": {}
-      },
-      "name": "Set - API Payload (Success)",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 1,
-      "position": [
-        800,
-        200
-      ],
-      "id": "026c7253-72e7-44eb-b374-4f8174fcbe58"
-    },
-    {
-      "parameters": {
-        "url": "={{ $env.GO_API_BASE_URL }}/internal/invoices/{{ $json.invoiceId }}/processed-data",
-        "authentication": "headerAuth",
-        "options": {}
-      },
-      "name": "HTTP - Update Go API (Success)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 3,
-      "position": [
-        1000,
-        200
-      ],
-      "id": "a7351897-e7c8-475d-9db8-9b1d38cf6646"
-    },
-    {
-      "parameters": {
-        "keepOnlySet": true,
-        "values": {
-          "string": [
-            {
-              "name": "invoiceId",
-              "value": "={{ $node[\"Set - Prepare Initial Data\"].json.invoiceId }}"
-            },
-            {
-              "name": "errorMessage",
-              "value": "={{ $error.message || 'Unknown processing error' }}"
-            },
-            {
-              "name": "errorDetails",
-              "value": "={{ JSON.stringify($error) }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "name": "Set - Error Details",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 1,
-      "position": [
-        200,
-        600
-      ],
-      "id": "4324f22a-403b-4263-a424-bb4db0de0c4c"
-    },
-    {
-      "parameters": {
-        "url": "={{ $env.GO_API_BASE_URL }}/internal/invoices/{{ $json.invoiceId }}/processed-data",
-        "options": {}
-      },
-      "name": "HTTP - Update Go API (Error)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 3,
-      "position": [
-        400,
-        600
-      ],
-      "id": "57acd60a-aabf-44f8-a121-da5f6c1a2ba5"
-    },
-    {
-      "parameters": {
-        "resource": "spreadsheet",
-        "title": "invoice",
-        "sheetsUi": {
-          "sheetValues": [
-            {
-              "title": "1"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.6,
-      "position": [
-        0,
-        200
-      ],
-      "id": "865c1e3f-5252-4523-b1cf-e84facf27290",
-      "name": "Google Sheets",
+      "id": "25444f00-03dd-4edf-8548-fdb4e2528eac",
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "tzaAe8wQROYWROYI",
-          "name": "Google Sheets account"
+        "rabbitmq": {
+          "id": "QrnXtBE9e8nl6KRj",
+          "name": "LocalAppRabbitMQ"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        200,
+        0
+      ],
+      "id": "4176b8d9-bb3a-4e6d-b2d6-891fb77b901b",
+      "name": "Extract from File"
     }
   ],
   "pinData": {},
   "connections": {
-    "RabbitMQ Trigger": {
+    "Set - Error Details": {
       "main": [
-        [
-          {
-            "node": "Set - Prepare Initial Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
-    "Set - Prepare Initial Data": {
+    "HTTP - Update Go API (Success)": {
       "main": [
         [
-          {
-            "node": "Switch - File Type",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Switch - File Type": {
-      "main": [
-        [
-          {
-            "node": "Read PDF File",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Google Sheets",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Read Image File",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Read PDF File": {
-      "main": [
-        [
-          {
-            "node": "Execute pdftotext",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Execute pdftotext": {
-      "main": [
-        [
-          {
-            "node": "Function - Extract PDF Data",
-            "type": "main",
-            "index": 0
-          },
           {
             "node": "Set - Error Details",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Function - Extract PDF Data": {
-      "main": [
-        [
-          {
-            "node": "Merge Success",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Function - Map CSV Data": {
-      "main": [
-        [
-          {
-            "node": "Merge Success",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Read Image File": {
-      "main": [
-        [
-          {
-            "node": "Execute Tesseract OCR",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Execute Tesseract OCR": {
-      "main": [
-        [
-          {
-            "node": "Function - Extract OCR Data",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Set - Error Details",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Function - Extract OCR Data": {
-      "main": [
-        [
-          {
-            "node": "Merge Success",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Merge Success": {
-      "main": [
-        [
-          {
-            "node": "Set - API Payload (Success)",
             "type": "main",
             "index": 0
           }
@@ -522,33 +371,135 @@
         ]
       ]
     },
-    "HTTP - Update Go API (Success)": {
+    "Merge Success": {
       "main": [
         [
           {
-            "node": "Set - Error Details",
+            "node": "Set - API Payload (Success)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Set - Error Details": {
+    "Function - Extract OCR Data": {
       "main": [
         [
           {
-            "node": "HTTP - Update Go API (Error)",
+            "node": "Merge Success",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Google Sheets": {
+    "Execute Tesseract OCR": {
       "main": [
+        [
+          {
+            "node": "Function - Extract OCR Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Image File": {
+      "main": [
+        [
+          {
+            "node": "Execute Tesseract OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Function - Map CSV Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Function - Extract PDF Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read PDF File": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch - File Type": {
+      "main": [
+        [
+          {
+            "node": "Read PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Function - Map CSV Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read Image File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Prepare Initial Data": {
+      "main": [
+        [
+          {
+            "node": "Switch - File Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RabbitMQ Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set - Prepare Initial Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Function - Extract PDF Data",
             "type": "main",
             "index": 0
           }
@@ -558,9 +509,10 @@
   },
   "active": true,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
   },
-  "versionId": "6a66e05f-37c8-4657-8693-93540a379442",
+  "versionId": "d7c6dc5d-ad96-47ca-bbf2-7bc8ba6b634f",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "b2f4a68af9a00c3b1e8de80e090a4b1d068c3ac5e3dfbc626a0a9fbdc3dbf927"
