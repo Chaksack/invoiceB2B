@@ -178,35 +178,44 @@
                 </AccordionTrigger>
                 <AccordionContent class="border-t pt-4">
                   <div class="py-6 px-4 mx-auto max-w-screen-xl">
-                    <Stepper :current-step="getStepForInvoiceStatus(invoice.status)" class="mb-8">
-                      <StepperItem
-                          v-for="item in predefinedSteps"
-                          :key="item.step"
-                          class="basis-1/3"
-                          :step="item.step"
-                          :is-active="item.step === getStepForInvoiceStatus(invoice.status)"
-                          :is-completed="item.step < getStepForInvoiceStatus(invoice.status)"
-                      >
-                        <StepperTrigger>
-                          <StepperIndicator>
-                            <component :is="item.icon" class="w-4 h-4" />
-                          </StepperIndicator>
-                          <div class="flex flex-col items-start text-left">
-                            <StepperTitle>
-                              {{ item.title }}
-                            </StepperTitle>
-                            <StepperDescription>
-                              {{ item.description }}
-                            </StepperDescription>
+                    <div class="w-full mb-8">
+                      <div class="flex items-start">
+                        <template v-for="(step, index) in predefinedSteps" :key="step.step">
+                          <div class="flex flex-col items-center w-1/5">
+                            <div
+                                class="w-10 h-10 rounded-full flex items-center justify-center"
+                                :class="{
+                                'bg-blue-600 text-white': getStepForInvoiceStatus(invoice.status) === step.step,
+                                'bg-green-500 text-white': getStepForInvoiceStatus(invoice.status) > step.step,
+                                'bg-gray-300 text-gray-600': getStepForInvoiceStatus(invoice.status) < step.step
+                              }"
+                            >
+                              <component :is="step.icon" class="w-5 h-5" />
+                            </div>
+                            <p
+                                class="mt-2 text-xs text-center font-medium"
+                                :class="{
+                                'text-blue-600': getStepForInvoiceStatus(invoice.status) === step.step,
+                                'text-green-500': getStepForInvoiceStatus(invoice.status) > step.step,
+                                'text-gray-500': getStepForInvoiceStatus(invoice.status) < step.step
+                              }"
+                            >
+                              {{ step.title }}
+                            </p>
+                            <p class="mt-1 text-xs text-center text-gray-400 px-1" style="min-height: 2.5em;"> {{ step.description }}
+                            </p>
                           </div>
-                        </StepperTrigger>
-                        <StepperSeparator
-                            v-if="item.step !== predefinedSteps[predefinedSteps.length - 1].step"
-                            class="w-full h-px"
-                        />
-                      </StepperItem>
-                    </Stepper>
-
+                          <div
+                              v-if="index < predefinedSteps.length - 1"
+                              class="flex-1 h-1 mt-5"
+                              :class="{
+                              'bg-green-500': getStepForInvoiceStatus(invoice.status) > step.step,
+                              'bg-gray-300': getStepForInvoiceStatus(invoice.status) <= step.step
+                            }"
+                          ></div>
+                        </template>
+                      </div>
+                    </div>
                     <h2 class="mt-4 mb-4 text-xl tracking-tight font-semibold text-black">Invoice Details</h2>
                     <div class="space-y-8 md:grid md:grid-cols-3 lg:grid-cols-3 md:gap-12 md:space-y-0">
                       <div class="col-span-2 max-w-screen-lg text-gray-600 sm:text-lg">
@@ -341,7 +350,8 @@ import { Toaster, toast } from 'vue-sonner'
 
 // Shadcn-vue components
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Stepper, StepperDescription, StepperIndicator, StepperItem, StepperSeparator, StepperTitle, StepperTrigger } from '@/components/ui/stepper'
+// Stepper components are removed as per user request
+// import { Stepper, StepperDescription, StepperIndicator, StepperItem, StepperSeparator, StepperTitle, StepperTrigger } from '@/components/ui/stepper'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -513,7 +523,8 @@ const fetchInvoices = async () => {
         balanceDue = totalAmount;
       }
 
-      const normalizedStatus = inv.status ? String(inv.status).trim().toUpperCase() : 'UNKNOWN';
+      // Normalize status to uppercase and replace underscores with spaces
+      const normalizedStatus = inv.status ? String(inv.status).trim().replace(/_/g, ' ').toUpperCase() : 'UNKNOWN';
 
       return {
         ...inv,
@@ -526,7 +537,7 @@ const fetchInvoices = async () => {
         balanceDue: balanceDue,
         taxRatePercentage: taxRatePercentage,
         items: items,
-        status: normalizedStatus,
+        status: normalizedStatus, // Use the consistently formatted status
         invoiceDate: invoiceDate,
         dueDate: dueDate,
         paymentTerms: paymentTerms,
@@ -730,21 +741,21 @@ const predefinedSteps = [
 
 const invoiceStatusToStepMap: Record<string, number> = {
   'SUBMITTED': 1,
-  'PENDING_ADMIN_REVIEW': 2,
-  'PENDING_REVIEW': 2, // Added from n8n workflow
-  'PENDING_APPROVAL': 2,
-  'UNDER_REVIEW': 2,
+  'PENDING ADMIN REVIEW': 2,
+  'PENDING REVIEW': 2,
+  'PENDING APPROVAL': 2,
+  'UNDER REVIEW': 2,
   'APPROVED': 3,
   'DISBURSED': 4,
   'PAID': 5,
   'REJECTED': 0,
   'CANCELLED': 0,
-  'PROCESSING_FAILED': 0,
+  'PROCESSING FAILED': 0,
   'UNKNOWN': 0,
 }
 
 const getStepForInvoiceStatus = (status: string): number => {
-  const step = invoiceStatusToStepMap[status];
+  const step = invoiceStatusToStepMap[status]; // status is already normalized by fetchInvoices
   if (typeof step === 'undefined') {
     console.warn(`Unknown status encountered for stepper: "${status}" for invoice. Defaulting to step 0.`);
     return 0;
@@ -754,23 +765,23 @@ const getStepForInvoiceStatus = (status: string): number => {
 
 const formatStatus = (status: string): string => {
   if (!status || status === 'UNKNOWN') return 'Unknown';
+  // Status is already uppercase with spaces, so just convert to title case for display
   return status
-      .replace(/_/g, ' ')
       .toLowerCase()
       .replace(/\b\w/g, char => char.toUpperCase());
 }
 
-const getInvoiceStatusBadgeClass = (status: string): string => {
+const getInvoiceStatusBadgeClass = (status: string): string => { // status is already normalized
   if (status === 'APPROVED' || status === 'DISBURSED' || status === 'PAID') return 'bg-green-100 text-green-800';
-  if (status === 'PENDING_APPROVAL' || status === 'UNDER_REVIEW' || status === 'SUBMITTED' || status === 'PENDING_ADMIN_REVIEW' || status === 'PENDING_REVIEW') return 'bg-blue-100 text-blue-800';
-  if (status === 'REJECTED' || status === 'CANCELLED' || status === 'PROCESSING_FAILED') return 'bg-red-100 text-red-800';
+  if (['PENDING APPROVAL', 'UNDER REVIEW', 'SUBMITTED', 'PENDING ADMIN REVIEW', 'PENDING REVIEW'].includes(status)) return 'bg-blue-100 text-blue-800';
+  if (['REJECTED', 'CANCELLED', 'PROCESSING FAILED'].includes(status)) return 'bg-red-100 text-red-800';
   return 'bg-gray-100 text-gray-800';
 }
 
-const getInvoiceStatusIcon = (status: string) => {
-  if (status === 'APPROVED' || status === 'DISBURSED' || status === 'PAID') return CircleCheck;
-  if (status === 'PENDING_APPROVAL' || status === 'UNDER_REVIEW' || status === 'SUBMITTED' || status === 'PENDING_ADMIN_REVIEW' || status === 'PENDING_REVIEW') return Clock;
-  if (status === 'REJECTED' || status === 'CANCELLED' || status === 'PROCESSING_FAILED') return AlertCircle;
+const getInvoiceStatusIcon = (status: string) => { // status is already normalized
+  if (['APPROVED', 'DISBURSED', 'PAID'].includes(status)) return CircleCheck;
+  if (['PENDING APPROVAL', 'UNDER REVIEW', 'SUBMITTED', 'PENDING ADMIN REVIEW', 'PENDING REVIEW'].includes(status)) return Clock;
+  if (['REJECTED', 'CANCELLED', 'PROCESSING FAILED'].includes(status)) return AlertCircle;
   return FileText;
 }
 
