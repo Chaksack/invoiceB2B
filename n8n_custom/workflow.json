@@ -26,8 +26,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 1,
       "position": [
-        740,
-        580
+        1520,
+        520
       ],
       "id": "480b8dd9-fe86-4d77-95fd-335a0f645fef"
     },
@@ -50,6 +50,14 @@
             {
               "name": "jsonData",
               "value": "={{ $json.jsonData }}"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json.newStatus }}"
+            },
+            {
+              "name": "approvalReason",
+              "value": "={{ $json.approval_reason || null }}"
             }
           ]
         },
@@ -59,7 +67,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
       "position": [
-        1000,
+        1620,
         200
       ],
       "id": "e3b15dd2-cec7-4fcf-ba2f-1743f9785107"
@@ -107,7 +115,7 @@
             },
             {
               "name": "newStatus",
-              "value": "pending_admin_review"
+              "value": "pending_review"
             }
           ],
           "number": [
@@ -116,7 +124,17 @@
               "value": "={{ $json.extractedAmount }}"
             }
           ],
-          "boolean": []
+          "boolean": [],
+          "json": [
+            {
+              "name": "summary",
+              "value": "={{ ({ grand_total: ($json.summary && typeof $json.summary.grand_total === 'number' ? $json.summary.grand_total : $json.extractedAmount) || ($json.grandTotal) || 0 }) }}"
+            },
+            {
+              "name": "items",
+              "value": "={{ $json.items || $json.lineItems || [] }}"
+            }
+          ]
         },
         "options": {}
       },
@@ -142,7 +160,7 @@
     },
     {
       "parameters": {
-        "functionCode": "const text = $json.stdout;\nconst extractedData = {};\n\n// --- Your custom OCR text parsing logic here ---\n// This is highly dependent on invoice layout and OCR quality.\nlet match = text.match(/Invoice No[:\\s]+([A-Za-z0-9-]+)/i);\nif (match && match[1]) extractedData.extractedInvoiceNumber = match[1].trim();\n\n// ... more robust regex for other fields ...\n\nextractedData.jsonData = JSON.stringify(extractedData);\nreturn [{ json: extractedData }];"
+        "functionCode": "const text = $json.stdout;\nconst extractedData = {};\n\n// --- Your custom OCR text parsing logic here ---\n// This is highly dependent on invoice layout and OCR quality.\nlet match = text.match(/Invoice No[:\\s]+([A-Za-z0-9-]+)/i);\nif (match && match[1]) extractedData.extractedInvoiceNumber = match[1].trim();\n\n// Ensure extractedAmount and lineItems are populated if possible for IF node\n// Example: (this is placeholder logic, adapt to your OCR output)\n// match = text.match(/Total Amount[:\\s€$£]*([\\d.,]+)/i);\n// if (match && match[1]) {\n//   extractedData.extractedAmount = parseFloat(match[1].replace(/[^\\d.]/g, ''));\n//   extractedData.summary = { grand_total: extractedData.extractedAmount };\n// }\n// extractedData.lineItems = []; // Populate if OCR can extract line items, ensure 'description' or 'item' field\n\nextractedData.jsonData = JSON.stringify(extractedData);\nreturn [{ json: extractedData }];"
       },
       "name": "Function - Extract OCR Data",
       "type": "n8n-nodes-base.function",
@@ -181,7 +199,7 @@
     },
     {
       "parameters": {
-        "functionCode": "const items = [{ json: {} }];\nconst csvRow = $json[0]; // Assuming first row has the main invoice data\n\nif (csvRow) {\n  items[0].json.extractedInvoiceNumber = csvRow.InvoiceNumber;\n  items[0].json.extractedAmount = parseFloat(csvRow.Amount);\n  items[0].json.extractedCurrency = csvRow.Currency;\n  items[0].json.extractedDueDate = csvRow.DueDate; // Ensure YYYY-MM-DD\n  items[0].json.extractedDebtorName = csvRow.DebtorName;\n  items[0].json.extractedIssuerName = csvRow.IssuerName;\n  items[0].json.extractedIssuerBankAccount = csvRow.IssuerBankAccount;\n  items[0].json.extractedIssuerBankName = csvRow.IssuerBankName;\n}\n\nitems[0].json.jsonData = JSON.stringify(items[0].json);\nreturn items;"
+        "functionCode": "const items = [{ json: {} }];\nconst csvRow = $json[0]; // Assuming first row has the main invoice data\n\nif (csvRow) {\n  items[0].json.extractedInvoiceNumber = csvRow.InvoiceNumber;\n  items[0].json.extractedAmount = parseFloat(csvRow.Amount);\n  items[0].json.extractedCurrency = csvRow.Currency;\n  items[0].json.extractedDueDate = csvRow.DueDate; // Ensure YYYY-MM-DD\n  items[0].json.extractedDebtorName = csvRow.DebtorName;\n  items[0].json.extractedIssuerName = csvRow.IssuerName;\n  items[0].json.extractedIssuerBankAccount = csvRow.IssuerBankAccount;\n  items[0].json.extractedIssuerBankName = csvRow.IssuerBankName;\n  \n  // For IF node compatibility\n  items[0].json.lineItems = []; // Assuming no detailed line items in CSV for keyword check\n  items[0].json.summary = { grand_total: items[0].json.extractedAmount }; \n  items[0].json.grandTotal = items[0].json.extractedAmount; // Explicitly set grandTotal\n}\n\nitems[0].json.jsonData = JSON.stringify(items[0].json);\nreturn items;"
       },
       "name": "Function - Map CSV Data",
       "type": "n8n-nodes-base.function",
@@ -194,7 +212,7 @@
     },
     {
       "parameters": {
-        "functionCode": "const text = $json.text || '';\nconst extractedData = {\n  lineItems: [],\n  accountDetails: {}\n};\n\nif (text) {\n  // Invoice number\n  let match = text.match(/Invoice No\\.?\\s*([A-Za-z0-9-]+)/i);\n  if (match && match[1]) extractedData.extractedInvoiceNumber = match[1].trim();\n\n  // Invoice date\n  match = text.match(/(\\d{1,2} [A-Za-z]+ \\d{4})/);\n  if (match && match[1]) extractedData.invoiceDate = match[1];\n\n  // Billed to\n  match = text.match(/Billed to:\\s*(.+?)\\n/);\n  if (match && match[1]) extractedData.billedTo = match[1].trim();\n\n  // Total amount\n  match = text.match(/Total\\s*\\$([\\d,]+\\.\\d{2})/i);\n  if (match && match[1]) {\n    try {\n      extractedData.extractedAmount = parseFloat(match[1].replace(/,/g, ''));\n    } catch (e) {\n      console.error('Error parsing amount:', e);\n    }\n  }\n\n  // Currency\n  if (text.includes('$')) {\n    extractedData.extractedCurrency = 'USD';\n  } else {\n    match = text.match(/\\b(USD|EUR|GBP|GHS)\\b/i);\n    if (match && match[1]) {\n      extractedData.extractedCurrency = match[1].toUpperCase();\n    }\n  }\n\n  // Account details\n  match = text.match(/Account Name:\\s*(.+?)\\n/i);\n  if (match && match[1]) extractedData.accountDetails.accountName = match[1].trim();\n\n  match = text.match(/Account No:\\s*([0-9-]+)/i);\n  if (match && match[1]) extractedData.accountDetails.accountNumber = match[1].trim();\n\n  match = text.match(/([A-Za-z ]+Bank)/);\n  if (match && match[1]) extractedData.accountDetails.bankName = match[1].trim();\n\n  // Line items\n  const lines = text.split('\\n');\n  const itemRegex = /^(.+?)\\s+(\\d+)\\s+\\$(\\d+(?:,\\d{3})*(?:\\.\\d{2})?)\\s+\\$(\\d+(?:,\\d{3})*(?:\\.\\d{2})?)$/;\n  let startCollecting = false;\n\n  for (let i = 0; i < lines.length; i++) {\n    if (lines[i].includes('Item') && lines[i].includes('Quantity')) {\n      startCollecting = true;\n      continue;\n    }\n    if (startCollecting) {\n      const itemMatch = lines[i].match(itemRegex);\n      if (itemMatch) {\n        extractedData.lineItems.push({\n          item: itemMatch[1].trim(),\n          quantity: parseInt(itemMatch[2]),\n          unitPrice: parseFloat(itemMatch[3].replace(/,/g, '')),\n          total: parseFloat(itemMatch[4].replace(/,/g, ''))\n        });\n      } else if (lines[i].startsWith('Subtotal')) {\n        break;\n      }\n    }\n  }\n}\n\nextractedData.jsonData = JSON.stringify(extractedData, null, 2);\nreturn [{ json: extractedData }];\n"
+        "functionCode": "const text = $json.text || '';\nconst extractedData = {\n  lineItems: [],\n  accountDetails: {},\n  summary: {},\n  subtotal: null,\n  taxAmount: null,\n  grandTotal: null,\n  extractedAmount: null // Keep for compatibility, will be set by grandTotal\n};\n\nif (text) {\n  let match;\n\n  // Invoice number\n  match = text.match(/Invoice No\\.?\\s*([A-Za-z0-9-]+)/i);\n  if (match && match[1]) extractedData.extractedInvoiceNumber = match[1].trim();\n\n  // Invoice date\n  match = text.match(/(\\d{1,2} [A-Za-z]+ \\d{4})/);\n  if (match && match[1]) extractedData.invoiceDate = match[1];\n\n  // Billed to\n  match = text.match(/Billed to:\\s*(.+?)\\n/i);\n  if (match && match[1]) extractedData.billedTo = match[1].trim();\n\n  // Currency\n  if (text.includes('$') || text.match(/USD/i)) {\n    extractedData.extractedCurrency = 'USD';\n  } else {\n    match = text.match(/\\b(EUR|GBP|GHS)\\b/i); // Add other currencies as needed\n    if (match && match[1]) {\n      extractedData.extractedCurrency = match[1].toUpperCase();\n    }\n  }\n\n  // Account details\n  match = text.match(/Account Name:\\s*(.+?)\\n/i);\n  if (match && match[1]) extractedData.accountDetails.accountName = match[1].trim();\n\n  match = text.match(/Account No:\\s*([0-9-]+)/i);\n  if (match && match[1]) extractedData.accountDetails.accountNumber = match[1].trim();\n\n  match = text.match(/([A-Za-z ]+Bank)/i); // Made case insensitive\n  if (match && match[1]) extractedData.accountDetails.bankName = match[1].trim();\n\n  // Line items\n  const lines = text.split('\\n');\n  // Regex updated to be more flexible with currency symbols and spacing for line items\n  const itemRegex = /^(.+?)\\s+(\\d+)\\s+\\$?(\\d+(?:,\\d{3})*(?:\\.\\d{2})?)\\s+\\$?(\\d+(?:,\\d{3})*(?:\\.\\d{2})?)$/;\n  let startCollecting = false;\n  for (let i = 0; i < lines.length; i++) {\n    if (lines[i].match(/Item/i) && lines[i].match(/Quantity/i)) { // Case insensitive match\n      startCollecting = true;\n      continue;\n    }\n    if (startCollecting) {\n      const itemMatch = lines[i].match(itemRegex);\n      if (itemMatch) {\n        extractedData.lineItems.push({\n          item: itemMatch[1].trim(),\n          description: itemMatch[1].trim(), // Ensure description for IF node\n          quantity: parseInt(itemMatch[2]),\n          unitPrice: parseFloat(itemMatch[3].replace(/,/g, '')),\n          total: parseFloat(itemMatch[4].replace(/,/g, ''))\n        });\n      } else if (lines[i].match(/^Subtotal/i)) { // Case insensitive match\n        break; \n      }\n    }\n  }\n\n  // Subtotal\n  match = text.match(/Subtotal\\S*\\s*\\$?([\\d,]+(?:\\.\\d{1,2})?)/i);\n  if (match && match[1]) {\n    try {\n      extractedData.subtotal = parseFloat(match[1].replace(/,/g, ''));\n    } catch (e) {\n      console.error('Error parsing subtotal:', e);\n    }\n  }\n\n  // Tax Amount\n  match = text.match(/Tax(?:\\s*\\(.+?\\))?\\S*\\s*\\$?([\\d,]+(?:\\.\\d{1,2})?)/i);\n  if (match && match[1]) {\n    try {\n      extractedData.taxAmount = parseFloat(match[1].replace(/,/g, ''));\n    } catch (e) {\n      console.error('Error parsing tax amount:', e);\n    }\n  }\n\n  // Grand Total\n  match = text.match(/(?:Total|Grand Total|Amount Due)\\S*\\s*\\$?([\\d,]+(?:\\.\\d{1,2})?)/i);\n  if (match && match[1]) {\n    try {\n      const grandTotalValue = parseFloat(match[1].replace(/,/g, ''));\n      extractedData.grandTotal = grandTotalValue;\n      extractedData.extractedAmount = grandTotalValue; \n      extractedData.summary.grand_total = grandTotalValue; \n    } catch (e) {\n      console.error('Error parsing grand total:', e);\n    }\n  }\n\n  // Fallback: if grandTotal is not parsed but subtotal and tax are, calculate it\n  if (extractedData.grandTotal === null && extractedData.subtotal !== null && extractedData.taxAmount !== null) {\n    const calculatedTotal = extractedData.subtotal + extractedData.taxAmount;\n    extractedData.grandTotal = calculatedTotal;\n    extractedData.extractedAmount = calculatedTotal;\n    extractedData.summary.grand_total = calculatedTotal;\n  } else if (extractedData.grandTotal !== null) { \n     extractedData.summary.grand_total = extractedData.grandTotal;\n     if(extractedData.extractedAmount === null) extractedData.extractedAmount = extractedData.grandTotal;\n  }\n\n}\n\nextractedData.jsonData = JSON.stringify(extractedData, null, 2);\nreturn [{ json: extractedData }];"
       },
       "name": "Function - Extract PDF Data",
       "type": "n8n-nodes-base.function",
@@ -340,6 +358,78 @@
       ],
       "id": "4176b8d9-bb3a-4e6d-b2d6-891fb77b901b",
       "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f44730b4-c0e2-4fd3-8f23-5178ae3f695c",
+              "leftValue": "={{ $json.summary.grand_total >= 10000 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "dca8f3fb-a486-48f5-b4bd-618aaa92075d",
+              "leftValue": "={{ $json.items.some(item => {\n  const desc = (item.description || item.item || '').toLowerCase();\n  return desc.includes('precious mineral') || \n         desc.includes('gold') || \n         desc.includes('silver') || \n         desc.includes('platinum') || \n         desc.includes('diamond') ||\n         desc.includes('home purchase') || \n         desc.includes('house purchase') || \n         desc.includes('real estate') || \n         desc.includes('property purchase') ||\n         desc.includes('car purchase') || \n         desc.includes('vehicle purchase') || \n         desc.includes('auto purchase') || \n         desc.includes('automobile');\n}) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1020,
+        200
+      ],
+      "id": "8c2a4ba8-9290-40f7-86a3-2a6edab214cd",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": " {\n          \"assignments\": [\n            {\n              \"id\": \"approval-status-approved\",\n              \"name\": \"newStatus\",\n              \"value\": \"Approved\",\n              \"type\": \"string\"\n            },\n            {\n              \"id\": \"approval-reason-approved\",\n              \"name\": \"approval_reason\",\n              \"value\": \"Invoice meets all approval criteria\",\n              \"type\": \"string\"\n            }\n          ]\n        }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1260,
+        80
+      ],
+      "id": "e3e10e65-d1f9-4b87-9c66-adc5202b2827",
+      "name": "Set Status: Approved"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": " {\n          \"assignments\": [\n            {\n              \"id\": \"approval-status-needs-review\",\n              \"name\": \"newStatus\",\n              \"value\": \"Pending Review\",\n              \"type\": \"string\"\n            },\n            {\n              \"id\": \"approval-reason-high-amount\",\n              \"name\": \"approval_reason\",\n              \"value\": \"={{ $json.summary.grand_total >= 10000 ? 'Invoice amount exceeds $10,000 threshold' : 'Contains restricted category items' }}\",\n              \"type\": \"string\"\n            }\n          ]\n        }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1260,
+        300
+      ],
+      "id": "432accfd-52a7-4935-8346-a95cc252f79f",
+      "name": "Set Status: Needs review"
     }
   ],
   "pinData": {},
@@ -364,7 +454,7 @@
       "main": [
         [
           {
-            "node": "HTTP - Update Go API (Success)",
+            "node": "If",
             "type": "main",
             "index": 0
           }
@@ -461,14 +551,14 @@
           {
             "node": "Function - Map CSV Data",
             "type": "main",
-            "index": 0
+            "index": 1
           }
         ],
         [
           {
             "node": "Read Image File",
             "type": "main",
-            "index": 0
+            "index": 2
           }
         ]
       ]
@@ -505,6 +595,46 @@
           }
         ]
       ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Set Status: Approved",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Status: Needs review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Status: Needs review": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Update Go API (Success)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Status: Approved": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Update Go API (Success)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -512,7 +642,7 @@
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner"
   },
-  "versionId": "d7c6dc5d-ad96-47ca-bbf2-7bc8ba6b634f",
+  "versionId": "a6517591-d1b3-4351-8a3c-ec3d7833718c",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "b2f4a68af9a00c3b1e8de80e090a4b1d068c3ac5e3dfbc626a0a9fbdc3dbf927"

@@ -351,10 +351,8 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Label } from '@/components/ui/label'
 
-// const NuxtLink = h('a'); // Not used, can be removed if not needed elsewhere
-
 // API Configuration
-const API_BASE_URL = 'http://localhost:3000/api/v1' // Ensure this is correct for your environment
+const API_BASE_URL = 'http://localhost:3000/api/v1'
 const tokenCookie = useCookie('token');
 const authToken = tokenCookie.value || null;
 
@@ -429,18 +427,14 @@ const fetchInvoices = async () => {
     let invoiceDataArray = [];
     if (Array.isArray(response.data)) {
       invoiceDataArray = response.data;
-    }
-    else if (response.data && Array.isArray(response.data.data)) {
+    } else if (response.data && Array.isArray(response.data.data)) {
       invoiceDataArray = response.data.data;
-    }
-    else if (response.data && Array.isArray(response.data.invoices)) {
+    } else if (response.data && Array.isArray(response.data.invoices)) {
       invoiceDataArray = response.data.invoices;
-    }
-    else if (response.status === 200 && response.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
+    } else if (response.status === 200 && response.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
       console.warn("Invoice API returned 200 OK with a non-array payload. Assuming empty list.", response.data);
       invoiceDataArray = [];
-    }
-    else if (!Array.isArray(response.data)) {
+    } else if (!Array.isArray(response.data)) {
       console.error("Invoice API response.data is not an array.", response.data);
       throw new Error("Invoice data from API is not in expected array format.");
     }
@@ -455,66 +449,94 @@ const fetchInvoices = async () => {
         }
       }
 
-      // Initialize with base inv values, then override with parsedJsonData if available
+      // Initialize with base inv values or defaults
       let customerName = inv.customer?.name || inv.companyName || 'Unknown Customer';
-      let invoiceNumber = inv.invoiceNumber || String(inv.id); // Ensure invoiceNumber is a string
+      let invoiceNumber = inv.invoiceNumber || String(inv.id);
       let invoiceDate = inv.invoiceDate || inv.createdAt;
       let items: any[] = inv.items || [];
-      let currency = inv.currency || 'GHS'; // Default currency
+      let currency = inv.currency || 'GHS';
+      let totalAmount = parseFloat(inv.totalAmount) || 0;
+      let subTotalAmount = parseFloat(inv.subTotal || inv.subTotalAmount) || 0;
+      let taxAmount = parseFloat(inv.tax || inv.taxAmount) || 0;
+      let balanceDue = parseFloat(inv.balanceDue);
+      let taxRatePercentage = parseFloat(inv.taxRate) || 0;
+      let paymentTerms = inv.terms || inv.paymentTerms;
+      let dueDate = inv.dueDate;
+
 
       if (parsedJsonData) {
         customerName = parsedJsonData.billedTo || customerName;
         invoiceNumber = parsedJsonData.extractedInvoiceNumber || invoiceNumber;
-        // Ensure invoiceDate from jsonData is used if present
-        // The format "30 July 2025" should be parsable by new Date()
         invoiceDate = parsedJsonData.invoiceDate || invoiceDate;
         currency = parsedJsonData.extractedCurrency || currency;
+        paymentTerms = parsedJsonData.paymentTerms || paymentTerms;
+        dueDate = parsedJsonData.dueDate || dueDate;
+
+        // Prioritize totals from parsedJsonData
+        if (typeof parsedJsonData.total !== 'undefined') {
+          totalAmount = parseFloat(parsedJsonData.total) || 0;
+        } else if (typeof parsedJsonData.grandTotal !== 'undefined') {
+          totalAmount = parseFloat(parsedJsonData.grandTotal) || 0;
+        }
+
+        if (typeof parsedJsonData.subtotal !== 'undefined') {
+          subTotalAmount = parseFloat(parsedJsonData.subtotal) || 0;
+        }
+        if (typeof parsedJsonData.tax !== 'undefined') {
+          taxAmount = parseFloat(parsedJsonData.tax) || 0;
+        } else if (typeof parsedJsonData.taxAmount !== 'undefined') {
+          taxAmount = parseFloat(parsedJsonData.taxAmount) || 0;
+        }
+
+        balanceDue = (typeof parsedJsonData.balanceDue !== 'undefined') ? (parseFloat(parsedJsonData.balanceDue) || totalAmount) : totalAmount;
+
+        if (typeof parsedJsonData.taxRatePercentage !== 'undefined') {
+          taxRatePercentage = parseFloat(parsedJsonData.taxRatePercentage) || 0;
+        } else if (subTotalAmount > 0 && taxAmount > 0) { // Calculate if not present
+          taxRatePercentage = parseFloat(((taxAmount / subTotalAmount) * 100).toFixed(2));
+        }
+        // else, it keeps the value from inv.taxRate or 0 from initialization
 
         if (parsedJsonData.lineItems && Array.isArray(parsedJsonData.lineItems)) {
           items = parsedJsonData.lineItems.map((item: any, index: number) => ({
-            id: item.id || `jsonItem-${inv.id}-${index + 1}`, // Generate a unique ID if not present
-            name: item.item || 'N/A',
-            description: item.description || '', // jsonData might not have description
+            id: item.id || `jsonItem-${inv.id}-${index + 1}`,
+            name: item.item || item.name || 'N/A',
+            description: item.description || '',
             unitPrice: parseFloat(item.unitPrice) || 0,
             quantity: parseInt(item.quantity, 10) || 0,
-            amount: parseFloat(item.total) || 0, // 'total' from jsonData lineItem maps to 'amount'
+            amount: parseFloat(item.total || item.amount) || 0,
           }));
         }
       }
 
-      // Normalize status: trim whitespace and convert to uppercase
+      if (isNaN(balanceDue)) {
+        balanceDue = totalAmount;
+      }
+
       const normalizedStatus = inv.status ? String(inv.status).trim().toUpperCase() : 'UNKNOWN';
 
-      // Overall totals from the main inv object.
-      // If these need to be recalculated from 'items' derived from jsonData,
-      // that logic would go here. For now, using inv's top-level values.
-      const totalAmount = parseFloat(inv.totalAmount);
-      const subTotal = parseFloat(inv.subTotal); // inv.subTotal might be named subTotalAmount in your API
-      const tax = parseFloat(inv.tax); // inv.tax might be named taxAmount
-      const balanceDue = parseFloat(inv.balanceDue);
-
       return {
-        ...inv, // Spread original inv for any other fields
-        id: inv.id, // Ensure id is explicitly carried over
+        ...inv,
+        id: inv.id,
         customerName: customerName,
         invoiceNumber: invoiceNumber,
-        totalAmount: !isNaN(totalAmount) ? totalAmount : 0,
-        subTotalAmount: !isNaN(subTotal) ? subTotal : 0, // Use this for display
-        taxAmount: !isNaN(tax) ? tax : 0, // Use this for display
-        balanceDue: !isNaN(balanceDue) ? balanceDue : (!isNaN(totalAmount) ? totalAmount : 0),
-        taxRatePercentage: parseFloat(inv.taxRate) || 0,
+        totalAmount: totalAmount,
+        subTotalAmount: subTotalAmount,
+        taxAmount: taxAmount,
+        balanceDue: balanceDue,
+        taxRatePercentage: taxRatePercentage,
         items: items,
         status: normalizedStatus,
-        invoiceDate: invoiceDate, // Already determined above
-        dueDate: inv.dueDate,
-        paymentTerms: inv.terms || inv.paymentTerms, // Check for common variations
-        customerAddress: inv.customer?.address || {},
-        currency: currency, // Add currency to the invoice object
+        invoiceDate: invoiceDate,
+        dueDate: dueDate,
+        paymentTerms: paymentTerms,
+        customerAddress: inv.customer?.address || (parsedJsonData?.customerAddress) || {},
+        currency: currency,
       };
     }).sort((a: any, b: any) => {
       const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : 0;
       const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : 0;
-      return dateB - dateA; // Sort by most recent invoiceDate first
+      return dateB - dateA;
     });
 
   } catch (err: any) {
@@ -564,24 +586,22 @@ const submitInvoice = async () => {
   isUploadingInvoice.value = true;
   fileUploadError.value = null;
   const formData = new FormData();
-  formData.append('invoiceFile', selectedFile.value); // Make sure 'invoiceFile' matches backend expectation
+  formData.append('invoiceFile', selectedFile.value);
 
   try {
-    // Use a specific Axios client for file uploads if Content-Type needs to be multipart/form-data
     const uploadApiClient = axios.create({
       baseURL: API_BASE_URL,
       headers: {
         ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
-        // 'Content-Type': 'multipart/form-data', // Axios usually sets this automatically for FormData
       }
     });
     const response = await uploadApiClient.post('/invoices', formData);
 
     console.log('Invoice uploaded:', response.data);
     toast.success('Invoice uploaded successfully!');
-    await fetchInvoices(); // Refresh the list
-    selectedFile.value = null; // Clear the selected file
-    isUploadDialogOpen.value = false; // Close the dialog
+    await fetchInvoices();
+    selectedFile.value = null;
+    isUploadDialogOpen.value = false;
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       console.error('API Error (Upload):', err.response.status, err.response.data);
@@ -589,7 +609,6 @@ const submitInvoice = async () => {
       if (err.response.status === 401 || err.response.status === 403) {
         toast.error(`Authentication error: ${errorMessage}`);
       } else {
-        // Display specific error in the dialog if it's a validation error for the file
         if (err.response.status === 400 && (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes("invoice file"))) {
           fileUploadError.value = `Upload Error: ${errorMessage}`;
         } else {
@@ -644,9 +663,7 @@ const triggerDownloadReceipt = async (invoiceId: string | number) => {
   }
   toast.info("Preparing download...");
   try {
-    // Determine if it's a receipt or invoice PDF based on status (already handled by v-if in template)
-    // The endpoint /invoices/${invoiceId}/receipt seems to be generic for "downloadable PDF"
-    const response = await apiClient.get(`/invoices/${invoiceId}/receipt`, { // Assuming this endpoint serves both
+    const response = await apiClient.get(`/invoices/${invoiceId}/receipt`, {
       responseType: 'blob',
     })
     const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/pdf' })
@@ -654,7 +671,7 @@ const triggerDownloadReceipt = async (invoiceId: string | number) => {
     link.href = URL.createObjectURL(blob)
 
     const contentDisposition = response.headers['content-disposition'];
-    let filename = `invoice-${invoiceId}-document.pdf`; // Generic filename
+    let filename = `invoice-${invoiceId}-document.pdf`;
     if (contentDisposition) {
       const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
       if (filenameMatch && filenameMatch.length === 2)
@@ -670,7 +687,6 @@ const triggerDownloadReceipt = async (invoiceId: string | number) => {
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       console.error('API Error (Download Document):', err.response.status, err.response.data)
-      // Attempt to parse error from blob if response is blob
       if (err.response.data instanceof Blob && err.response.data.type === "application/json") {
         const errorText = await err.response.data.text();
         try {
@@ -695,7 +711,7 @@ const summaryStats = computed(() => {
   const approved = invoices.value.filter(inv => inv.status === 'APPROVED' || inv.status === 'DISBURSED' || inv.status === 'PAID').length
   const funded = invoices.value
       .filter(inv => inv.status === 'DISBURSED' || inv.status === 'PAID')
-      .reduce((sum, inv) => sum + (parseFloat(inv.fundedAmount || inv.totalAmount) || 0), 0) // Ensure fundedAmount or totalAmount is parsed
+      .reduce((sum, inv) => sum + (parseFloat(inv.fundedAmount || inv.totalAmount) || 0), 0)
 
   return {
     totalInvoices: invoices.value.length,
@@ -712,34 +728,31 @@ const predefinedSteps = [
   { step: 5, title: 'Paid', description: 'Invoice has been paid by customer.', icon: HandCoins },
 ]
 
-// This map should cover all normalized statuses from your backend
 const invoiceStatusToStepMap: Record<string, number> = {
   'SUBMITTED': 1,
-  'PENDING_ADMIN_REVIEW': 2, // Added based on your example JSON
+  'PENDING_ADMIN_REVIEW': 2,
+  'PENDING_REVIEW': 2, // Added from n8n workflow
   'PENDING_APPROVAL': 2,
   'UNDER_REVIEW': 2,
   'APPROVED': 3,
   'DISBURSED': 4,
   'PAID': 5,
-  'REJECTED': 0, // Represents a failed/terminal state not on the happy path
-  'CANCELLED': 0, // Represents a failed/terminal state
-  'PROCESSING_FAILED': 0, // Example
+  'REJECTED': 0,
+  'CANCELLED': 0,
+  'PROCESSING_FAILED': 0,
   'UNKNOWN': 0,
 }
 
 const getStepForInvoiceStatus = (status: string): number => {
-  // Status is already normalized (uppercase, trimmed) in fetchInvoices
   const step = invoiceStatusToStepMap[status];
   if (typeof step === 'undefined') {
     console.warn(`Unknown status encountered for stepper: "${status}" for invoice. Defaulting to step 0.`);
     return 0;
   }
-  // console.log(`getStepForInvoiceStatus - Input (normalized): "${status}", Mapped Step: ${step}`); // Keep for debugging if needed
   return step;
 }
 
 const formatStatus = (status: string): string => {
-  // Status is already normalized
   if (!status || status === 'UNKNOWN') return 'Unknown';
   return status
       .replace(/_/g, ' ')
@@ -748,27 +761,23 @@ const formatStatus = (status: string): string => {
 }
 
 const getInvoiceStatusBadgeClass = (status: string): string => {
-  // Status is already normalized
   if (status === 'APPROVED' || status === 'DISBURSED' || status === 'PAID') return 'bg-green-100 text-green-800';
-  if (status === 'PENDING_APPROVAL' || status === 'UNDER_REVIEW' || status === 'SUBMITTED' || status === 'PENDING_ADMIN_REVIEW') return 'bg-blue-100 text-blue-800';
+  if (status === 'PENDING_APPROVAL' || status === 'UNDER_REVIEW' || status === 'SUBMITTED' || status === 'PENDING_ADMIN_REVIEW' || status === 'PENDING_REVIEW') return 'bg-blue-100 text-blue-800';
   if (status === 'REJECTED' || status === 'CANCELLED' || status === 'PROCESSING_FAILED') return 'bg-red-100 text-red-800';
-  return 'bg-gray-100 text-gray-800'; // Default for UNKNOWN or other statuses
+  return 'bg-gray-100 text-gray-800';
 }
 
 const getInvoiceStatusIcon = (status: string) => {
-  // Status is already normalized
   if (status === 'APPROVED' || status === 'DISBURSED' || status === 'PAID') return CircleCheck;
-  if (status === 'PENDING_APPROVAL' || status === 'UNDER_REVIEW' || status === 'SUBMITTED' || status === 'PENDING_ADMIN_REVIEW') return Clock;
+  if (status === 'PENDING_APPROVAL' || status === 'UNDER_REVIEW' || status === 'SUBMITTED' || status === 'PENDING_ADMIN_REVIEW' || status === 'PENDING_REVIEW') return Clock;
   if (status === 'REJECTED' || status === 'CANCELLED' || status === 'PROCESSING_FAILED') return AlertCircle;
-  return FileText; // Default icon
+  return FileText;
 }
 
 const formatDate = (dateString?: string | Date): string => {
   if (!dateString) return 'N/A';
   try {
-    // Handles ISO strings like "2025-05-27T15:17:34.90605Z"
-    // and also "30 July 2025"
-    return new Date(dateString).toLocaleDateString('en-GB', { // Using 'en-GB' for dd/mm/yyyy format
+    return new Date(dateString).toLocaleDateString('en-GB', {
       day: '2-digit', month: 'short', year: 'numeric'
     });
   } catch (e) {
@@ -789,7 +798,7 @@ const kycStatusClass = (status: string | undefined) => {
 const dismissComplianceBanner = (event: MouseEvent) => {
   const banner = (event.currentTarget as HTMLElement)?.closest('.relative.bg-red-500');
   if (banner) {
-    banner.remove(); // Simple removal, no state saved for this
+    banner.remove();
   }
 }
 
@@ -826,13 +835,4 @@ body {
   color: #a0a0a0;
 }
 
-/* Stepper custom styles if needed, assuming your Stepper component styles these internally or via props */
-.stepper-item-active .stepper-indicator {
-  /* background-color: #0042c9; */ /* Example, if not handled by component */
-  /* color: white; */
-}
-.stepper-item-completed .stepper-indicator {
-  /* background-color: green; */ /* Example, if not handled by component */
-  /* color: white; */
-}
 </style>
