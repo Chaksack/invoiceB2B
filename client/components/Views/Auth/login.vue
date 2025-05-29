@@ -103,7 +103,7 @@ const login = async () => {
       if (data.redirectPath) {
         await navigateTo(data.redirectPath);
       } else if (data.role === 'admin') {
-        await navigateTo('/admin');
+        await navigateTo('/admin/home');
       } else {
         await navigateTo('/home');
       }

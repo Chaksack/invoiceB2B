@@ -5,7 +5,7 @@ const loading  = ref(false);
 <template>
   <div>
     <ViewsAdminDashboardHeader />
-    <ViewsAdminDashboardPending />
+    <ViewsAdminDashboardCustomers />
   </div>
 
 </template>

@@ -9,7 +9,7 @@ export default defineNuxtRouteMiddleware((to) => {
 
     if (to.path.startsWith('/admin') && role !== 'admin') return navigateTo('/home');
 
-    if (to.path.startsWith('/home') && role === 'admin') return navigateTo('/admin');
+    if (to.path.startsWith('/home') && role === 'admin') return navigateTo('/admin/home');
 });
 
 
