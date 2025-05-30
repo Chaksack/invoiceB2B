@@ -3,10 +3,10 @@ name: CI/CD with ECS Deployment & Approval
 on:
   push:
     branches:
-      - main # Or your default/production branch
+      - main
   pull_request:
     branches:
-      - main # Or your default/production branch
+      - main
     types: [opened, synchronize, reopened]
 
 permissions:
