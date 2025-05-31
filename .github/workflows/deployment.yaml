@@ -28,10 +28,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22' # Adjust to your project's Go version (e.g., 1.21, 1.22)
+          go-version: '1.22' # Adjust to your project's Go version
 
       - name: Cache Go modules
-        uses: actions/cache@v4 # Updated to v4
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
@@ -40,15 +40,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Run linter
+      - name: Run linter (Placeholder)
         run: |
           echo "INFO: Linting step placeholder. Replace with your actual linting commands."
           # Example for golangci-lint:
-          # curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.57.2 # Or your desired version
+          # curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.57.2
           # $(go env GOPATH)/bin/golangci-lint run ./...
           exit 0 # Simulate success
 
-      - name: Run tests
+      - name: Run tests (Placeholder)
         run: |
           echo "INFO: Testing step placeholder. Replace with your actual test commands."
           # Example:
@@ -56,20 +56,12 @@ jobs:
           exit 0 # Simulate success
 
       - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@v2.0.0 # Pinned to a specific version
+        uses: sonarsource/sonarqube-scan-action@v2.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          # SONAR_PROJECT_KEY: "your_project_key" # Optional: if not auto-detected
-          # SONAR_ORGANIZATION: "your_organization_key" # Optional: if needed for SonarCloud/SonarQube Enterprise
-
-      # Optional: Fail job if Quality Gate is red.
-      # - name: SonarQube Quality Gate check
-      #   uses: sonarsource/sonarqube-quality-gate-action@v1.0.0 # Pinned to a specific version
-      #   timeout-minutes: 5
-      #   env:
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      #     SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }} # Only if using self-managed SonarQube
+          # SONAR_PROJECT_KEY: "your_project_key" # Optional
+          # SONAR_ORGANIZATION: "your_organization_key" # Optional
 
   notify-pr-review-needed:
     name: Notify PR Review Needed
@@ -108,15 +100,14 @@ jobs:
     name: Build & Push API Image to ECR
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [] # Runs independently on merge to main, branch protection rules should enforce PR checks
+    needs: []
     environment:
-      name: production # Configure this environment in GitHub Settings > Environments with required reviewers for approval
-      # URL to view the pushed image in ECR console
+      name: production
       url: https://${{ secrets.AWS_REGION }}.console.aws.amazon.com/ecr/repositories/private/${{ steps.extract-account-id.outputs.account_id }}/${{ secrets.ECR_REPOSITORY_API }}/image/${{ steps.build-image.outputs.image_tag }}/details
 
     outputs:
-      ecr_image_uri: ${{ steps.build-image.outputs.ecr_image_uri }}
-      image_tag: ${{ steps.build-image.outputs.image_tag }}
+      ecr_image_uri_api: ${{ steps.build-image-api.outputs.ecr_image_uri }}
+      image_tag: ${{ steps.build-image-api.outputs.image_tag }}
 
     steps:
       - name: Checkout code
@@ -125,7 +116,7 @@ jobs:
       - name: Configure AWS Credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }} # e.g., arn:aws:iam::123456789012:role/GitHubAction-ECRAccess
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Extract AWS Account ID from Role ARN
@@ -143,14 +134,13 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build, tag, and push API image to Amazon ECR
-        id: build-image
+        id: build-image-api
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY_API: ${{ secrets.ECR_REPOSITORY_API }} # Your API ECR repository name
+          ECR_REPOSITORY_API: ${{ secrets.ECR_REPOSITORY_API }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "Building API Docker image..."
-          # Assumes Dockerfile for API is at the root of the repo, as per your docker-compose.yml 'api' service
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_API:$IMAGE_TAG -f Dockerfile .
           echo "Pushing API Docker image to ECR: $ECR_REGISTRY/$ECR_REPOSITORY_API:$IMAGE_TAG"
           docker push $ECR_REGISTRY/$ECR_REPOSITORY_API:$IMAGE_TAG
@@ -162,10 +152,9 @@ jobs:
     name: Deploy to ECS
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build-and-push-api-to-ecr # Depends on the API image being built and pushed
+    needs: build-and-push-api-to-ecr
     environment:
-      name: production # Uses the same environment, so approval for build-and-push covers this too.
-      # Or define a separate environment (e.g., 'ecs-deployment') if a distinct approval is needed here.
+      name: production
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -173,117 +162,167 @@ jobs:
       - name: Configure AWS Credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_ECS_DEPLOY }} # Specific IAM Role for ECS deployment
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_ECS_DEPLOY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Install/Check Docker ECS integration (Conceptual)
+      - name: Install yq
         run: |
-          echo "Checking Docker version with ECS integration capability..."
-          docker version
-          # GitHub-hosted runners usually have a recent Docker version.
-          # For self-hosted, ensure Docker is up-to-date and includes ECS integration.
-          # If needed: curl -L https://raw.githubusercontent.com/docker/compose-cli/main/scripts/install/install_linux.sh | sh
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
+          sudo chmod +x /usr/bin/yq
+          yq --version
 
       - name: Prepare ECS-specific Docker Compose file
+        id: prepare-compose
         env:
-          API_IMAGE_URI: ${{ needs.build-and-push-api-to-ecr.outputs.ecr_image_uri }}
+          API_IMAGE_URI: ${{ needs.build-and-push-api-to-ecr.outputs.ecr_image_uri_api }}
+          # Secrets for managed services (endpoints, usernames, passwords via Secrets Manager ARNs)
+          DB_HOST_SECRET_ARN: ${{ secrets.DB_HOST_SECRET_ARN }} # e.g., RDS endpoint
+          DB_PORT_SECRET_ARN: ${{ secrets.DB_PORT_SECRET_ARN }}
+          DB_USER_SECRET_ARN: ${{ secrets.DB_USER_SECRET_ARN }}
+          DB_PASSWORD_SECRET_ARN: ${{ secrets.DB_PASSWORD_SECRET_ARN }}
+          DB_NAME_SECRET_ARN: ${{ secrets.DB_NAME_SECRET_ARN }}
+          REDIS_HOST_SECRET_ARN: ${{ secrets.REDIS_HOST_SECRET_ARN }} # e.g., ElastiCache endpoint
+          REDIS_PORT_SECRET_ARN: ${{ secrets.REDIS_PORT_SECRET_ARN }}
+          # REDIS_PASSWORD_SECRET_ARN: ${{ secrets.REDIS_PASSWORD_SECRET_ARN }} # If Redis has password
+          RABBITMQ_HOST_SECRET_ARN: ${{ secrets.RABBITMQ_HOST_SECRET_ARN }} # e.g., Amazon MQ endpoint
+          RABBITMQ_PORT_SECRET_ARN: ${{ secrets.RABBITMQ_PORT_SECRET_ARN }}
+          RABBITMQ_USER_SECRET_ARN: ${{ secrets.RABBITMQ_USER_SECRET_ARN }}
+          RABBITMQ_PASS_SECRET_ARN: ${{ secrets.RABBITMQ_PASS_SECRET_ARN }}
+          INTERNAL_API_KEY_SECRET_ARN: ${{ secrets.INTERNAL_API_KEY_SECRET_ARN }}
+          N8N_ENCRYPTION_KEY_SECRET_ARN: ${{ secrets.N8N_ENCRYPTION_KEY_SECRET_ARN }}
+          # EFS IDs (will be created by Terraform)
+          EFS_ID_UPLOADS: ${{ secrets.EFS_ID_UPLOADS }} # For shared /mnt/invoice_uploads
+          EFS_ID_N8N_DATA: ${{ secrets.EFS_ID_N8N_DATA }}
+          EFS_ID_SONAR_DATA: ${{ secrets.EFS_ID_SONAR_DATA }}
+          EFS_ID_SONAR_LOGS: ${{ secrets.EFS_ID_SONAR_LOGS }}
+          EFS_ID_SONAR_EXT: ${{ secrets.EFS_ID_SONAR_EXT }}
+          # Other env vars
+          APP_PORT_ENV: ${{ secrets.APP_PORT || '3000' }}
+          N8N_WEBHOOK_URL_ENV: ${{ secrets.N8N_WEBHOOK_URL }} # e.g., https://n8n.yourdomain.com/
+          SONARQUBE_DB_NAME_ENV: ${{ secrets.SONARQUBE_DB_NAME || 'sonarqube_db' }}
           AWS_REGION_ENV: ${{ secrets.AWS_REGION }}
-          ECS_CLUSTER_NAME_ENV: ${{ secrets.ECS_CLUSTER_NAME }} # Define this secret
-          # Add other necessary env vars for templating your docker-compose.ecs.yml
-          # For example, RDS endpoints, ElastiCache endpoints, if using managed services.
-          # DB_USER_SECRET_ARN: ${{ secrets.DB_USER_SECRET_ARN }}
-          # DB_PASSWORD_SECRET_ARN: ${{ secrets.DB_PASSWORD_SECRET_ARN }}
+          LOG_GROUP_NAME_ENV: "/ecs/${{ secrets.ECS_PROJECT_NAME }}" # e.g., /ecs/myinvoiceapp
         run: |
-          echo "Preparing docker-compose.ecs.yml..."
-          # This is a CRITICAL step. You MUST adapt your local docker-compose.yml
-          # (from the 'docker_compose_sonarqube' artifact) for ECS.
-          #
-          # Key changes needed:
-          # 1. API Service:
-          #    - Replace 'build' with 'image: ${API_IMAGE_URI}'.
-          #    - Remove 'container_name'. ECS manages this.
-          #    - Remove local 'volumes' (e.g., './go.mod'). Source code should be in the image.
-          #    - Configuration: './config' volume needs rethinking. Bake into image, use ConfigMaps (via S3/Parameter Store), or AWS AppConfig.
-          #    - 'env_file: .env': Replace with ECS secrets (AWS Secrets Manager or SSM Parameter Store).
-          #    - 'logging': Configure 'awslogs' driver.
-          #
-          # 2. Stateful Services (postgres, redis, rabbitmq, n8n, sonarqube):
-          #    - OPTION A (Recommended for Production): Use AWS Managed Services (RDS, ElastiCache, Amazon MQ).
-          #      Remove these services from 'docker-compose.ecs.yml'.
-          #      Update 'api' and 'n8n' environment variables to point to these managed services (pass endpoints/credentials as secrets).
-          #    - OPTION B (Running as containers on ECS - more complex):
-          #      Keep service definitions but:
-          #        - Remove 'container_name'.
-          #        - Volumes ('postgres_data', 'redis_data', etc.): MUST be mapped to Amazon EFS for persistence.
-          #          Use 'x-aws-volumes' extension or define EFS mount points in task definitions.
-          #        - './uploads' for n8n: Use EFS or S3.
-          #        - Networking: Service discovery or ALB for inter-service communication (e.g., api -> postgres).
-          #        - Secrets: Use ECS secrets for passwords (e.g., RABBITMQ_DEFAULT_PASS).
-          #
-          # 3. N8N Configuration:
-          #    - 'GO_API_BASE_URL': Update to the 'api' service's ECS service discovery name or ALB DNS.
-          #
-          # 4. SonarQube Configuration (if on ECS):
-          #    - 'SONAR_JDBC_URL': Point to RDS or the ECS 'postgres' service discovery name.
-          #
-          # This script should dynamically create 'docker-compose.ecs.yml' using 'envsubst', 'sed', 'awk', 'yq',
-          # or a dedicated templating tool based on your chosen strategy.
-          # The example below is a VERY simplified placeholder.
+          echo "Preparing docker-compose.ecs.yml from docker-compose.yml..."
+          cp docker-compose.yml docker-compose.ecs.yml
 
-          cp docker-compose.yml docker-compose.ecs.yml # Start with a copy
+          # Remove services that will be managed (Postgres, Redis, RabbitMQ)
+          yq -i 'del(.services.postgres)' docker-compose.ecs.yml
+          yq -i 'del(.services.redis)' docker-compose.ecs.yml
+          yq -i 'del(.services.rabbitmq)' docker-compose.ecs.yml
+          yq -i 'del(.volumes.postgres_data)' docker-compose.ecs.yml
+          yq -i 'del(.volumes.redis_data)' docker-compose.ecs.yml
+          yq -i 'del(.volumes.rabbitmq_data)' docker-compose.ecs.yml
 
-          # Example using sed to replace API image (very basic, adapt carefully):
-          # Note: secrets.ECR_REPOSITORY_API should be the name of the api service in docker-compose if different
-          sed -i "s|build:.*|image: ${API_IMAGE_URI}|g" docker-compose.ecs.yml
-          sed -i "/services:.*api:/,/^ *[^ ]/{/build:/d;}" docker-compose.ecs.yml # Attempt to remove build context for api
-          # Add more sed/awk/yq commands here to:
-          # - Remove container_name from all services
-          # - Configure awslogs driver for all services
-          # - Replace env_file with references to ECS secrets
-          # - Configure EFS volumes if running stateful services on ECS
-          # - Adjust depends_on if some services are now managed
-          # - Update N8N's GO_API_BASE_URL, SonarQube's SONAR_JDBC_URL
+          # --- API Service Configuration ---
+          yq -i '.services.api.image = env(API_IMAGE_URI)' docker-compose.ecs.yml
+          yq -i 'del(.services.api.build)' docker-compose.ecs.yml
+          yq -i 'del(.services.api.container_name)' docker-compose.ecs.yml
+          yq -i 'del(.services.api.depends_on)' docker-compose.ecs.yml # Dependencies are now external
+          yq -i 'del(.services.api.env_file)' docker-compose.ecs.yml
+          # Add logging configuration
+          yq -i '.services.api.logging.driver = "awslogs"' docker-compose.ecs.yml
+          yq -i '.services.api.logging.options."awslogs-group" = env(LOG_GROUP_NAME_ENV)' docker-compose.ecs.yml
+          yq -i '.services.api.logging.options."awslogs-region" = env(AWS_REGION_ENV)' docker-compose.ecs.yml
+          yq -i '.services.api.logging.options."awslogs-stream-prefix" = "api"' docker-compose.ecs.yml
+          # Environment variables using secrets
+          yq -i '.services.api.environment = []' docker-compose.ecs.yml # Initialize as array
+          yq -i '.services.api.environment += {"APP_ENV": "production"}' docker-compose.ecs.yml
+          yq -i '.services.api.environment += {"APP_PORT": env(APP_PORT_ENV)}' docker-compose.ecs.yml
+          # Secrets (example for DB, adapt for all needed secrets)
+          yq -i '.services.api.secrets = []' docker-compose.ecs.yml
+          yq -i '.services.api.secrets += {"source": env(DB_HOST_SECRET_ARN), "target": "DB_HOST"}' docker-compose.ecs.yml
+          yq -i '.services.api.secrets += {"source": env(DB_PORT_SECRET_ARN), "target": "DB_PORT"}' docker-compose.ecs.yml
+          yq -i '.services.api.secrets += {"source": env(DB_USER_SECRET_ARN), "target": "DB_USER"}' docker-compose.ecs.yml
+          yq -i '.services.api.secrets += {"source": env(DB_PASSWORD_SECRET_ARN), "target": "DB_PASSWORD"}' docker-compose.ecs.yml
+          yq -i '.services.api.secrets += {"source": env(DB_NAME_SECRET_ARN), "target": "DB_NAME"}' docker-compose.ecs.yml
+          yq -i '.services.api.secrets += {"source": env(REDIS_HOST_SECRET_ARN), "target": "REDIS_ADDR"}' docker-compose.ecs.yml # Assuming REDIS_ADDR format is host:port
+          yq -i '.services.api.secrets += {"source": env(REDIS_PORT_SECRET_ARN), "target": "REDIS_PORT_ONLY"}' docker-compose.ecs.yml # If you need port separately
+          # yq -i '.services.api.secrets += {"source": env(REDIS_PASSWORD_SECRET_ARN), "target": "REDIS_PASSWORD"}' docker-compose.ecs.yml
+          yq -i '.services.api.secrets += {"source": env(RABBITMQ_HOST_SECRET_ARN), "target": "RABBITMQ_HOST"}' docker-compose.ecs.yml
+          yq -i '.services.api.secrets += {"source": env(RABBITMQ_PORT_SECRET_ARN), "target": "RABBITMQ_PORT"}' docker-compose.ecs.yml
+          yq -i '.services.api.secrets += {"source": env(RABBITMQ_USER_SECRET_ARN), "target": "RABBITMQ_USER"}' docker-compose.ecs.yml
+          yq -i '.services.api.secrets += {"source": env(RABBITMQ_PASS_SECRET_ARN), "target": "RABBITMQ_PASS"}' docker-compose.ecs.yml
+          yq -i '.services.api.secrets += {"source": env(INTERNAL_API_KEY_SECRET_ARN), "target": "INTERNAL_API_KEY"}' docker-compose.ecs.yml
+          # Volumes: Map local ./uploads to an EFS volume
+          yq -i '.services.api.volumes = [{"type": "volume", "source": "efs_uploads", "target": "/mnt/invoice_uploads"}]' docker-compose.ecs.yml
 
-          echo "--- Generated docker-compose.ecs.yml (Review Carefully) ---"
+          # --- N8N Service Configuration ---
+          yq -i 'del(.services.n8n.container_name)' docker-compose.ecs.yml
+          yq -i 'del(.services.n8n.depends_on)' docker-compose.ecs.yml # API is external, RabbitMQ is external
+          yq -i '.services.n8n.logging.driver = "awslogs"' docker-compose.ecs.yml
+          yq -i '.services.n8n.logging.options."awslogs-group" = env(LOG_GROUP_NAME_ENV)' docker-compose.ecs.yml
+          yq -i '.services.n8n.logging.options."awslogs-region" = env(AWS_REGION_ENV)' docker-compose.ecs.yml
+          yq -i '.services.n8n.logging.options."awslogs-stream-prefix" = "n8n"' docker-compose.ecs.yml
+          yq -i '.services.n8n.environment.GO_API_BASE_URL = "http://api.${COMPOSE_PROJECT_NAME}.internal:3000/api/v1" # Using ECS service discovery, replace COMPOSE_PROJECT_NAME or use ALB DNS' docker-compose.ecs.yml
+          yq -i '.services.n8n.environment.N8N_ENCRYPTION_KEY = null | .services.n8n.secrets = [{"source": env(N8N_ENCRYPTION_KEY_SECRET_ARN), "target": "N8N_ENCRYPTION_KEY"}]' docker-compose.ecs.yml
+          yq -i '.services.n8n.environment.WEBHOOK_URL = env(N8N_WEBHOOK_URL_ENV)' docker-compose.ecs.yml
+          # N8N Volumes: Map to EFS
+          yq -i '.services.n8n.volumes = []' docker-compose.ecs.yml
+          yq -i '.services.n8n.volumes += {"type": "volume", "source": "efs_n8n_data", "target": "/home/node/.n8n"}' docker-compose.ecs.yml
+          yq -i '.services.n8n.volumes += {"type": "volume", "source": "efs_uploads", "target": "/mnt/invoice_uploads"}' docker-compose.ecs.yml
+
+          # --- SonarQube Service Configuration ---
+          yq -i 'del(.services.sonarqube.container_name)' docker-compose.ecs.yml
+          yq -i 'del(.services.sonarqube.depends_on)' docker-compose.ecs.yml # Postgres is external
+          yq -i '.services.sonarqube.logging.driver = "awslogs"' docker-compose.ecs.yml
+          yq -i '.services.sonarqube.logging.options."awslogs-group" = env(LOG_GROUP_NAME_ENV)' docker-compose.ecs.yml
+          yq -i '.services.sonarqube.logging.options."awslogs-region" = env(AWS_REGION_ENV)' docker-compose.ecs.yml
+          yq -i '.services.sonarqube.logging.options."awslogs-stream-prefix" = "sonarqube"' docker-compose.ecs.yml
+          # SonarQube JDBC URL needs to point to RDS. Assuming DB_HOST_SECRET_ARN gives the RDS endpoint.
+          # This is tricky with yq and secrets directly. The task definition might be easier to template for this.
+          # For now, let's assume the environment variable is set directly in the task definition by Terraform.
+          # Or, construct it carefully here if possible.
+          # yq -i '.services.sonarqube.environment.SONAR_JDBC_URL = "jdbc:postgresql://" + (env(DB_HOST_SECRET_ARN) | ???) + ":5432/" + env(SONARQUBE_DB_NAME_ENV)' docker-compose.ecs.yml # This part is complex with yq for secret values
+          yq -i '.services.sonarqube.environment.SONAR_JDBC_URL = "jdbc:postgresql://<DB_HOST_FROM_SECRET>:<DB_PORT_FROM_SECRET>/${SONARQUBE_DB_NAME_ENV}"' docker-compose.ecs.yml # Placeholder, will be set by secrets
+          yq -i '.services.sonarqube.secrets = []' docker-compose.ecs.yml
+          yq -i '.services.sonarqube.secrets += {"source": env(DB_HOST_SECRET_ARN), "target": "SONAR_DB_HOST"}' docker-compose.ecs.yml
+          yq -i '.services.sonarqube.secrets += {"source": env(DB_PORT_SECRET_ARN), "target": "SONAR_DB_PORT"}' docker-compose.ecs.yml
+          yq -i '.services.sonarqube.secrets += {"source": env(DB_USER_SECRET_ARN), "target": "SONAR_JDBC_USERNAME"}' docker-compose.ecs.yml
+          yq -i '.services.sonarqube.secrets += {"source": env(DB_PASSWORD_SECRET_ARN), "target": "SONAR_JDBC_PASSWORD"}' docker-compose.ecs.yml
+          # SonarQube Volumes: Map to EFS
+          yq -i '.services.sonarqube.volumes = []' docker-compose.ecs.yml
+          yq -i '.services.sonarqube.volumes += {"type": "volume", "source": "efs_sonarqube_data", "target": "/opt/sonarqube/data"}' docker-compose.ecs.yml
+          yq -i '.services.sonarqube.volumes += {"type": "volume", "source": "efs_sonarqube_logs", "target": "/opt/sonarqube/logs"}' docker-compose.ecs.yml
+          yq -i '.services.sonarqube.volumes += {"type": "volume", "source": "efs_sonarqube_extensions", "target": "/opt/sonarqube/extensions"}' docker-compose.ecs.yml
+
+          # Define top-level EFS volumes for docker ecs compose
+          yq -i '.volumes.efs_uploads.driver = "local"' docker-compose.ecs.yml # 'local' is fine, actual EFS config is via x-aws-volume
+          yq -i '.volumes.efs_uploads."x-aws-volume".efs.file_system_id = env(EFS_ID_UPLOADS)' docker-compose.ecs.yml
+          yq -i '.volumes.efs_n8n_data.driver = "local"' docker-compose.ecs.yml
+          yq -i '.volumes.efs_n8n_data."x-aws-volume".efs.file_system_id = env(EFS_ID_N8N_DATA)' docker-compose.ecs.yml
+          yq -i '.volumes.efs_sonarqube_data.driver = "local"' docker-compose.ecs.yml
+          yq -i '.volumes.efs_sonarqube_data."x-aws-volume".efs.file_system_id = env(EFS_ID_SONAR_DATA)' docker-compose.ecs.yml
+          yq -i '.volumes.efs_sonarqube_logs.driver = "local"' docker-compose.ecs.yml
+          yq -i '.volumes.efs_sonarqube_logs."x-aws-volume".efs.file_system_id = env(EFS_ID_SONAR_LOGS)' docker-compose.ecs.yml
+          yq -i '.volumes.efs_sonarqube_extensions.driver = "local"' docker-compose.ecs.yml
+          yq -i '.volumes.efs_sonarqube_extensions."x-aws-volume".efs.file_system_id = env(EFS_ID_SONAR_EXT)' docker-compose.ecs.yml
+          
+          # Add x-aws-vpc extension for networking configuration
+          yq -i '.x-aws-vpc = env(AWS_VPC_ID_SECRET_ARN)' docker-compose.ecs.yml # VPC ID from secrets or direct value
+
+          echo "--- Generated docker-compose.ecs.yml ---"
           cat docker-compose.ecs.yml
-          echo "----------------------------------------------------------"
-          # IMPORTANT: Validate this generated file thoroughly.
+          echo "----------------------------------------"
+          echo "compose_file_path=docker-compose.ecs.yml" >> $GITHUB_OUTPUT
 
       - name: Deploy to ECS using Docker CLI
         env:
-          COMPOSE_PROJECT_NAME: "myinvoiceapp" # Used by docker-compose to name resources in ECS/CloudFormation
-          # Ensure AWS_REGION and ECS_CLUSTER_NAME are available if not using --context
+          COMPOSE_PROJECT_NAME: ${{ secrets.ECS_PROJECT_NAME || 'invoiceb2b' }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECS_CLUSTER_NAME: ${{ secrets.ECS_CLUSTER_NAME }}
         run: |
-          echo "Deploying services from docker-compose.ecs.yml to ECS cluster: ${ECS_CLUSTER_NAME}"
-          # Ensure your Docker CLI context is configured for ECS, or AWS credentials/region are set.
-          # This command will translate docker-compose.ecs.yml into CloudFormation and deploy/update services.
-          # Prerequisites:
-          # 1. An existing ECS Cluster (${{ secrets.ECS_CLUSTER_NAME }}).
-          # 2. IAM permissions for the assumed role to manage ECS, CloudFormation, ECR, IAM (for task roles), ELB, etc.
-          # 3. VPC, subnets, security groups configured.
-          # 4. (Optional but recommended) An Application Load Balancer (ALB) for services like 'api', 'n8n', 'sonarqube'.
-          #    The `docker ecs compose` command can help set this up if configured in the compose file using x-aws extensions.
-
-          # Example command (ensure your Docker context is set to your ECS cluster or use explicit params):
-          # docker context use your-ecs-context-name # If you have one pre-configured
-          # docker ecs compose -f docker-compose.ecs.yml --project-name ${COMPOSE_PROJECT_NAME} up
-
-          # Or, if not using a pre-set context and relying on env vars for AWS CLI:
+          echo "Deploying services from ${{ steps.prepare-compose.outputs.compose_file_path }} to ECS cluster: ${ECS_CLUSTER_NAME}"
           docker ecs compose --cluster ${ECS_CLUSTER_NAME} --aws-region ${AWS_REGION} \
-            -f docker-compose.ecs.yml \
+            -f ${{ steps.prepare-compose.outputs.compose_file_path }} \
             --project-name ${COMPOSE_PROJECT_NAME} up
-
-          # Note: `docker ecs compose up` can take time as it provisions/updates CloudFormation stacks.
-          # Add `--debug` for more verbose output if troubleshooting.
           echo "ECS deployment initiated. Monitor progress in AWS Console (ECS & CloudFormation)."
 
   notify-deployment-status:
     name: Notify Deployment Status
     runs-on: ubuntu-latest
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [build-and-push-api-to-ecr, deploy-to-ecs] # Depends on both build and deploy jobs
+    needs: [build-and-push-api-to-ecr, deploy-to-ecs]
     steps:
       - name: Get short SHA for main push
         id: short_sha_main
@@ -308,7 +347,7 @@ jobs:
                   "elements": [
                     { "type": "mrkdwn", "text": "Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|`${{ steps.short_sha_main.outputs.sha }}`>" },
                     { "type": "mrkdwn", "text": "Triggered by: `${{ github.actor }}`" },
-                    { "type": "mrkdwn", "text": "API ECR Image: `${{ needs.build-and-push-api-to-ecr.outputs.ecr_image_uri || 'N/A' }}`" },
+                    { "type": "mrkdwn", "text": "API ECR Image: `${{ needs.build-and-push-api-to-ecr.outputs.ecr_image_uri_api || 'N/A' }}`" },
                     { "type": "mrkdwn", "text": "Workflow Run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>" }
                   ]
                 }
