@@ -15,13 +15,13 @@
       <Card>
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle class="text-sm font-medium">
-            Total Revenue
+            Total Disbursed
           </CardTitle>
           <DollarSign class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <div v-if="isLoadingStats" class="h-8 w-3/4 bg-gray-200 animate-pulse rounded"></div>
-          <div v-else class="text-2xl font-bold">GHS {{ stats.totalRevenue?.toLocaleString() || '0.00' }}</div>
+          <div v-else class="text-2xl font-bold">GHS {{ stats.totalRevenue?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00' }}</div>
           <p v-if="!isLoadingStats" class="text-xs text-muted-foreground">
             {{ stats.revenueChange || '+0.0' }}% from last month
           </p>
@@ -173,15 +173,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/com
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar';
 import { Badge } from '~/components/ui/badge';
 import { Toaster, toast } from 'vue-sonner';
-import { useCookie } from '#app'; // Or 'nuxt/app'
-import axios from 'axios'; // Assuming axios is installed
+import { useCookie } from '#app';
+import axios from 'axios';
 
 definePageMeta({
-  layout: 'admin', // Assuming you have an admin layout
-  middleware: 'auth' // Your existing auth middleware
+  layout: 'admin',
+  middleware: 'auth'
 });
 
-// API Configuration (example)
 const API_BASE_URL = 'http://localhost:3000/api/v1'; // Replace with your actual API base URL
 const tokenCookie = useCookie('token');
 const authToken = tokenCookie.value || null;
@@ -194,43 +193,56 @@ const apiClient = axios.create({
   },
 });
 
-// --- Reactive State ---
 const isLoadingStats = ref(true);
-const isLoadingCharts = ref(true); // For chart data
+const isLoadingCharts = ref(true);
 const isLoadingActivities = ref(true);
 
 const stats = ref({
-  totalRevenue: 0,
-  revenueChange: '+0.0',
-  totalUsers: 0,
-  usersChange: '+0',
-  totalInvoices: 0,
-  invoicesChange: '+0',
-  pendingKyc: 0,
+  totalRevenue: 0,      // Will be populated by API: totalDisbursedAmount
+  revenueChange: '+0.0',// Mocked for now
+  totalUsers: 0,        // Will be populated by API
+  usersChange: '+0',    // Mocked for now
+  totalInvoices: 0,     // Will be populated by API
+  invoicesChange: '+0', // Mocked for now
+  pendingKyc: 0,        // Will be populated by API
 });
 
 const recentActivities = ref<any[]>([]);
 
-// --- Fetch Data ---
 const fetchDashboardStats = async () => {
   isLoadingStats.value = true;
   try {
-    // const response = await apiClient.get('/admin/dashboard/stats');
-    // stats.value = response.data;
-    // Mock data for now:
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+    const response = await apiClient.get('/admin/dashboard/analytics'); // Updated endpoint
+    const data = response.data;
+
     stats.value = {
-      totalRevenue: 125450.75,
-      revenueChange: '+12.5',
-      totalUsers: 1320,
-      usersChange: '+52',
-      totalInvoices: 4890,
-      invoicesChange: '+150',
-      pendingKyc: 15,
+      totalRevenue: data.totalDisbursedAmount || 0, // Using totalDisbursedAmount for totalRevenue
+      revenueChange: stats.value.revenueChange, // Keep mock or implement calculation
+      totalUsers: data.totalUsers || 0,
+      usersChange: stats.value.usersChange, // Keep mock or implement calculation
+      totalInvoices: data.invoiceStats?.totalInvoices || 0,
+      invoicesChange: stats.value.invoicesChange, // Keep mock or implement calculation
+      pendingKyc: data.kycStats?.pendingReview || 0,
     };
+    toast.success("Dashboard statistics loaded successfully!");
+
   } catch (error) {
     console.error("Failed to fetch dashboard stats:", error);
-    toast.error("Could not load dashboard statistics.");
+    let errorMessage = "Could not load dashboard statistics.";
+    if (axios.isAxiosError(error) && error.response) {
+      errorMessage += ` (Status: ${error.response.status})`;
+    }
+    toast.error(errorMessage);
+    // Fallback to some default/zero values if API fails
+    stats.value = {
+      totalRevenue: 0,
+      revenueChange: 'N/A',
+      totalUsers: 0,
+      usersChange: 'N/A',
+      totalInvoices: 0,
+      invoicesChange: 'N/A',
+      pendingKyc: 0,
+    };
   } finally {
     isLoadingStats.value = false;
   }
@@ -239,12 +251,7 @@ const fetchDashboardStats = async () => {
 const fetchChartData = async () => {
   isLoadingCharts.value = true;
   try {
-    // Example:
-    // const invoiceChartData = await apiClient.get('/admin/dashboard/charts/invoices');
-    // const userChartData = await apiClient.get('/admin/dashboard/charts/users');
-    // Process and set data for your chart components (e.g., Recharts)
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
-    // (Set your chart data here)
+    await new Promise(resolve => setTimeout(resolve, 1500));
     toast.info("Chart data would be loaded here for Recharts or similar library.");
   } catch (error) {
     console.error("Failed to fetch chart data:", error);
@@ -257,9 +264,6 @@ const fetchChartData = async () => {
 const fetchRecentActivities = async () => {
   isLoadingActivities.value = true;
   try {
-    // const response = await apiClient.get('/admin/dashboard/activities?limit=5');
-    // recentActivities.value = response.data;
-    // Mock data for now:
     await new Promise(resolve => setTimeout(resolve, 1200));
     recentActivities.value = [
       { type: 'new_user', description: 'New user registered: Alice Wonderland', actorName: 'System', timestamp: new Date(Date.now() - 3600000 * 2), avatarUrl: 'https://placehold.co/40x40/7c3aed/ffffff?text=AW', tag: 'User' },
@@ -276,8 +280,6 @@ const fetchRecentActivities = async () => {
   }
 };
 
-
-// --- UI Helpers ---
 const formatRelativeTime = (timestamp: string | Date): string => {
   const date = new Date(timestamp);
   const now = new Date();
@@ -317,19 +319,17 @@ const getActivityTagVariant = (tag: string): 'default' | 'secondary' | 'destruct
   if (tag === 'User') return 'secondary';
   if (tag === 'Invoice') return 'outline';
   if (tag === 'KYC') return 'default';
-  if (tag === 'Payment') return 'default'; // Or a specific color if 'success' variant exists
+  if (tag === 'Payment') return 'default';
   return 'outline';
 }
 
-
-// --- Lifecycle Hooks ---
 onMounted(() => {
   if (authToken) {
     fetchDashboardStats();
     fetchChartData();
     fetchRecentActivities();
   } else {
-    toast.error("Authentication required to load dashboard data.");
+    toast.error("Authentication token not found. Please log in.");
     isLoadingStats.value = false;
     isLoadingCharts.value = false;
     isLoadingActivities.value = false;
