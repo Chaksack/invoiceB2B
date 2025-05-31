@@ -6,7 +6,7 @@ import (
 	"invoiceB2B/internal/dtos"
 	"net/http"
 	"os"
-	"path/filepath" // Ensure filepath is imported
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -22,16 +22,16 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/log" // Use Fiber's logger
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
-	flogger "github.com/gofiber/fiber/v2/middleware/logger" // Alias Fiber's logger middleware
+	flogger "github.com/gofiber/fiber/v2/middleware/logger"
 )
 
 type NuxtProjectConfig struct {
 	Name     string
 	URLPath  string
-	DistPath string // Should be relative to the application's working directory, e.g., "./client/dist"
+	DistPath string
 }
 
 func main() {
@@ -84,6 +84,7 @@ func main() {
 	notificationService, err := services.NewNotificationService(cfg)
 	if err != nil {
 		log.Infof("Warning: Failed to initialize Notification Service (RabbitMQ): %v. Some event notifications might not work.", err)
+		// notificationService will be nil if initialization fails and NewNotificationService returns (nil, err)
 	} else {
 		log.Info("Notification Service (RabbitMQ) initialized.")
 		if notificationService != nil { // Ensure service is not nil before deferring Close
@@ -95,6 +96,11 @@ func main() {
 	emailService := services.NewEmailService(cfg)
 	otpService := services.NewOTPService(rdb, cfg.OTPExpirationMinutes)
 	fileService := services.NewFileService(cfg.UploadsDir, cfg.MaxUploadSizeMB*1024*1024)
+
+	// Placeholder for PDFService initialization - it will be nil for now
+	// In a real application, you would initialize your PDFService implementation here.
+	var pdfService services.PDFService
+	// Example: pdfService = services.NewMyPDFGenerator()
 
 	userRepo := repositories.NewUserRepository(db)
 	kycRepo := repositories.NewKYCRepository(db)
@@ -109,7 +115,7 @@ func main() {
 	invoiceService := services.NewInvoiceService(invoiceRepo, userRepo, transactionRepo, fileService, notificationService, activityLogSvc, emailService, cfg)
 	internalService := services.NewInternalService(invoiceRepo, activityLogSvc)
 
-	// Initialize AdminService (pass all dependencies, including staffRepo)
+	// Initialize AdminService (pass all dependencies)
 	adminService := services.NewAdminService(
 		userRepo,
 		kycRepo,
@@ -118,9 +124,10 @@ func main() {
 		transactionRepo,
 		activityLogSvc,
 		emailService,
-		nil,
+		notificationService, // Pass the initialized notificationService (can be nil)
 		fileService,
-		cfg,
+		pdfService, // Pass the (nil) pdfService
+		cfg,        // Pass the config as the last argument
 	)
 
 	// --- Create Superadmin User (if not exists) ---
@@ -142,7 +149,7 @@ func main() {
 	setupNuxtFrontendServers(app, nuxtProjects)
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
+		AllowOrigins: "http://localhost:5000,http://localhost:3000,http://localhost:3001",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS",
 	}))
@@ -246,24 +253,22 @@ func createSuperAdminIfNotExists(adminService services.AdminService, cfg *config
 	superAdminPassword := os.Getenv("SUPERADMIN_PASSWORD")
 	superAdminFirstName := os.Getenv("SUPERADMIN_FIRSTNAME")
 	superAdminLastName := os.Getenv("SUPERADMIN_LASTNAME")
-	superAdminRole := "admin"
+	superAdminRole := "admin" // Assuming "admin" is a valid role in your models.Staff
 
 	if superAdminEmail == "" || superAdminPassword == "" {
 		log.Info("Superadmin credentials (SUPERADMIN_EMAIL, SUPERADMIN_PASSWORD) not found in environment variables. Skipping superadmin creation.")
 		return
 	}
 	if superAdminFirstName == "" {
-		superAdminFirstName = "Super" // Default value
+		superAdminFirstName = "Super"
 	}
 	if superAdminLastName == "" {
-		superAdminLastName = "Admin" // Default value
+		superAdminLastName = "Admin"
 	}
 
-	// The CreateStaff service method already checks if the email exists.
-	// It returns an error if the staff member already exists.
 	superAdminReq := dtos.CreateStaffRequest{
 		Email:     superAdminEmail,
-		Password:  superAdminPassword, // This will be hashed by CreateStaff
+		Password:  superAdminPassword,
 		FirstName: superAdminFirstName,
 		LastName:  superAdminLastName,
 		Role:      superAdminRole,
@@ -275,7 +280,8 @@ func createSuperAdminIfNotExists(adminService services.AdminService, cfg *config
 		if strings.Contains(err.Error(), "staff with this email already exists") {
 			log.Infof("Superadmin with email %s already exists. No action taken.", superAdminEmail)
 		} else {
-			log.Infof("Failed to create superadmin %s: %v", superAdminEmail, err)
+			// Log more generally as other errors might occur (DB connection, etc.)
+			log.Warnf("Failed to create superadmin %s: %v. This might be due to an existing user or other issues.", superAdminEmail, err)
 		}
 	} else {
 		log.Infof("Superadmin %s created successfully with role %s.", superAdminEmail, superAdminRole)
