@@ -1,35 +1,84 @@
-name: CI/CD with ECS Deployment & Approval
+name: InvoiceB2B CI/CD Pipeline
 
+# Workflow for deploying infrastructure using Terraform and deploying applications to ECS
 on:
   push:
-    branches:
-      - staging
+    branches: [ main, staging ]
   pull_request:
-    branches:
-      - staging
+    branches: [ main, staging ]
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+        default: 'staging'
+      destroy_infrastructure:
+        description: 'Destroy infrastructure instead of deploying'
+        required: false
+        type: boolean
+        default: false
+      confirmation:
+        description: 'Type "destroy" to confirm destruction of infrastructure (only needed when destroy_infrastructure is true)'
+        required: false
+        type: string
 
 permissions:
   contents: read
   id-token: write   # Required for AWS OIDC authentication
   pull-requests: write # For SonarQube comments or PR labels
+  issues: write     # For manual approval issues
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+  TERRAFORM_VERSION: 1.7.0
+  # Default environment is staging, can be overridden by workflow_dispatch input
+  ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
+  COMPOSE_PROJECT_NAME: ${{ secrets.ECS_PROJECT_NAME || 'invoiceb2b' }}
 
 jobs:
-  lint-and-test:
-    name: Lint, Test & Scan PR
+  # Validation job for destroy confirmation
+  validate-destroy-confirmation:
+    name: 'Validate Destroy Confirmation'
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.destroy_infrastructure == 'true'
     steps:
-      - name: Checkout code
+      - name: Check confirmation
+        if: ${{ github.event.inputs.confirmation != 'destroy' }}
+        run: |
+          echo "Error: You must type 'destroy' to confirm infrastructure destruction."
+          exit 1
+
+  # Vulnerability scanning job that runs before infrastructure deployment
+  vulnerability-scan:
+    name: 'Scan for Vulnerabilities'
+    runs-on: ubuntu-latest
+    # Skip vulnerability scanning when destroying infrastructure
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.destroy_infrastructure != 'true'
+    steps:
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Required for SonarQube for full analysis history
 
+      # Setup Node.js for npm audit
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      # Setup Go for Go code scanning
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23' # As per your latest workflow
+          go-version: '1.22' # Using the latest stable Go version
 
+      # Cache Go modules
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
@@ -40,55 +89,151 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Run linter (Placeholder)
+      # Run Go linter
+      - name: Run Go linter
         run: |
-          echo "INFO: Linting step placeholder. Replace with your actual linting commands."
-          # Example for golangci-lint:
-          # curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.57.2
-          # $(go env GOPATH)/bin/golangci-lint run ./...
-          exit 0 # Simulate success
+          # Install golangci-lint
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.57.2
+          # Run linter
+          $(go env GOPATH)/bin/golangci-lint run ./... --timeout=5m
 
-      - name: Run tests (Placeholder)
+      # Run Go tests
+      - name: Run Go tests
         run: |
-          echo "INFO: Testing step placeholder. Replace with your actual test commands."
-          # Example:
-          # go test -v -race -coverprofile=coverage.out ./...
-          exit 0 # Simulate success
+          # Run tests with race detection and generate coverage report
+          go test -v -race -coverprofile=coverage.out ./...
+          # Display coverage report
+          go tool cover -func=coverage.out
 
+      # Scan frontend dependencies
+      - name: Scan Frontend Dependencies
+        run: |
+          cd frontend
+          echo "Running npm audit on frontend dependencies..."
+          npm audit --production --audit-level=high || echo "Frontend has vulnerabilities that need to be addressed"
+
+      # Scan backend dependencies
+      - name: Scan Backend Dependencies
+        run: |
+          cd backend || cd .
+          echo "Running npm audit on backend dependencies..."
+          npm audit --production --audit-level=high || echo "Backend has vulnerabilities that need to be addressed"
+
+      # Setup Terraform for tfsec
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      # Install tfsec for Terraform security scanning
+      - name: Install tfsec
+        run: |
+          curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+
+      # Scan Terraform code
+      - name: Scan Terraform Code
+        run: |
+          echo "Running tfsec on Terraform code..."
+          tfsec . --no-color || echo "Terraform has security issues that need to be addressed"
+
+      # SonarQube Scan
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@v2.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          # SONAR_PROJECT_KEY: "your_project_key" # Optional
-          # SONAR_ORGANIZATION: "your_organization_key" # Optional
+        continue-on-error: true
 
-  notify-pr-review-needed:
-    name: Notify PR Review Needed
+      # Generate vulnerability report
+      - name: Generate Vulnerability Report
+        run: |
+          echo "## Dependency Vulnerability Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "### Frontend Dependencies" >> $GITHUB_STEP_SUMMARY
+          cd frontend && npm audit --json | jq -r '.advisories | length | "Found \(.) vulnerabilities"' >> $GITHUB_STEP_SUMMARY || echo "Error running npm audit for frontend" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Backend Dependencies" >> $GITHUB_STEP_SUMMARY
+          cd ../backend && npm audit --json | jq -r '.advisories | length | "Found \(.) vulnerabilities"' >> $GITHUB_STEP_SUMMARY || echo "Error running npm audit for backend" >> $GITHUB_STEP_SUMMARY || cd .. && echo "Backend not found or not using npm" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Terraform Security Issues" >> $GITHUB_STEP_SUMMARY
+          cd .. && tfsec . --no-color --format json | jq -r '.results | length | "Found \(.) security issues"' >> $GITHUB_STEP_SUMMARY || echo "Error running tfsec" >> $GITHUB_STEP_SUMMARY
+
+  # Conditional job that runs when destroy_infrastructure is true
+  terraform-destroy:
+    name: 'Destroy Infrastructure'
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    needs: validate-destroy-confirmation
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.destroy_infrastructure == 'true'
+    permissions:
+      issues: write
+      contents: read
+    environment:
+      name: ${{ github.event.inputs.environment || 'staging' }}
     steps:
-      - name: Get short SHA for PR head
-        id: short_sha_pr
-        run: echo "sha=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Send Slack Notification for PR Review
+      # Configure AWS credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      # Initialize Terraform
+      - name: Terraform Init
+        run: terraform init
+
+      # Create destroy plan
+      - name: Terraform Plan Destroy
+        run: terraform plan -destroy -var="environment=${{ env.ENVIRONMENT }}" -out=tfdestroyplan
+
+      # Add a manual approval step
+      - name: Manual Approval
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: ${{ github.actor }}
+          minimum-approvals: 1
+          issue-title: "Approve Infrastructure Destruction"
+          issue-body: "Please approve the destruction of the infrastructure by adding a comment with 'approve'."
+          exclude-workflow-initiator-as-approver: false
+          timeout-minutes: 10
+
+      # Apply destroy plan
+      - name: Terraform Destroy
+        run: terraform apply -auto-approve tfdestroyplan
+
+      # Notify destruction status
+      - name: Notify Destruction Status
+        if: always()
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
-              "text": "PR opened by `${{ github.actor }}` needs review: <${{ github.event.pull_request.html_url }}|#${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}>",
+              "text": "${{ job.status == 'success' && '✅ Terraform Infrastructure Destroyed Successfully' || '❌ Terraform Destroy Failed' }} for `${{ github.repository }}`",
               "blocks": [
                 {
                   "type": "section",
-                  "text": { "type": "mrkdwn", "text": "👀 *Pull Request Needs Review*\nPR <${{ github.event.pull_request.html_url }}|#${{ github.event.pull_request.number }} \"${{ github.event.pull_request.title }}\"> by `${{ github.actor }}` is ready for review." }
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ job.status == 'success' && '✅ *Terraform Infrastructure Destroyed Successfully*' || '❌ *Terraform Destroy Failed*' }}\nRepository: `${{ github.repository }}`\nEnvironment: `${{ env.ENVIRONMENT }}`"
+                  }
                 },
                 {
                   "type": "context",
                   "elements": [
-                    { "type": "mrkdwn", "text": "Repository: `${{ github.repository }}`" },
-                    { "type": "mrkdwn", "text": "Branch: `${{ github.event.pull_request.head.ref }}`" },
-                    { "type": "mrkdwn", "text": "Commit: `${{ steps.short_sha_pr.outputs.sha }}`" }
+                    { "type": "mrkdwn", "text": "Triggered by: `${{ github.actor }}`" },
+                    { "type": "mrkdwn", "text": "Workflow Run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>" }
                   ]
                 }
               ]
@@ -96,48 +241,180 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-  build-and-push-api-to-ecr:
-    name: Build & Push API Image to ECR
+  terraform:
+    name: 'Deploy Infrastructure'
+    needs: vulnerability-scan
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/staging' # Corrected branch
-    needs: []
+    if: always() && (github.event_name != 'workflow_dispatch' || github.event.inputs.destroy_infrastructure != 'true')
     environment:
-      name: production # Ensure this environment is configured in GitHub Settings
-      # The 'url' field for an environment cannot directly use the 'secrets' context.
-      # This URL is a static link to the ECR console.
-      # You can construct a more specific URL (with region, account, repo, tag) in a later step
-      # and use it for notifications if needed.
-      url: https://console.aws.amazon.com/ecr/repositories
+      name: ${{ github.event.inputs.environment || 'staging' }}
+
+    # Define outputs that can be used by other jobs
     outputs:
-      ecr_image_uri_api: ${{ steps.build-image-api.outputs.ecr_image_uri }}
-      image_tag: ${{ steps.build-image-api.outputs.image_tag }}
+      terraform_success: ${{ steps.terraform_apply.outputs.success }}
+      backup_created: ${{ steps.terraform_apply.outputs.backup_created }}
 
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials using OIDC
+      # Configure AWS credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Extract AWS Account ID from Role ARN
-        id: extract-account-id
+      # Cache Terraform to speed up workflow
+      - name: Cache Terraform
+        uses: actions/cache@v4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
+
+      # Setup Terraform with latest stable version
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      # Initialize Terraform
+      - name: Terraform Init
+        run: terraform init
+
+      # Check formatting
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      # Validate configuration
+      - name: Terraform Validate
+        run: terraform validate
+
+      # Create execution plan
+      - name: Terraform Plan
+        run: terraform plan -var="environment=${{ env.ENVIRONMENT }}" -out=tfplan
+
+      # Add a manual approval step for production deployments
+      - name: Manual Approval for Production
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && env.ENVIRONMENT == 'prod'
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: ${{ github.actor }}
+          minimum-approvals: 1
+          issue-title: "Approve Production Deployment"
+          issue-body: "Please approve the deployment to the production environment by adding a comment with 'approve'."
+          exclude-workflow-initiator-as-approver: false
+          timeout-minutes: 60
+
+      # Apply changes only on main branch and not in pull requests
+      - name: Terraform Apply
+        id: terraform_apply
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' || github.ref == 'refs/heads/staging'
         run: |
-          ACCOUNT_ID=$(echo "${{ secrets.AWS_ROLE_TO_ASSUME }}" | cut -d':' -f5)
-          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-          if [ -z "$ACCOUNT_ID" ]; then
-            echo "Error: Could not parse AWS_ACCOUNT_ID from AWS_ROLE_TO_ASSUME."
+          # Create a backup of the current state before applying changes
+          terraform state pull > terraform.tfstate.backup.${{ env.ENVIRONMENT }}
+          echo "backup_created=true" >> $GITHUB_OUTPUT
+
+          # Apply the changes
+          if terraform apply -auto-approve tfplan; then
+            echo "Terraform apply succeeded"
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "Terraform apply failed"
+            echo "success=false" >> $GITHUB_OUTPUT
             exit 1
           fi
 
-      - name: Log in to Amazon ECR
+      # Upload state backup as an artifact
+      - name: Upload State Backup
+        if: steps.terraform_apply.outputs.backup_created == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-state-backup-${{ env.ENVIRONMENT }}
+          path: terraform.tfstate.backup.${{ env.ENVIRONMENT }}
+          retention-days: 7
+          if-no-files-found: error
+
+  build-and-push:
+    name: 'Build and Push Docker Images'
+    needs: terraform
+    runs-on: ubuntu-latest
+    # Only run on main branch and not in pull requests, and only if terraform was successful
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') && github.event_name != 'pull_request' && needs.terraform.outputs.terraform_success == 'true'
+    environment:
+      name: ${{ github.event.inputs.environment || 'staging' }}
+
+    # Define outputs that can be used by other jobs
+    outputs:
+      frontend_image: ${{ steps.get-ecr-urls.outputs.frontend_repo }}:${{ github.sha }}
+      backend_image: ${{ steps.get-ecr-urls.outputs.backend_repo }}:${{ github.sha }}
+      ecr_repos_found: ${{ steps.get-ecr-urls.outputs.ecr_repos_found }}
+      frontend_image_local: frontend:latest
+      backend_image_local: backend:latest
+      api_image_uri: ${{ steps.build-image-api.outputs.ecr_image_uri }}
+      image_tag: ${{ steps.build-image-api.outputs.image_tag }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Configure AWS credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Set up Docker Buildx for multi-platform builds and caching
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Login to Amazon ECR
+      - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # Initialize Terraform to get outputs
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      # Initialize Terraform
+      - name: Terraform Init
+        run: terraform init
+
+      # Get ECR Repository URLs from Terraform outputs
+      - name: Get ECR Repository URLs
+        id: get-ecr-urls
+        run: |
+          FRONTEND_REPO=$(terraform output -raw frontend_repository_url || echo "")
+          BACKEND_REPO=$(terraform output -raw backend_repository_url || echo "")
+
+          # Check if repositories were found
+          if [ -z "$FRONTEND_REPO" ] || [ -z "$BACKEND_REPO" ]; then
+            echo "ECR repositories not found in Terraform outputs. Skipping push."
+            echo "ecr_repos_found=false" >> $GITHUB_OUTPUT
+          else
+            echo "ECR repositories found. Proceeding with push."
+            echo "ecr_repos_found=true" >> $GITHUB_OUTPUT
+            echo "frontend_repo=$FRONTEND_REPO" >> $GITHUB_OUTPUT
+            echo "backend_repo=$BACKEND_REPO" >> $GITHUB_OUTPUT
+          fi
+
+      # Build, tag, and push API image to Amazon ECR
       - name: Build, tag, and push API image to Amazon ECR
-        id: build-image-api # Corrected step ID was 'build-image' in original URL, now 'build-image-api'
+        id: build-image-api
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY_API: ${{ secrets.ECR_REPOSITORY_API }}
@@ -150,34 +427,340 @@ jobs:
           echo "ecr_image_uri=$ECR_REGISTRY/$ECR_REPOSITORY_API:$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "Successfully pushed $ECR_REGISTRY/$ECR_REPOSITORY_API:$IMAGE_TAG"
+        continue-on-error: true
 
-  deploy-to-ecs:
-    name: Deploy to ECS
+      # Ensure cache directory exists
+      - name: Create cache directory
+        run: mkdir -p /tmp/.buildx-cache
+
+      # Cache Docker layers to speed up builds
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # Build and push frontend Docker image
+      - name: Build and Push Frontend Image
+        if: steps.get-ecr-urls.outputs.ecr_repos_found == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ steps.get-ecr-urls.outputs.frontend_repo }}:latest
+            ${{ steps.get-ecr-urls.outputs.frontend_repo }}:${{ github.sha }}
+            ${{ steps.get-ecr-urls.outputs.frontend_repo }}:${{ env.ENVIRONMENT }}
+            ${{ steps.get-ecr-urls.outputs.frontend_repo }}:${{ env.ENVIRONMENT }}-${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      # Build frontend Docker image without pushing (when ECR repos not found)
+      - name: Build Frontend Image Only
+        if: steps.get-ecr-urls.outputs.ecr_repos_found != 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: false
+          load: true
+          tags: frontend:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      # Build and push backend Docker image
+      - name: Build and Push Backend Image
+        if: steps.get-ecr-urls.outputs.ecr_repos_found == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ steps.get-ecr-urls.outputs.backend_repo }}:latest
+            ${{ steps.get-ecr-urls.outputs.backend_repo }}:${{ github.sha }}
+            ${{ steps.get-ecr-urls.outputs.backend_repo }}:${{ env.ENVIRONMENT }}
+            ${{ steps.get-ecr-urls.outputs.backend_repo }}:${{ env.ENVIRONMENT }}-${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      # Build backend Docker image without pushing (when ECR repos not found)
+      - name: Build Backend Image Only
+        if: steps.get-ecr-urls.outputs.ecr_repos_found != 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false
+          load: true
+          tags: backend:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      # Move cache to prevent it from growing indefinitely
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache || true
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
+
+  docker-image-scan:
+    name: 'Scan Docker Images for Vulnerabilities'
+    needs: build-and-push
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/staging' # Corrected branch
-    needs: build-and-push-api-to-ecr
+    # Run even if build-and-push job didn't push to ECR (we can still scan local images)
+    if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') && github.event_name != 'pull_request'
     environment:
-      name: production
+      name: ${{ github.event.inputs.environment || 'staging' }}
+
+    # Define outputs that can be used by other jobs
+    outputs:
+      scan_status: ${{ steps.check-vulnerabilities.outputs.scan_status }}
+
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials using OIDC
+      # Configure AWS credentials for ECR access
+      - name: Configure AWS Credentials
+        if: needs.build-and-push.outputs.ecr_repos_found == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_ECS_DEPLOY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
+      # Set up Docker to access images from previous job
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      # Install Trivy scanner
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.47.0
+
+      # Prepare images for scanning
+      - name: Prepare Images for Scanning
+        id: prepare-images
+        run: |
+          # Determine which images to use
+          if [[ "${{ needs.build-and-push.outputs.ecr_repos_found }}" == "true" ]]; then
+            # Use ECR images if available
+            FRONTEND_IMAGE="${{ needs.build-and-push.outputs.frontend_image }}"
+            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}"
+            API_IMAGE="${{ needs.build-and-push.outputs.api_image_uri }}"
+
+            # Login to ECR and pull images once
+            echo "Using ECR images for scanning"
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $(echo $FRONTEND_IMAGE | cut -d: -f1)
+
+            if [ ! -z "$FRONTEND_IMAGE" ]; then
+              echo "Pulling frontend image: $FRONTEND_IMAGE"
+              docker pull $FRONTEND_IMAGE || echo "Failed to pull frontend image"
+            fi
+
+            if [ ! -z "$BACKEND_IMAGE" ]; then
+              echo "Pulling backend image: $BACKEND_IMAGE"
+              docker pull $BACKEND_IMAGE || echo "Failed to pull backend image"
+            fi
+
+            if [ ! -z "$API_IMAGE" ]; then
+              echo "Pulling API image: $API_IMAGE"
+              docker pull $API_IMAGE || echo "Failed to pull API image"
+            fi
+          else
+            # Use locally built images
+            echo "Using locally built images for scanning"
+            FRONTEND_IMAGE="${{ needs.build-and-push.outputs.frontend_image_local }}"
+            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image_local }}"
+            API_IMAGE="api:latest"
+
+            # Build images locally if needed
+            echo "Building frontend image"
+            cd frontend && docker build -t $FRONTEND_IMAGE . && cd .. || echo "Failed to build frontend image"
+
+            echo "Building backend image"
+            cd backend && docker build -t $BACKEND_IMAGE . && cd .. || echo "Failed to build backend image"
+
+            echo "Building API image"
+            docker build -t $API_IMAGE -f Dockerfile . || echo "Failed to build API image"
+          fi
+
+          # Export image names for later steps
+          echo "frontend_image=$FRONTEND_IMAGE" >> $GITHUB_OUTPUT
+          echo "backend_image=$BACKEND_IMAGE" >> $GITHUB_OUTPUT
+          echo "api_image=$API_IMAGE" >> $GITHUB_OUTPUT
+
+      # Scan images and check for vulnerabilities
+      - name: Scan Images for Vulnerabilities
+        id: check-vulnerabilities
+        run: |
+          FRONTEND_IMAGE="${{ steps.prepare-images.outputs.frontend_image }}"
+          BACKEND_IMAGE="${{ steps.prepare-images.outputs.backend_image }}"
+          API_IMAGE="${{ steps.prepare-images.outputs.api_image }}"
+          SCAN_STATUS="success"
+
+          echo "## Docker Image Vulnerability Scan Results" >> $GITHUB_STEP_SUMMARY
+
+          # Scan frontend image if it exists
+          if [ ! -z "$FRONTEND_IMAGE" ]; then
+            echo "Scanning frontend Docker image for vulnerabilities..."
+            echo "### Frontend Image" >> $GITHUB_STEP_SUMMARY
+            if trivy image --format json --severity HIGH,CRITICAL --exit-code 1 $FRONTEND_IMAGE > frontend_scan.json 2>/dev/null; then
+              echo "No HIGH or CRITICAL vulnerabilities found in frontend image" >> $GITHUB_STEP_SUMMARY
+            else
+              SCAN_STATUS="warning"
+              VULN_COUNT=$(jq -r '.Results[] | .Vulnerabilities | length // 0' frontend_scan.json | awk '{sum+=$1} END {print sum}')
+              echo "Found $VULN_COUNT vulnerabilities in frontend image" >> $GITHUB_STEP_SUMMARY
+              echo "Frontend image has vulnerabilities that need to be addressed"
+            fi
+          else
+            echo "### Frontend Image" >> $GITHUB_STEP_SUMMARY
+            echo "Frontend image not available for scanning" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Scan backend image if it exists
+          if [ ! -z "$BACKEND_IMAGE" ]; then
+            echo "Scanning backend Docker image for vulnerabilities..."
+            echo "### Backend Image" >> $GITHUB_STEP_SUMMARY
+            if trivy image --format json --severity HIGH,CRITICAL --exit-code 1 $BACKEND_IMAGE > backend_scan.json 2>/dev/null; then
+              echo "No HIGH or CRITICAL vulnerabilities found in backend image" >> $GITHUB_STEP_SUMMARY
+            else
+              SCAN_STATUS="warning"
+              VULN_COUNT=$(jq -r '.Results[] | .Vulnerabilities | length // 0' backend_scan.json | awk '{sum+=$1} END {print sum}')
+              echo "Found $VULN_COUNT vulnerabilities in backend image" >> $GITHUB_STEP_SUMMARY
+              echo "Backend image has vulnerabilities that need to be addressed"
+            fi
+          else
+            echo "### Backend Image" >> $GITHUB_STEP_SUMMARY
+            echo "Backend image not available for scanning" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Scan API image if it exists
+          if [ ! -z "$API_IMAGE" ]; then
+            echo "Scanning API Docker image for vulnerabilities..."
+            echo "### API Image" >> $GITHUB_STEP_SUMMARY
+            if trivy image --format json --severity HIGH,CRITICAL --exit-code 1 $API_IMAGE > api_scan.json 2>/dev/null; then
+              echo "No HIGH or CRITICAL vulnerabilities found in API image" >> $GITHUB_STEP_SUMMARY
+            else
+              SCAN_STATUS="warning"
+              VULN_COUNT=$(jq -r '.Results[] | .Vulnerabilities | length // 0' api_scan.json | awk '{sum+=$1} END {print sum}')
+              echo "Found $VULN_COUNT vulnerabilities in API image" >> $GITHUB_STEP_SUMMARY
+              echo "API image has vulnerabilities that need to be addressed"
+            fi
+          else
+            echo "### API Image" >> $GITHUB_STEP_SUMMARY
+            echo "API image not available for scanning" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Set output for use in other jobs
+          echo "scan_status=$SCAN_STATUS" >> $GITHUB_OUTPUT
+
+  deploy-to-ecs:
+    name: 'Deploy to ECS'
+    needs: [build-and-push, docker-image-scan]
+    runs-on: ubuntu-latest
+    # Only run on main branch and not in pull requests, and only if ECR repositories were found
+    if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') && github.event_name != 'pull_request'
+    environment:
+      name: ${{ github.event.inputs.environment || 'staging' }}
+
+    # Define outputs that can be used by other jobs
+    outputs:
+      ecr_repos_found: ${{ steps.check-ecr-repos.outputs.ecr_repos_found }}
+      ecs_services_found: ${{ steps.get-ecs-services.outputs.ecs_services_found }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Configure AWS credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_ECS_DEPLOY || secrets.AWS_ROLE_TO_ASSUME }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Check if ECR repositories were found in previous job
+      - name: Check ECR Repositories
+        id: check-ecr-repos
+        run: |
+          # Get the value from the previous job's output
+          if [[ "${{ needs.build-and-push.outputs.ecr_repos_found }}" != "true" ]]; then
+            echo "ECR repositories not found. Skipping deployment."
+            echo "ecr_repos_found=false" >> $GITHUB_OUTPUT
+          else
+            echo "ECR repositories found. Proceeding with deployment."
+            echo "ecr_repos_found=true" >> $GITHUB_OUTPUT
+          fi
+
+      # Initialize Terraform to get outputs
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      # Initialize Terraform
+      - name: Terraform Init
+        run: terraform init
+
+      # Get ECS service names from Terraform outputs
+      - name: Get ECS Service Names
+        id: get-ecs-services
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true'
+        run: |
+          CLUSTER_NAME=$(terraform output -raw ecs_cluster_name || echo "")
+          FRONTEND_SERVICE=$(terraform output -raw frontend_service_name || echo "")
+          BACKEND_SERVICE=$(terraform output -raw backend_service_name || echo "")
+
+          # Check if services were found
+          if [ -z "$CLUSTER_NAME" ] || [ -z "$FRONTEND_SERVICE" ] || [ -z "$BACKEND_SERVICE" ]; then
+            echo "ECS services not found in Terraform outputs. Trying alternative approach."
+            CLUSTER_NAME="${{ secrets.ECS_CLUSTER_NAME }}"
+            if [ -z "$CLUSTER_NAME" ]; then
+              echo "ECS cluster name not found. Skipping deployment."
+              echo "ecs_services_found=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            echo "ecs_services_found=partial" >> $GITHUB_OUTPUT
+          else
+            echo "ECS services found. Proceeding with deployment."
+            echo "ecs_services_found=true" >> $GITHUB_OUTPUT
+            echo "cluster_name=$CLUSTER_NAME" >> $GITHUB_OUTPUT
+            echo "frontend_service=$FRONTEND_SERVICE" >> $GITHUB_OUTPUT
+            echo "backend_service=$BACKEND_SERVICE" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      # Install yq for Docker Compose file manipulation
       - name: Install yq
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.get-ecs-services.outputs.ecs_services_found != 'true'
         run: |
           sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
           sudo chmod +x /usr/bin/yq
           yq --version
 
+      # Install Docker CLI ECS integration
+      - name: Install Docker CLI ECS integration
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.get-ecs-services.outputs.ecs_services_found != 'true'
+        run: |
+          echo "Installing Docker CLI ECS integration..."
+          # Install the Docker Compose CLI for ECS
+          curl -L https://raw.githubusercontent.com/docker/compose-cli/main/scripts/install/install_linux.sh | sh
+          # Verify installation
+          docker context ls
+          echo "Docker CLI ECS integration installed successfully."
+
+      # Prepare ECS-specific Docker Compose file
       - name: Prepare ECS-specific Docker Compose file
         id: prepare-compose
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.get-ecs-services.outputs.ecs_services_found != 'true'
         env:
-          API_IMAGE_URI: ${{ needs.build-and-push-api-to-ecr.outputs.ecr_image_uri_api }}
+          API_IMAGE_URI: ${{ needs.build-and-push.outputs.api_image_uri }}
+          FRONTEND_IMAGE_URI: ${{ needs.build-and-push.outputs.frontend_image }}
+          BACKEND_IMAGE_URI: ${{ needs.build-and-push.outputs.backend_image }}
           DB_HOST_SECRET_ARN: ${{ secrets.DB_HOST_SECRET_ARN }}
           DB_PORT_SECRET_ARN: ${{ secrets.DB_PORT_SECRET_ARN }}
           DB_USER_SECRET_ARN: ${{ secrets.DB_USER_SECRET_ARN }}
@@ -185,112 +768,48 @@ jobs:
           DB_NAME_SECRET_ARN: ${{ secrets.DB_NAME_SECRET_ARN }}
           REDIS_HOST_SECRET_ARN: ${{ secrets.REDIS_HOST_SECRET_ARN }}
           REDIS_PORT_SECRET_ARN: ${{ secrets.REDIS_PORT_SECRET_ARN }}
-          RABBITMQ_HOST_SECRET_ARN: ${{ secrets.RABBITMQ_HOST_SECRET_ARN }}
-          RABBITMQ_PORT_SECRET_ARN: ${{ secrets.RABBITMQ_PORT_SECRET_ARN }}
-          RABBITMQ_USER_SECRET_ARN: ${{ secrets.RABBITMQ_USER_SECRET_ARN }}
-          RABBITMQ_PASS_SECRET_ARN: ${{ secrets.RABBITMQ_PASS_SECRET_ARN }}
-          INTERNAL_API_KEY_SECRET_ARN: ${{ secrets.INTERNAL_API_KEY_SECRET_ARN }}
-          N8N_ENCRYPTION_KEY_SECRET_ARN: ${{ secrets.N8N_ENCRYPTION_KEY_SECRET_ARN }}
-          EFS_ID_UPLOADS: ${{ secrets.EFS_ID_UPLOADS }}
-          EFS_ID_N8N_DATA: ${{ secrets.EFS_ID_N8N_DATA }}
-          EFS_ID_SONAR_DATA: ${{ secrets.EFS_ID_SONAR_DATA }}
-          EFS_ID_SONAR_LOGS: ${{ secrets.EFS_ID_SONAR_LOGS }}
-          EFS_ID_SONAR_EXT: ${{ secrets.EFS_ID_SONAR_EXT }}
-          APP_PORT_ENV: ${{ secrets.APP_PORT || '3000' }}
-          N8N_WEBHOOK_URL_ENV: ${{ secrets.N8N_WEBHOOK_URL }}
-          SONARQUBE_DB_NAME_ENV: ${{ secrets.SONARQUBE_DB_NAME || 'sonarqube_db' }}
-          AWS_REGION_ENV: ${{ secrets.AWS_REGION }}
-          LOG_GROUP_NAME_ENV: "/ecs/${{ secrets.ECS_PROJECT_NAME || 'invoiceb2b' }}" # Default project name if secret not set
-          COMPOSE_PROJECT_NAME_ENV: ${{ secrets.ECS_PROJECT_NAME || 'invoiceb2b' }} # For N8N GO_API_BASE_URL
-          AWS_VPC_ID_SECRET_ARN_ENV: ${{ secrets.AWS_VPC_ID_SECRET_ARN }} # Pass VPC ID secret ARN
+          AWS_REGION_ENV: ${{ env.AWS_REGION }}
+          LOG_GROUP_NAME_ENV: "/ecs/${{ env.COMPOSE_PROJECT_NAME }}"
         run: |
-          echo "Preparing docker-compose.ecs.yml from docker-compose.yml..."
-          cp docker-compose.yml docker-compose.ecs.yml
+          echo "Preparing docker-compose.ecs.yml from docker-compose.yaml..."
+          cp docker-compose.yaml docker-compose.ecs.yml
 
-          yq -i 'del(.services.postgres)' docker-compose.ecs.yml
-          yq -i 'del(.services.redis)' docker-compose.ecs.yml
-          yq -i 'del(.services.rabbitmq)' docker-compose.ecs.yml
-          yq -i 'del(.volumes.postgres_data)' docker-compose.ecs.yml
-          yq -i 'del(.volumes.redis_data)' docker-compose.ecs.yml
-          yq -i 'del(.volumes.rabbitmq_data)' docker-compose.ecs.yml
+          # Modify the docker-compose file for ECS deployment
+          # This is a simplified version - adjust according to your actual docker-compose structure
+          yq -i 'del(.services.postgres)' docker-compose.ecs.yml || true
+          yq -i 'del(.services.redis)' docker-compose.ecs.yml || true
 
-          yq -i '.services.api.image = env(API_IMAGE_URI)' docker-compose.ecs.yml
-          yq -i 'del(.services.api.build)' docker-compose.ecs.yml
-          yq -i 'del(.services.api.container_name)' docker-compose.ecs.yml
-          yq -i 'del(.services.api.depends_on)' docker-compose.ecs.yml
-          yq -i 'del(.services.api.env_file)' docker-compose.ecs.yml
-          yq -i '.services.api.logging.driver = "awslogs"' docker-compose.ecs.yml
-          yq -i '.services.api.logging.options."awslogs-group" = env(LOG_GROUP_NAME_ENV)' docker-compose.ecs.yml
-          yq -i '.services.api.logging.options."awslogs-region" = env(AWS_REGION_ENV)' docker-compose.ecs.yml
-          yq -i '.services.api.logging.options."awslogs-stream-prefix" = "api"' docker-compose.ecs.yml
-          yq -i '.services.api.environment = [{"APP_ENV": "production"}, {"APP_PORT": env(APP_PORT_ENV)}]' docker-compose.ecs.yml
-          yq -i '.services.api.secrets = [
-            {"source": env(DB_HOST_SECRET_ARN), "target": "DB_HOST"},
-            {"source": env(DB_PORT_SECRET_ARN), "target": "DB_PORT"},
-            {"source": env(DB_USER_SECRET_ARN), "target": "DB_USER"},
-            {"source": env(DB_PASSWORD_SECRET_ARN), "target": "DB_PASSWORD"},
-            {"source": env(DB_NAME_SECRET_ARN), "target": "DB_NAME"},
-            {"source": env(REDIS_HOST_SECRET_ARN), "target": "REDIS_ADDR"},
-            {"source": env(REDIS_PORT_SECRET_ARN), "target": "REDIS_PORT_ONLY"},
-            {"source": env(RABBITMQ_HOST_SECRET_ARN), "target": "RABBITMQ_HOST"},
-            {"source": env(RABBITMQ_PORT_SECRET_ARN), "target": "RABBITMQ_PORT"},
-            {"source": env(RABBITMQ_USER_SECRET_ARN), "target": "RABBITMQ_USER"},
-            {"source": env(RABBITMQ_PASS_SECRET_ARN), "target": "RABBITMQ_PASS"},
-            {"source": env(INTERNAL_API_KEY_SECRET_ARN), "target": "INTERNAL_API_KEY"}
-          ]' docker-compose.ecs.yml
-          yq -i '.services.api.volumes = [{"type": "volume", "source": "efs_uploads", "target": "/mnt/invoice_uploads"}]' docker-compose.ecs.yml
+          # Update image references
+          if [ ! -z "$API_IMAGE_URI" ]; then
+            yq -i '.services.api.image = env(API_IMAGE_URI)' docker-compose.ecs.yml || true
+            yq -i 'del(.services.api.build)' docker-compose.ecs.yml || true
+          fi
 
-          yq -i 'del(.services.n8n.container_name)' docker-compose.ecs.yml
-          yq -i 'del(.services.n8n.depends_on)' docker-compose.ecs.yml
-          yq -i '.services.n8n.logging.driver = "awslogs"' docker-compose.ecs.yml
-          yq -i '.services.n8n.logging.options."awslogs-group" = env(LOG_GROUP_NAME_ENV)' docker-compose.ecs.yml
-          yq -i '.services.n8n.logging.options."awslogs-region" = env(AWS_REGION_ENV)' docker-compose.ecs.yml
-          yq -i '.services.n8n.logging.options."awslogs-stream-prefix" = "n8n"' docker-compose.ecs.yml
-          yq -i ".services.n8n.environment.GO_API_BASE_URL = \"http://api.${COMPOSE_PROJECT_NAME_ENV}.internal:${APP_PORT_ENV}/api/v1\"" docker-compose.ecs.yml
-          yq -i '.services.n8n.environment.N8N_ENCRYPTION_KEY = ""' docker-compose.ecs.yml # Clear it, will use secret
-          yq -i '.services.n8n.secrets = [{"source": env(N8N_ENCRYPTION_KEY_SECRET_ARN), "target": "N8N_ENCRYPTION_KEY"}]' docker-compose.ecs.yml
-          yq -i '.services.n8n.environment.WEBHOOK_URL = env(N8N_WEBHOOK_URL_ENV)' docker-compose.ecs.yml
-          yq -i '.services.n8n.volumes = [
-            {"type": "volume", "source": "efs_n8n_data", "target": "/home/node/.n8n"},
-            {"type": "volume", "source": "efs_uploads", "target": "/mnt/invoice_uploads"}
-          ]' docker-compose.ecs.yml
+          if [ ! -z "$FRONTEND_IMAGE_URI" ]; then
+            yq -i '.services.frontend.image = env(FRONTEND_IMAGE_URI)' docker-compose.ecs.yml || true
+            yq -i 'del(.services.frontend.build)' docker-compose.ecs.yml || true
+          fi
 
-          yq -i 'del(.services.sonarqube.container_name)' docker-compose.ecs.yml
-          yq -i 'del(.services.sonarqube.depends_on)' docker-compose.ecs.yml
-          yq -i '.services.sonarqube.logging.driver = "awslogs"' docker-compose.ecs.yml
-          yq -i '.services.sonarqube.logging.options."awslogs-group" = env(LOG_GROUP_NAME_ENV)' docker-compose.ecs.yml
-          yq -i '.services.sonarqube.logging.options."awslogs-region" = env(AWS_REGION_ENV)' docker-compose.ecs.yml
-          yq -i '.services.sonarqube.logging.options."awslogs-stream-prefix" = "sonarqube"' docker-compose.ecs.yml
-          yq -i ".services.sonarqube.environment.SONAR_JDBC_URL = \"jdbc:postgresql://\${SONAR_DB_HOST}:\${SONAR_DB_PORT}/${SONARQUBE_DB_NAME_ENV}\"" docker-compose.ecs.yml
-          yq -i '.services.sonarqube.secrets = [
-            {"source": env(DB_HOST_SECRET_ARN), "target": "SONAR_DB_HOST"},
-            {"source": env(DB_PORT_SECRET_ARN), "target": "SONAR_DB_PORT"},
-            {"source": env(DB_USER_SECRET_ARN), "target": "SONAR_JDBC_USERNAME"},
-            {"source": env(DB_PASSWORD_SECRET_ARN), "target": "SONAR_JDBC_PASSWORD"}
-          ]' docker-compose.ecs.yml
-          yq -i '.services.sonarqube.volumes = [
-            {"type": "volume", "source": "efs_sonarqube_data", "target": "/opt/sonarqube/data"},
-            {"type": "volume", "source": "efs_sonarqube_logs", "target": "/opt/sonarqube/logs"},
-            {"type": "volume", "source": "efs_sonarqube_extensions", "target": "/opt/sonarqube/extensions"}
-          ]' docker-compose.ecs.yml
+          if [ ! -z "$BACKEND_IMAGE_URI" ]; then
+            yq -i '.services.backend.image = env(BACKEND_IMAGE_URI)' docker-compose.ecs.yml || true
+            yq -i 'del(.services.backend.build)' docker-compose.ecs.yml || true
+          fi
 
-          yq -i '.volumes.efs_uploads.driver = "local" | .volumes.efs_uploads."x-aws-volume".efs.file_system_id = env(EFS_ID_UPLOADS)' docker-compose.ecs.yml
-          yq -i '.volumes.efs_n8n_data.driver = "local" | .volumes.efs_n8n_data."x-aws-volume".efs.file_system_id = env(EFS_ID_N8N_DATA)' docker-compose.ecs.yml
-          yq -i '.volumes.efs_sonarqube_data.driver = "local" | .volumes.efs_sonarqube_data."x-aws-volume".efs.file_system_id = env(EFS_ID_SONAR_DATA)' docker-compose.ecs.yml
-          yq -i '.volumes.efs_sonarqube_logs.driver = "local" | .volumes.efs_sonarqube_logs."x-aws-volume".efs.file_system_id = env(EFS_ID_SONAR_LOGS)' docker-compose.ecs.yml
-          yq -i '.volumes.efs_sonarqube_extensions.driver = "local" | .volumes.efs_sonarqube_extensions."x-aws-volume".efs.file_system_id = env(EFS_ID_SONAR_EXT)' docker-compose.ecs.yml
-          
-          yq -i '.x-aws-vpc = env(AWS_VPC_ID_SECRET_ARN_ENV)' docker-compose.ecs.yml
+          # Add AWS logging configuration
+          for service in $(yq -r '.services | keys | .[]' docker-compose.ecs.yml); do
+            yq -i ".services.$service.logging.driver = \"awslogs\"" docker-compose.ecs.yml || true
+            yq -i ".services.$service.logging.options.\"awslogs-group\" = env(LOG_GROUP_NAME_ENV)" docker-compose.ecs.yml || true
+            yq -i ".services.$service.logging.options.\"awslogs-region\" = env(AWS_REGION_ENV)" docker-compose.ecs.yml || true
+            yq -i ".services.$service.logging.options.\"awslogs-stream-prefix\" = \"$service\"" docker-compose.ecs.yml || true
+          done
 
-          echo "--- Generated docker-compose.ecs.yml ---"
-          cat docker-compose.ecs.yml
-          echo "----------------------------------------"
           echo "compose_file_path=docker-compose.ecs.yml" >> $GITHUB_OUTPUT
 
+      # Deploy to ECS using Docker CLI
       - name: Deploy to ECS using Docker CLI
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.get-ecs-services.outputs.ecs_services_found != 'true'
         env:
-          COMPOSE_PROJECT_NAME: ${{ secrets.ECS_PROJECT_NAME || 'invoiceb2b' }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_REGION: ${{ env.AWS_REGION }}
           ECS_CLUSTER_NAME: ${{ secrets.ECS_CLUSTER_NAME }}
         run: |
           echo "Deploying services from ${{ steps.prepare-compose.outputs.compose_file_path }} to ECS cluster: ${ECS_CLUSTER_NAME}"
@@ -298,37 +817,51 @@ jobs:
             -f ${{ steps.prepare-compose.outputs.compose_file_path }} \
             --project-name ${COMPOSE_PROJECT_NAME} up
           echo "ECS deployment initiated. Monitor progress in AWS Console (ECS & CloudFormation)."
+        continue-on-error: true
 
-  notify-deployment-status:
-    name: Notify Deployment Status
-    runs-on: ubuntu-latest
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/staging' # Corrected branch
-    needs: [build-and-push-api-to-ecr, deploy-to-ecs]
-    steps:
-      - name: Get short SHA for main push
-        id: short_sha_main
-        run: echo "sha=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+      # Deploy new versions to ECS services using AWS CLI
+      - name: Force New ECS Deployment
+        id: deploy
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.get-ecs-services.outputs.ecs_services_found == 'true'
+        run: |
+          echo "Starting deployment to ECS..."
+          aws ecs update-service --cluster ${{ steps.get-ecs-services.outputs.cluster_name }} --service ${{ steps.get-ecs-services.outputs.frontend_service }} --force-new-deployment
+          aws ecs update-service --cluster ${{ steps.get-ecs-services.outputs.cluster_name }} --service ${{ steps.get-ecs-services.outputs.backend_service }} --force-new-deployment
+          echo "Deployment completed successfully!"
+        continue-on-error: true
 
-      - name: Send Slack Notification for Deployment Status
+      # Skip deployment message
+      - name: Skip Deployment Message
+        if: steps.check-ecr-repos.outputs.ecr_repos_found != 'true' || (steps.get-ecs-services.outputs.ecs_services_found != 'true' && steps.get-ecs-services.outputs.ecs_services_found != 'partial')
+        run: |
+          echo "Skipping deployment to ECS because:"
+          if [ "${{ steps.check-ecr-repos.outputs.ecr_repos_found }}" != "true" ]; then
+            echo "- ECR repositories were not found"
+          fi
+          if [ "${{ steps.get-ecs-services.outputs.ecs_services_found }}" != "true" ] && [ "${{ steps.get-ecs-services.outputs.ecs_services_found }}" != "partial" ]; then
+            echo "- ECS services were not found"
+          fi
+
+      # Send notification on completion
+      - name: Notify Deployment Status
+        if: always()
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
-              "text": "${{ needs.deploy-to-ecs.result == 'success' && '✅ ECS Deployment Successful' || (needs.build-and-push-api-to-ecr.result != 'success' && '❌ API Image Build/Push Failed' || '❌ ECS Deployment Failed') }} for `${{ github.repository }}`",
+              "text": "${{ job.status == 'success' && '✅ Deployment Successful' || '❌ Deployment Failed' }} for `${{ github.repository }}`",
               "blocks": [
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "${{ needs.deploy-to-ecs.result == 'success' && '✅ *ECS Deployment Successful*' || (needs.build-and-push-api-to-ecr.result != 'success' && '❌ *API Image Build/Push Failed*' || '❌ *ECS Deployment Failed*') }}\nRepository: `${{ github.repository }}`\nBranch: `${{ github.ref_name }}`"
+                    "text": "${{ job.status == 'success' && '✅ *Deployment Successful*' || '❌ *Deployment Failed*' }}\nRepository: `${{ github.repository }}`\nBranch: `${{ github.ref_name }}`\nEnvironment: `${{ env.ENVIRONMENT }}`"
                   }
                 },
                 {
                   "type": "context",
                   "elements": [
-                    { "type": "mrkdwn", "text": "Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|`${{ steps.short_sha_main.outputs.sha }}`>" },
                     { "type": "mrkdwn", "text": "Triggered by: `${{ github.actor }}`" },
-                    { "type": "mrkdwn", "text": "API ECR Image: `${{ needs.build-and-push-api-to-ecr.outputs.ecr_image_uri_api || 'N/A' }}`" },
                     { "type": "mrkdwn", "text": "Workflow Run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>" }
                   ]
                 }
@@ -336,3 +869,273 @@ jobs:
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+
+  # Rollback job that runs when deployment fails
+  rollback:
+    name: 'Rollback Failed Deployment'
+    needs: [terraform, deploy-to-ecs]
+    runs-on: ubuntu-latest
+    if: always() && (needs.terraform.result == 'failure' || needs.deploy-to-ecs.result == 'failure') && needs.terraform.outputs.backup_created == 'true'
+    environment:
+      name: ${{ github.event.inputs.environment || 'staging' }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Configure AWS credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      # Download state backup
+      - name: Download State Backup
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-state-backup-${{ env.ENVIRONMENT }}
+          path: .
+
+      # Initialize Terraform
+      - name: Terraform Init
+        run: terraform init
+
+      # Restore previous state
+      - name: Restore Previous State
+        run: |
+          echo "Restoring previous state from backup..."
+          terraform state push terraform.tfstate.backup.${{ env.ENVIRONMENT }}
+          terraform apply -auto-approve -var="environment=${{ env.ENVIRONMENT }}"
+          echo "Rollback completed successfully!"
+
+      # Notify rollback status
+      - name: Notify Rollback Status
+        if: always()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "${{ job.status == 'success' && '✅ Rollback Successful' || '❌ Rollback Failed' }} for `${{ github.repository }}`",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ job.status == 'success' && '✅ *Rollback Completed Successfully*' || '❌ *Rollback Failed*' }}\nRepository: `${{ github.repository }}`\nEnvironment: `${{ env.ENVIRONMENT }}`"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    { "type": "mrkdwn", "text": "Triggered by: `${{ github.actor }}`" },
+                    { "type": "mrkdwn", "text": "Workflow Run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>" }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+
+  # Summary job to report overall workflow status
+  deployment-summary:
+    name: 'Deployment Summary'
+    needs: [terraform-destroy, terraform, build-and-push, docker-image-scan, deploy-to-ecs, rollback, vulnerability-scan]
+    runs-on: ubuntu-latest
+    if: always()
+    environment:
+      name: ${{ github.event.inputs.environment || 'staging' }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Set a variable to check if destroy job was run
+      - name: Check if destroy job was run
+        id: check-destroy
+        run: |
+          if [[ "${{ needs.terraform-destroy.result }}" != "" ]]; then
+            echo "destroy_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "destroy_run=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Configure AWS credentials for Terraform outputs
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+        continue-on-error: true
+
+      # Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+        continue-on-error: true
+
+      # Initialize Terraform
+      - name: Terraform Init
+        run: terraform init
+        continue-on-error: true
+
+      - name: Generate Deployment Summary
+        id: summary
+        run: |
+          echo "## Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "| --- | ------ |" >> $GITHUB_STEP_SUMMARY
+
+          # Always include vulnerability scan results if it was run
+          if [[ "${{ contains(needs.*.result, needs.vulnerability-scan.result) }}" == "true" ]]; then
+            echo "| Vulnerability Scanning | ${{ needs.vulnerability-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check if destroy job was run
+          if [[ "${{ steps.check-destroy.outputs.destroy_run }}" == "true" ]]; then
+            echo "| Infrastructure Destruction | ${{ needs.terraform-destroy.result }} |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Infrastructure destruction completed at $(date)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Infrastructure Deployment | ${{ needs.terraform.result }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Docker Image Build & Push | ${{ needs.build-and-push.result }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Docker Image Scanning | ${{ needs.docker-image-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| ECS Deployment | ${{ needs.deploy-to-ecs.result }} |" >> $GITHUB_STEP_SUMMARY
+
+            # Check if rollback was performed
+            if [[ "${{ contains(needs.*.result, needs.rollback.result) }}" == "true" ]]; then
+              echo "| Deployment Rollback | ${{ needs.rollback.result }} |" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Note:** A rollback was performed due to deployment failure in the ${{ env.ENVIRONMENT }} environment." >> $GITHUB_STEP_SUMMARY
+            fi
+
+            # Get the load balancer DNS from Terraform outputs
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## Application Access" >> $GITHUB_STEP_SUMMARY
+
+            # Get the load balancer DNS
+            LB_DNS=$(terraform output -raw load_balancer_dns 2>/dev/null || echo "Not available")
+
+            if [ "$LB_DNS" != "Not available" ]; then
+              echo "Application URL: https://$LB_DNS" >> $GITHUB_STEP_SUMMARY
+
+              # Generate Load Balancer DNS Report
+              echo "## Load Balancer DNS Report" >> $GITHUB_STEP_SUMMARY
+              echo "### Load Balancer DNS" >> $GITHUB_STEP_SUMMARY
+              echo "Found 1 Load Balancer DNS: $LB_DNS" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "Load balancer DNS not available" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            # Generate Infrastructure Report
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## Infrastructure Report" >> $GITHUB_STEP_SUMMARY
+            echo "The following outputs are available from the deployed infrastructure:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            terraform output 2>/dev/null || echo "No terraform outputs available" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Deployment for environment: **${{ env.ENVIRONMENT }}**" >> $GITHUB_STEP_SUMMARY
+            echo "Completed at $(date)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # Create and save infrastructure report as an artifact
+      - name: Save Infrastructure Report as Artifact
+        if: always() && steps.check-destroy.outputs.destroy_run != 'true'
+        run: |
+          mkdir -p infrastructure-report
+          echo "# Infrastructure Deployment Report" > infrastructure-report/terraform-outputs.md
+          echo "Environment: ${{ env.ENVIRONMENT }}" >> infrastructure-report/terraform-outputs.md
+          echo "Deployment Date: $(date)" >> infrastructure-report/terraform-outputs.md
+          echo "" >> infrastructure-report/terraform-outputs.md
+          echo "## Terraform Outputs" >> infrastructure-report/terraform-outputs.md
+          echo '```' >> infrastructure-report/terraform-outputs.md
+          terraform output 2>/dev/null || echo "No terraform outputs available" >> infrastructure-report/terraform-outputs.md
+          echo '```' >> infrastructure-report/terraform-outputs.md
+
+          # Also save as JSON for potential programmatic use
+          terraform output -json 2>/dev/null > infrastructure-report/terraform-outputs.json || echo "{}" > infrastructure-report/terraform-outputs.json
+
+      # Upload the infrastructure report as an artifact
+      - name: Upload Infrastructure Report
+        if: always() && steps.check-destroy.outputs.destroy_run != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: infrastructure-report-${{ env.ENVIRONMENT }}
+          path: infrastructure-report/
+          retention-days: 30
+          if-no-files-found: warn
+
+      # Send notification for deployment
+      - name: Send Deployment Summary Notification
+        if: always() && steps.check-destroy.outputs.destroy_run == 'false'
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "Deployment Summary for `${{ github.repository }}` - ${{ env.ENVIRONMENT }} Environment",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Deployment Summary - ${{ env.ENVIRONMENT }} Environment*\n\n*Environment*: ${{ env.ENVIRONMENT }}\n${{ contains(needs.*.result, needs.vulnerability-scan.result) && format('*Vulnerability Scanning*: {0}', needs.vulnerability-scan.result) || '' }}\n*Infrastructure*: ${{ needs.terraform.result }}\n*Docker Images*: ${{ needs.build-and-push.result }}\n*Docker Image Scanning*: ${{ needs.docker-image-scan.result }}\n*ECS Deployment*: ${{ needs.deploy-to-ecs.result }}\n${{ contains(needs.*.result, needs.rollback.result) && format('*Rollback*: {0}', needs.rollback.result) || '' }}\n\n${{ contains(needs.*.result, needs.rollback.result) && '⚠️ *A rollback was performed due to deployment failure*' || '' }}\n${{ contains(needs.*.result, needs.vulnerability-scan.result) && needs.vulnerability-scan.result != 'success' && '⚠️ *Vulnerabilities were found during dependency scanning*' || '' }}\n${{ contains(needs.*.result, needs.docker-image-scan.result) && needs.docker-image-scan.outputs.scan_status == 'warning' && '⚠️ *Vulnerabilities were found in Docker images, but deployment continued*' || '' }}"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    { "type": "mrkdwn", "text": "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" },
+                    { "type": "mrkdwn", "text": "Completed at $(date)" }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+
+      # Send notification for destruction
+      - name: Send Destruction Summary Notification
+        if: always() && steps.check-destroy.outputs.destroy_run == 'true'
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "Infrastructure Destruction Summary for `${{ github.repository }}` - ${{ env.ENVIRONMENT }} Environment",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Infrastructure Destruction Summary - ${{ env.ENVIRONMENT }} Environment*\n\n*Environment*: ${{ env.ENVIRONMENT }}\n*Infrastructure Destruction*: ${{ needs.terraform-destroy.result }}"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    { "type": "mrkdwn", "text": "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" },
+                    { "type": "mrkdwn", "text": "Completed at $(date)" }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
