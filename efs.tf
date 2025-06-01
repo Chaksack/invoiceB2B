@@ -1,5 +1,5 @@
 resource "aws_efs_file_system" "uploads" {
-  creation_token = "${var.project_name}-uploads-efs"
+  creation_token   = "${var.project_name}-uploads-efs"
   performance_mode = "generalPurpose"
   throughput_mode  = "bursting"
   encrypted        = true
@@ -19,7 +19,7 @@ resource "aws_efs_mount_target" "uploads" {
 
 resource "aws_efs_file_system" "n8n_data" {
   creation_token = "${var.project_name}-n8n-data-efs"
-  tags = { Name = "${var.project_name}-n8n-data", Project = var.project_name }
+  tags           = { Name = "${var.project_name}-n8n-data", Project = var.project_name }
 }
 resource "aws_efs_mount_target" "n8n_data" {
   count           = length(aws_subnet.private)
@@ -30,7 +30,7 @@ resource "aws_efs_mount_target" "n8n_data" {
 
 resource "aws_efs_file_system" "sonarqube_data" {
   creation_token = "${var.project_name}-sq-data-efs"
-  tags = { Name = "${var.project_name}-sq-data", Project = var.project_name }
+  tags           = { Name = "${var.project_name}-sq-data", Project = var.project_name }
 }
 resource "aws_efs_mount_target" "sonarqube_data" {
   count           = length(aws_subnet.private)
@@ -41,7 +41,7 @@ resource "aws_efs_mount_target" "sonarqube_data" {
 
 resource "aws_efs_file_system" "sonarqube_logs" {
   creation_token = "${var.project_name}-sq-logs-efs"
-  tags = { Name = "${var.project_name}-sq-logs", Project = var.project_name }
+  tags           = { Name = "${var.project_name}-sq-logs", Project = var.project_name }
 }
 resource "aws_efs_mount_target" "sonarqube_logs" {
   count           = length(aws_subnet.private)
@@ -52,7 +52,7 @@ resource "aws_efs_mount_target" "sonarqube_logs" {
 
 resource "aws_efs_file_system" "sonarqube_extensions" {
   creation_token = "${var.project_name}-sq-ext-efs"
-  tags = { Name = "${var.project_name}-sq-ext", Project = var.project_name }
+  tags           = { Name = "${var.project_name}-sq-ext", Project = var.project_name }
 }
 resource "aws_efs_mount_target" "sonarqube_extensions" {
   count           = length(aws_subnet.private)

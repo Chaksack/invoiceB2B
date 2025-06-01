@@ -40,7 +40,7 @@ resource "aws_subnet" "private" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.private_subnet_cidrs[count.index]
   availability_zone       = var.availability_zones[count.index % length(var.availability_zones)] # Distribute across AZs
-  map_public_ip_on_launch = false                                                                 # Private subnets
+  map_public_ip_on_launch = false                                                                # Private subnets
 
   tags = {
     Name        = "${var.project_name}-private-subnet-${count.index + 1}"
@@ -51,8 +51,8 @@ resource "aws_subnet" "private" {
 }
 
 resource "aws_eip" "nat" {
-  count = length(var.public_subnet_cidrs) # One NAT Gateway per AZ for HA
-  domain = "vpc" # Changed from vpc = true for newer AWS provider versions
+  count  = length(var.public_subnet_cidrs) # One NAT Gateway per AZ for HA
+  domain = "vpc"                           # Changed from vpc = true for newer AWS provider versions
 
   tags = {
     Name    = "${var.project_name}-nat-eip-${count.index + 1}"

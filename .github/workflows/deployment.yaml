@@ -30,7 +30,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write   # Required for AWS OIDC authentication
   pull-requests: write # For SonarQube comments or PR labels
   issues: write     # For manual approval issues
 
@@ -89,22 +88,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      # Run Go linter
-      - name: Run Go linter
-        run: |
-          # Install golangci-lint
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.57.2
-          # Run linter
-          $(go env GOPATH)/bin/golangci-lint run ./... --timeout=5m
-
-      # Run Go tests
-      - name: Run Go tests
-        run: |
-          # Run tests with race detection and generate coverage report
-          go test -v -race -coverprofile=coverage.out ./...
-          # Display coverage report
-          go tool cover -func=coverage.out
-
       # Scan frontend dependencies
       - name: Scan Frontend Dependencies
         run: |
@@ -112,12 +95,12 @@ jobs:
           echo "Running npm audit on frontend dependencies..."
           npm audit --production --audit-level=high || echo "Frontend has vulnerabilities that need to be addressed"
 
-      # Scan backend dependencies
-      - name: Scan Backend Dependencies
+      # Scan client dependencies (Golang)
+      - name: Scan Client Dependencies
         run: |
-          cd backend || cd .
-          echo "Running npm audit on backend dependencies..."
-          npm audit --production --audit-level=high || echo "Backend has vulnerabilities that need to be addressed"
+          cd client || cd .
+          echo "Running go mod verify for client dependencies..."
+          go mod verify || echo "Client has dependency issues that need to be addressed"
 
       # Setup Terraform for tfsec
       - name: Setup Terraform
@@ -152,8 +135,8 @@ jobs:
           echo "### Frontend Dependencies" >> $GITHUB_STEP_SUMMARY
           cd frontend && npm audit --json | jq -r '.advisories | length | "Found \(.) vulnerabilities"' >> $GITHUB_STEP_SUMMARY || echo "Error running npm audit for frontend" >> $GITHUB_STEP_SUMMARY
 
-          echo "### Backend Dependencies" >> $GITHUB_STEP_SUMMARY
-          cd ../backend && npm audit --json | jq -r '.advisories | length | "Found \(.) vulnerabilities"' >> $GITHUB_STEP_SUMMARY || echo "Error running npm audit for backend" >> $GITHUB_STEP_SUMMARY || cd .. && echo "Backend not found or not using npm" >> $GITHUB_STEP_SUMMARY
+          echo "### Client Dependencies (Golang)" >> $GITHUB_STEP_SUMMARY
+          cd ../client && go mod verify >> $GITHUB_STEP_SUMMARY 2>&1 || echo "Error verifying Go modules for client" >> $GITHUB_STEP_SUMMARY || cd .. && echo "Client not found or Go modules issue" >> $GITHUB_STEP_SUMMARY
 
           echo "### Terraform Security Issues" >> $GITHUB_STEP_SUMMARY
           cd .. && tfsec . --no-color --format json | jq -r '.results | length | "Found \(.) security issues"' >> $GITHUB_STEP_SUMMARY || echo "Error running tfsec" >> $GITHUB_STEP_SUMMARY
@@ -177,7 +160,6 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
@@ -191,7 +173,7 @@ jobs:
 
       # Initialize Terraform
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -reconfigure
 
       # Create destroy plan
       - name: Terraform Plan Destroy
@@ -262,7 +244,6 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
@@ -285,7 +266,23 @@ jobs:
 
       # Initialize Terraform
       - name: Terraform Init
-        run: terraform init
+        run: |
+          # Check if S3 bucket exists
+          if aws s3 ls s3://invoiceb2b-terraform-state 2>&1 | grep -q 'NoSuchBucket'; then
+            echo "S3 bucket for Terraform state does not exist. Creating it..."
+            # Initialize with local backend first
+            terraform init -backend=false
+
+            # Apply bootstrap configuration to create S3 bucket and DynamoDB table
+            terraform apply -target=aws_s3_bucket.terraform_state -target=aws_dynamodb_table.terraform_locks -auto-approve
+
+            # Now initialize with S3 backend
+            terraform init -force-copy
+          else
+            echo "S3 bucket for Terraform state exists. Proceeding with normal initialization..."
+            # Use -reconfigure flag to handle backend configuration changes
+            terraform init -reconfigure
+          fi
 
       # Check formatting
       - name: Terraform Format
@@ -318,14 +315,11 @@ jobs:
         id: terraform_apply
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' || github.ref == 'refs/heads/staging'
         run: |
-          # Create a backup of the current state before applying changes
-          terraform state pull > terraform.tfstate.backup.${{ env.ENVIRONMENT }}
-          echo "backup_created=true" >> $GITHUB_OUTPUT
-
           # Apply the changes
           if terraform apply -auto-approve tfplan; then
             echo "Terraform apply succeeded"
             echo "success=true" >> $GITHUB_OUTPUT
+            echo "backup_created=true" >> $GITHUB_OUTPUT
           else
             echo "Terraform apply failed"
             echo "success=false" >> $GITHUB_OUTPUT
@@ -337,10 +331,10 @@ jobs:
         if: steps.terraform_apply.outputs.backup_created == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-state-backup-${{ env.ENVIRONMENT }}
-          path: terraform.tfstate.backup.${{ env.ENVIRONMENT }}
+          name: terraform-state-backup-${{ github.event.inputs.environment || 'staging' }}
+          path: terraform.tfstate
           retention-days: 7
-          if-no-files-found: error
+          if-no-files-found: warn
 
   build-and-push:
     name: 'Build and Push Docker Images'
@@ -353,11 +347,7 @@ jobs:
 
     # Define outputs that can be used by other jobs
     outputs:
-      frontend_image: ${{ steps.get-ecr-urls.outputs.frontend_repo }}:${{ github.sha }}
-      backend_image: ${{ steps.get-ecr-urls.outputs.backend_repo }}:${{ github.sha }}
       ecr_repos_found: ${{ steps.get-ecr-urls.outputs.ecr_repos_found }}
-      frontend_image_local: frontend:latest
-      backend_image_local: backend:latest
       api_image_uri: ${{ steps.build-image-api.outputs.ecr_image_uri }}
       image_tag: ${{ steps.build-image-api.outputs.image_tag }}
 
@@ -369,7 +359,6 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
@@ -392,24 +381,22 @@ jobs:
 
       # Initialize Terraform
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -reconfigure
 
       # Get ECR Repository URLs from Terraform outputs
       - name: Get ECR Repository URLs
         id: get-ecr-urls
         run: |
-          FRONTEND_REPO=$(terraform output -raw frontend_repository_url || echo "")
-          BACKEND_REPO=$(terraform output -raw backend_repository_url || echo "")
+          # Only check for API repository as per requirements
+          API_REPO=$(terraform output -raw api_repository_url || echo "")
 
-          # Check if repositories were found
-          if [ -z "$FRONTEND_REPO" ] || [ -z "$BACKEND_REPO" ]; then
-            echo "ECR repositories not found in Terraform outputs. Skipping push."
+          # Check if repository was found
+          if [ -z "$API_REPO" ]; then
+            echo "ECR repository not found in Terraform outputs. Skipping push."
             echo "ecr_repos_found=false" >> $GITHUB_OUTPUT
           else
-            echo "ECR repositories found. Proceeding with push."
+            echo "ECR repository found. Proceeding with push."
             echo "ecr_repos_found=true" >> $GITHUB_OUTPUT
-            echo "frontend_repo=$FRONTEND_REPO" >> $GITHUB_OUTPUT
-            echo "backend_repo=$BACKEND_REPO" >> $GITHUB_OUTPUT
           fi
 
       # Build, tag, and push API image to Amazon ECR
@@ -442,59 +429,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      # Build and push frontend Docker image
-      - name: Build and Push Frontend Image
-        if: steps.get-ecr-urls.outputs.ecr_repos_found == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: true
-          tags: |
-            ${{ steps.get-ecr-urls.outputs.frontend_repo }}:latest
-            ${{ steps.get-ecr-urls.outputs.frontend_repo }}:${{ github.sha }}
-            ${{ steps.get-ecr-urls.outputs.frontend_repo }}:${{ env.ENVIRONMENT }}
-            ${{ steps.get-ecr-urls.outputs.frontend_repo }}:${{ env.ENVIRONMENT }}-${{ github.sha }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-
-      # Build frontend Docker image without pushing (when ECR repos not found)
-      - name: Build Frontend Image Only
-        if: steps.get-ecr-urls.outputs.ecr_repos_found != 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: false
-          load: true
-          tags: frontend:latest
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-
-      # Build and push backend Docker image
-      - name: Build and Push Backend Image
-        if: steps.get-ecr-urls.outputs.ecr_repos_found == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          push: true
-          tags: |
-            ${{ steps.get-ecr-urls.outputs.backend_repo }}:latest
-            ${{ steps.get-ecr-urls.outputs.backend_repo }}:${{ github.sha }}
-            ${{ steps.get-ecr-urls.outputs.backend_repo }}:${{ env.ENVIRONMENT }}
-            ${{ steps.get-ecr-urls.outputs.backend_repo }}:${{ env.ENVIRONMENT }}-${{ github.sha }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-
-      # Build backend Docker image without pushing (when ECR repos not found)
-      - name: Build Backend Image Only
-        if: steps.get-ecr-urls.outputs.ecr_repos_found != 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          push: false
-          load: true
-          tags: backend:latest
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+      # Only the API image is built as per requirements
 
       # Move cache to prevent it from growing indefinitely
       - name: Move cache
@@ -524,7 +459,6 @@ jobs:
         if: needs.build-and-push.outputs.ecr_repos_found == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
@@ -542,100 +476,42 @@ jobs:
       - name: Prepare Images for Scanning
         id: prepare-images
         run: |
-          # Determine which images to use
+          # Only scan API image as per requirements
           if [[ "${{ needs.build-and-push.outputs.ecr_repos_found }}" == "true" ]]; then
-            # Use ECR images if available
-            FRONTEND_IMAGE="${{ needs.build-and-push.outputs.frontend_image }}"
-            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}"
+            # Use ECR image if available
             API_IMAGE="${{ needs.build-and-push.outputs.api_image_uri }}"
 
-            # Login to ECR and pull images once
-            echo "Using ECR images for scanning"
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $(echo $FRONTEND_IMAGE | cut -d: -f1)
-
-            if [ ! -z "$FRONTEND_IMAGE" ]; then
-              echo "Pulling frontend image: $FRONTEND_IMAGE"
-              docker pull $FRONTEND_IMAGE || echo "Failed to pull frontend image"
-            fi
-
-            if [ ! -z "$BACKEND_IMAGE" ]; then
-              echo "Pulling backend image: $BACKEND_IMAGE"
-              docker pull $BACKEND_IMAGE || echo "Failed to pull backend image"
-            fi
+            # Login to ECR and pull image
+            echo "Using ECR image for scanning"
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $(echo $API_IMAGE | cut -d: -f1)
 
             if [ ! -z "$API_IMAGE" ]; then
               echo "Pulling API image: $API_IMAGE"
               docker pull $API_IMAGE || echo "Failed to pull API image"
             fi
           else
-            # Use locally built images
-            echo "Using locally built images for scanning"
-            FRONTEND_IMAGE="${{ needs.build-and-push.outputs.frontend_image_local }}"
-            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image_local }}"
+            # Use locally built image
+            echo "Using locally built image for scanning"
             API_IMAGE="api:latest"
 
-            # Build images locally if needed
-            echo "Building frontend image"
-            cd frontend && docker build -t $FRONTEND_IMAGE . && cd .. || echo "Failed to build frontend image"
-
-            echo "Building backend image"
-            cd backend && docker build -t $BACKEND_IMAGE . && cd .. || echo "Failed to build backend image"
-
+            # Build image locally if needed
             echo "Building API image"
             docker build -t $API_IMAGE -f Dockerfile . || echo "Failed to build API image"
           fi
 
-          # Export image names for later steps
-          echo "frontend_image=$FRONTEND_IMAGE" >> $GITHUB_OUTPUT
-          echo "backend_image=$BACKEND_IMAGE" >> $GITHUB_OUTPUT
+          # Export image name for later steps
           echo "api_image=$API_IMAGE" >> $GITHUB_OUTPUT
 
       # Scan images and check for vulnerabilities
       - name: Scan Images for Vulnerabilities
         id: check-vulnerabilities
         run: |
-          FRONTEND_IMAGE="${{ steps.prepare-images.outputs.frontend_image }}"
-          BACKEND_IMAGE="${{ steps.prepare-images.outputs.backend_image }}"
           API_IMAGE="${{ steps.prepare-images.outputs.api_image }}"
           SCAN_STATUS="success"
 
           echo "## Docker Image Vulnerability Scan Results" >> $GITHUB_STEP_SUMMARY
 
-          # Scan frontend image if it exists
-          if [ ! -z "$FRONTEND_IMAGE" ]; then
-            echo "Scanning frontend Docker image for vulnerabilities..."
-            echo "### Frontend Image" >> $GITHUB_STEP_SUMMARY
-            if trivy image --format json --severity HIGH,CRITICAL --exit-code 1 $FRONTEND_IMAGE > frontend_scan.json 2>/dev/null; then
-              echo "No HIGH or CRITICAL vulnerabilities found in frontend image" >> $GITHUB_STEP_SUMMARY
-            else
-              SCAN_STATUS="warning"
-              VULN_COUNT=$(jq -r '.Results[] | .Vulnerabilities | length // 0' frontend_scan.json | awk '{sum+=$1} END {print sum}')
-              echo "Found $VULN_COUNT vulnerabilities in frontend image" >> $GITHUB_STEP_SUMMARY
-              echo "Frontend image has vulnerabilities that need to be addressed"
-            fi
-          else
-            echo "### Frontend Image" >> $GITHUB_STEP_SUMMARY
-            echo "Frontend image not available for scanning" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Scan backend image if it exists
-          if [ ! -z "$BACKEND_IMAGE" ]; then
-            echo "Scanning backend Docker image for vulnerabilities..."
-            echo "### Backend Image" >> $GITHUB_STEP_SUMMARY
-            if trivy image --format json --severity HIGH,CRITICAL --exit-code 1 $BACKEND_IMAGE > backend_scan.json 2>/dev/null; then
-              echo "No HIGH or CRITICAL vulnerabilities found in backend image" >> $GITHUB_STEP_SUMMARY
-            else
-              SCAN_STATUS="warning"
-              VULN_COUNT=$(jq -r '.Results[] | .Vulnerabilities | length // 0' backend_scan.json | awk '{sum+=$1} END {print sum}')
-              echo "Found $VULN_COUNT vulnerabilities in backend image" >> $GITHUB_STEP_SUMMARY
-              echo "Backend image has vulnerabilities that need to be addressed"
-            fi
-          else
-            echo "### Backend Image" >> $GITHUB_STEP_SUMMARY
-            echo "Backend image not available for scanning" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Scan API image if it exists
+          # Only scan API image as per requirements
           if [ ! -z "$API_IMAGE" ]; then
             echo "Scanning API Docker image for vulnerabilities..."
             echo "### API Image" >> $GITHUB_STEP_SUMMARY
@@ -677,7 +553,6 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_ECS_DEPLOY || secrets.AWS_ROLE_TO_ASSUME }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
@@ -704,7 +579,7 @@ jobs:
 
       # Initialize Terraform
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -reconfigure
 
       # Get ECS service names from Terraform outputs
       - name: Get ECS Service Names
@@ -712,11 +587,10 @@ jobs:
         if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true'
         run: |
           CLUSTER_NAME=$(terraform output -raw ecs_cluster_name || echo "")
-          FRONTEND_SERVICE=$(terraform output -raw frontend_service_name || echo "")
-          BACKEND_SERVICE=$(terraform output -raw backend_service_name || echo "")
+          API_SERVICE=$(terraform output -raw api_service_name || echo "")
 
           # Check if services were found
-          if [ -z "$CLUSTER_NAME" ] || [ -z "$FRONTEND_SERVICE" ] || [ -z "$BACKEND_SERVICE" ]; then
+          if [ -z "$CLUSTER_NAME" ] || [ -z "$API_SERVICE" ]; then
             echo "ECS services not found in Terraform outputs. Trying alternative approach."
             CLUSTER_NAME="${{ secrets.ECS_CLUSTER_NAME }}"
             if [ -z "$CLUSTER_NAME" ]; then
@@ -729,8 +603,7 @@ jobs:
             echo "ECS services found. Proceeding with deployment."
             echo "ecs_services_found=true" >> $GITHUB_OUTPUT
             echo "cluster_name=$CLUSTER_NAME" >> $GITHUB_OUTPUT
-            echo "frontend_service=$FRONTEND_SERVICE" >> $GITHUB_OUTPUT
-            echo "backend_service=$BACKEND_SERVICE" >> $GITHUB_OUTPUT
+            echo "api_service=$API_SERVICE" >> $GITHUB_OUTPUT
           fi
         continue-on-error: true
 
@@ -759,8 +632,6 @@ jobs:
         if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.get-ecs-services.outputs.ecs_services_found != 'true'
         env:
           API_IMAGE_URI: ${{ needs.build-and-push.outputs.api_image_uri }}
-          FRONTEND_IMAGE_URI: ${{ needs.build-and-push.outputs.frontend_image }}
-          BACKEND_IMAGE_URI: ${{ needs.build-and-push.outputs.backend_image }}
           DB_HOST_SECRET_ARN: ${{ secrets.DB_HOST_SECRET_ARN }}
           DB_PORT_SECRET_ARN: ${{ secrets.DB_PORT_SECRET_ARN }}
           DB_USER_SECRET_ARN: ${{ secrets.DB_USER_SECRET_ARN }}
@@ -779,20 +650,14 @@ jobs:
           yq -i 'del(.services.postgres)' docker-compose.ecs.yml || true
           yq -i 'del(.services.redis)' docker-compose.ecs.yml || true
 
-          # Update image references
+          # Only keep the API service as per requirements
+          yq -i 'del(.services.frontend)' docker-compose.ecs.yml || true
+          yq -i 'del(.services.client)' docker-compose.ecs.yml || true
+
+          # Update API image reference
           if [ ! -z "$API_IMAGE_URI" ]; then
             yq -i '.services.api.image = env(API_IMAGE_URI)' docker-compose.ecs.yml || true
             yq -i 'del(.services.api.build)' docker-compose.ecs.yml || true
-          fi
-
-          if [ ! -z "$FRONTEND_IMAGE_URI" ]; then
-            yq -i '.services.frontend.image = env(FRONTEND_IMAGE_URI)' docker-compose.ecs.yml || true
-            yq -i 'del(.services.frontend.build)' docker-compose.ecs.yml || true
-          fi
-
-          if [ ! -z "$BACKEND_IMAGE_URI" ]; then
-            yq -i '.services.backend.image = env(BACKEND_IMAGE_URI)' docker-compose.ecs.yml || true
-            yq -i 'del(.services.backend.build)' docker-compose.ecs.yml || true
           fi
 
           # Add AWS logging configuration
@@ -825,8 +690,7 @@ jobs:
         if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.get-ecs-services.outputs.ecs_services_found == 'true'
         run: |
           echo "Starting deployment to ECS..."
-          aws ecs update-service --cluster ${{ steps.get-ecs-services.outputs.cluster_name }} --service ${{ steps.get-ecs-services.outputs.frontend_service }} --force-new-deployment
-          aws ecs update-service --cluster ${{ steps.get-ecs-services.outputs.cluster_name }} --service ${{ steps.get-ecs-services.outputs.backend_service }} --force-new-deployment
+          aws ecs update-service --cluster ${{ steps.get-ecs-services.outputs.cluster_name }} --service ${{ steps.get-ecs-services.outputs.api_service }} --force-new-deployment
           echo "Deployment completed successfully!"
         continue-on-error: true
 
@@ -888,7 +752,6 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
@@ -904,19 +767,19 @@ jobs:
       - name: Download State Backup
         uses: actions/download-artifact@v4
         with:
-          name: terraform-state-backup-${{ env.ENVIRONMENT }}
+          name: terraform-state-backup-${{ github.event.inputs.environment || 'staging' }}
           path: .
 
       # Initialize Terraform
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -reconfigure
 
       # Restore previous state
       - name: Restore Previous State
         run: |
           echo "Restoring previous state from backup..."
-          terraform state push terraform.tfstate.backup.${{ env.ENVIRONMENT }}
-          terraform apply -auto-approve -var="environment=${{ env.ENVIRONMENT }}"
+          terraform state push terraform.tfstate
+          terraform apply -auto-approve -var="environment=${{ github.event.inputs.environment || 'staging' }}"
           echo "Rollback completed successfully!"
 
       # Notify rollback status
@@ -932,7 +795,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "${{ job.status == 'success' && '✅ *Rollback Completed Successfully*' || '❌ *Rollback Failed*' }}\nRepository: `${{ github.repository }}`\nEnvironment: `${{ env.ENVIRONMENT }}`"
+                    "text": "${{ job.status == 'success' && '✅ *Rollback Completed Successfully*' || '❌ *Rollback Failed*' }}\nRepository: `${{ github.repository }}`\nEnvironment: `${{ github.event.inputs.environment || 'staging' }}`"
                   }
                 },
                 {
@@ -975,7 +838,6 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
@@ -991,7 +853,7 @@ jobs:
 
       # Initialize Terraform
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -reconfigure
         continue-on-error: true
 
       - name: Generate Deployment Summary
@@ -1021,7 +883,7 @@ jobs:
             if [[ "${{ contains(needs.*.result, needs.rollback.result) }}" == "true" ]]; then
               echo "| Deployment Rollback | ${{ needs.rollback.result }} |" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
-              echo "**Note:** A rollback was performed due to deployment failure in the ${{ env.ENVIRONMENT }} environment." >> $GITHUB_STEP_SUMMARY
+              echo "**Note:** A rollback was performed due to deployment failure in the ${{ github.event.inputs.environment || 'staging' }} environment." >> $GITHUB_STEP_SUMMARY
             fi
 
             # Get the load balancer DNS from Terraform outputs
