@@ -10,7 +10,7 @@ provider "aws" {
 
 resource "aws_s3_bucket" "terraform_state" {
   provider = aws.bootstrap
-  bucket   = "invoice-terraform-state"
+  bucket   = "invoiceapp-terraform-state"
 
   # Prevent accidental deletion of this S3 bucket
   lifecycle {
