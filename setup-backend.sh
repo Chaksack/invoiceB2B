@@ -17,8 +17,8 @@ terraform apply -auto-approve
 cd ..
 
 echo "Backend resources created successfully!"
-echo "S3 bucket: invoiceb2b-terraform-state"
-echo "DynamoDB table: invoiceb2b-terraform-locks"
+echo "S3 bucket: invoiceb2bapi-terraform-state"
+echo "DynamoDB table: invoiceb2bapi-terraform-locks"
 
 echo "You can now initialize the main Terraform configuration with the S3 backend:"
 echo "terraform init"

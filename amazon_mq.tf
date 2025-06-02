@@ -2,11 +2,13 @@ resource "aws_mq_broker" "main" {
   broker_name         = "${var.project_name}-rabbitmq"
   engine_type         = "RabbitMQ"
   engine_version      = "3.13"                  # Check AWS console for latest supported versions
-  host_instance_type  = "mq.t3.micro"             # Choose appropriate instance type
-  deployment_mode     = "ACTIVE_STANDBY_MULTI_AZ" # Enabled for production HA
+  host_instance_type  = "mq.m5.large"
+  deployment_mode      = "CLUSTER_MULTI_AZ"
   publicly_accessible = false                     # Keep it private
   subnet_ids          = aws_subnet.private[*].id  # Using all private subnets for multi-AZ
   security_groups     = [aws_security_group.rabbitmq.id]
+  auto_minor_version_upgrade = true
+
 
   user {
     username = var.rabbitmq_user
@@ -30,3 +32,4 @@ resource "aws_mq_broker" "main" {
     Environment = "production"
   }
 }
+

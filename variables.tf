@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "A short name for the project, used for naming resources"
   type        = string
-  default     = "invoiceb2b"
+  default     = "invoice"
 }
 
 variable "vpc_cidr" {
@@ -73,7 +73,7 @@ variable "sonarqube_db_name" {
 variable "rabbitmq_user" {
   description = "RabbitMQ default username"
   type        = string
-  default     = "guest"
+  default     = "invoicefnd"
   sensitive   = true
 }
 

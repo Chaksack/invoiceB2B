@@ -96,7 +96,7 @@ jobs:
           npm audit --production --audit-level=high || echo "Frontend has vulnerabilities that need to be addressed"
 
       # Scan client dependencies (Golang)
-      - name: Scan Client Dependencies
+      - name: Scan Internal Dependencies
         run: |
           cd client || cd .
           echo "Running go mod verify for client dependencies..."
