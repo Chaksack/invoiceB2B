@@ -15,12 +15,12 @@
 #
 # However, variables cannot be used directly in the backend configuration.
 # The values here are generated based on the project_name in variables.tf.
-terraform {
-  backend "s3" {
-    bucket         = "invoicedev-terraform-state"
-    key            = "environments/prod/terraform.tfstate"  # Default state file path, override with -backend-config
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "invoicedev-terraform-locks"
-  }
-}
+# terraform {
+#   backend "s3" {
+#     bucket         = "invoicedev-terraform-state"
+#     key            = "environments/prod/terraform.tfstate"  # Default state file path, override with -backend-config
+#     region         = "us-east-1"
+#     encrypt        = true
+#     dynamodb_table = "invoicedev-terraform-locks"
+#   }
+# }
