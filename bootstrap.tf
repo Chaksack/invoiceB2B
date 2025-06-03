@@ -4,8 +4,13 @@
 # Use the project_name variable from variables.tf
 # No need to redefine it here as it's already defined in variables.tf
 
+locals {
+  # For dev environment, use a different bucket name prefix
+  bucket_prefix = var.environment == "dev" ? "invoicedev" : var.project_name
+}
+
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "${var.project_name}-terraform-state"
+  bucket = "${local.bucket_prefix}-terraform-state"
 
   # Prevent accidental deletion of this S3 bucket
   lifecycle {
@@ -17,7 +22,7 @@ resource "aws_s3_bucket" "terraform_state" {
   }
 
   tags = {
-    Name        = "${var.project_name}-terraform-state"
+    Name        = "${local.bucket_prefix}-terraform-state"
     Environment = "All"
     Project     = var.project_name
   }
@@ -66,7 +71,7 @@ resource "aws_s3_bucket_public_access_block" "terraform_state" {
 }
 
 resource "aws_dynamodb_table" "terraform_locks" {
-  name         = "${var.project_name}-terraform-locks"
+  name         = "${local.bucket_prefix}-terraform-locks"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
 
@@ -83,7 +88,7 @@ resource "aws_dynamodb_table" "terraform_locks" {
   }
 
   tags = {
-    Name        = "${var.project_name}-terraform-locks"
+    Name        = "${local.bucket_prefix}-terraform-locks"
     Environment = "All"
     Project     = var.project_name
   }

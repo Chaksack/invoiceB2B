@@ -1,4 +1,5 @@
 #!/bin/bash
+# Exit on error, but allow for proper error handling
 set -e
 
 echo "Setting up Terraform backend resources..."
@@ -7,6 +8,38 @@ echo "Setting up Terraform backend resources..."
 environment=${1:-dev}
 echo "Using environment: $environment"
 
+# Function to retry AWS commands with exponential backoff
+function retry_aws_command {
+  local max_attempts=5
+  local timeout=1
+  local attempt=1
+  local exit_code=0
+
+  while (( $attempt <= $max_attempts ))
+  do
+    echo "Attempt $attempt of $max_attempts: $@"
+    "$@"
+    exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
+      echo "Command succeeded."
+      break
+    fi
+
+    echo "Command failed with exit code $exit_code. Retrying in $timeout seconds..."
+    sleep $timeout
+    attempt=$(( attempt + 1 ))
+    timeout=$(( timeout * 2 ))
+  done
+
+  if [[ $exit_code -ne 0 ]]; then
+    echo "Command '$@' failed after $max_attempts attempts"
+    return $exit_code
+  fi
+
+  return 0
+}
+
 # Initialize and apply the bootstrap configuration
 echo "Initializing bootstrap Terraform configuration..."
 terraform init
@@ -14,6 +47,10 @@ terraform init
 echo "Creating S3 bucket and DynamoDB table for Terraform backend..."
 # Extract project_name from variables.tf
 project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
+if [ -z "$project_name" ]; then
+  echo "ERROR: Could not extract project_name from variables.tf"
+  exit 1
+fi
 echo "Using project_name: $project_name"
 
 # For dev environment, use a different bucket name prefix
@@ -27,50 +64,87 @@ fi
 
 # Check if S3 bucket already exists
 bucket_name="${bucket_prefix}-terraform-state"
-if aws s3api head-bucket --bucket "$bucket_name" 2>/dev/null; then
+echo "Checking if S3 bucket $bucket_name exists..."
+if retry_aws_command aws s3api head-bucket --bucket "$bucket_name" 2>/dev/null; then
   echo "S3 bucket $bucket_name already exists, skipping creation"
-  s3_target=""
+  s3_exists=true
 else
   echo "S3 bucket $bucket_name does not exist, will create it"
-  s3_target="-target=aws_s3_bucket.terraform_state"
+  s3_exists=false
 fi
 
 # Check if DynamoDB table already exists
 table_name="${bucket_prefix}-terraform-locks"
-if aws dynamodb describe-table --table-name "$table_name" 2>/dev/null; then
+echo "Checking if DynamoDB table $table_name exists..."
+if retry_aws_command aws dynamodb describe-table --table-name "$table_name" 2>/dev/null; then
   echo "DynamoDB table $table_name already exists, skipping creation"
-  dynamodb_target=""
+  dynamodb_exists=true
 else
   echo "DynamoDB table $table_name does not exist, will create it"
-  dynamodb_target="-target=aws_dynamodb_table.terraform_locks"
+  dynamodb_exists=false
 fi
 
-# Only create resources if they don't exist
-if [ -n "$s3_target" ] || [ -n "$dynamodb_target" ]; then
-  echo "Creating resources using AWS CLI..."
+# Create resources that don't exist using AWS CLI directly
+# This is more reliable than using Terraform for these bootstrap resources
+if [ "$s3_exists" = false ] || [ "$dynamodb_exists" = false ]; then
+  echo "Creating missing resources using AWS CLI..."
 
   # Create S3 bucket if it doesn't exist
-  if [ -n "$s3_target" ]; then
+  if [ "$s3_exists" = false ]; then
     echo "Creating S3 bucket: $bucket_name"
-    aws s3api create-bucket --bucket "$bucket_name" --region us-east-1
+    # Create the bucket with appropriate region configuration
+    if [ "$AWS_REGION" = "us-east-1" ]; then
+      retry_aws_command aws s3api create-bucket --bucket "$bucket_name" --region us-east-1
+    else
+      retry_aws_command aws s3api create-bucket --bucket "$bucket_name" --region "$AWS_REGION" --create-bucket-configuration LocationConstraint="$AWS_REGION"
+    fi
+
+    # Wait for bucket to be available
+    echo "Waiting for S3 bucket to become available..."
+    retry_aws_command aws s3api wait bucket-exists --bucket "$bucket_name"
 
     # Enable versioning
-    aws s3api put-bucket-versioning --bucket "$bucket_name" --versioning-configuration Status=Enabled
+    echo "Enabling versioning on S3 bucket..."
+    retry_aws_command aws s3api put-bucket-versioning --bucket "$bucket_name" --versioning-configuration Status=Enabled
 
     # Enable encryption
-    aws s3api put-bucket-encryption --bucket "$bucket_name" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+    echo "Enabling encryption on S3 bucket..."
+    retry_aws_command aws s3api put-bucket-encryption --bucket "$bucket_name" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
 
     # Block public access
-    aws s3api put-public-access-block --bucket "$bucket_name" --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+    echo "Blocking public access to S3 bucket..."
+    retry_aws_command aws s3api put-public-access-block --bucket "$bucket_name" --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
 
-    echo "S3 bucket created successfully"
+    echo "S3 bucket created and configured successfully"
+
+    # Verify bucket exists after creation
+    if ! retry_aws_command aws s3api head-bucket --bucket "$bucket_name" 2>/dev/null; then
+      echo "ERROR: Failed to verify S3 bucket creation"
+      exit 1
+    fi
   fi
 
   # Create DynamoDB table if it doesn't exist
-  if [ -n "$dynamodb_target" ]; then
+  if [ "$dynamodb_exists" = false ]; then
     echo "Creating DynamoDB table: $table_name"
-    aws dynamodb create-table --table-name "$table_name" --attribute-definitions AttributeName=LockID,AttributeType=S --key-schema AttributeName=LockID,KeyType=HASH --billing-mode PAY_PER_REQUEST --region us-east-1
+    retry_aws_command aws dynamodb create-table \
+      --table-name "$table_name" \
+      --attribute-definitions AttributeName=LockID,AttributeType=S \
+      --key-schema AttributeName=LockID,KeyType=HASH \
+      --billing-mode PAY_PER_REQUEST \
+      --region "${AWS_REGION:-us-east-1}"
+
+    # Wait for table to be active
+    echo "Waiting for DynamoDB table to become active..."
+    retry_aws_command aws dynamodb wait table-exists --table-name "$table_name"
+
     echo "DynamoDB table created successfully"
+
+    # Verify table exists after creation
+    if ! retry_aws_command aws dynamodb describe-table --table-name "$table_name" 2>/dev/null; then
+      echo "ERROR: Failed to verify DynamoDB table creation"
+      exit 1
+    fi
   fi
 else
   echo "Both resources already exist, skipping creation"
@@ -82,6 +156,7 @@ echo "DynamoDB table: ${bucket_prefix}-terraform-locks"
 
 # Generate backend.tf file with the correct values
 echo "Generating backend.tf file with dynamic configuration..."
+chmod +x ./generate-backend.sh
 ./generate-backend.sh $environment
 
 echo "You can now initialize the main Terraform configuration with the S3 backend:"
