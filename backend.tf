@@ -10,10 +10,10 @@
 # Then uncomment this configuration and run: terraform init
 terraform {
   backend "s3" {
-    bucket         = "invoiceb2b-terraform-state"
+    bucket         = "invoiceapp-terraform-state"
     key            = "terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
-    dynamodb_table = "invoiceb2b-terraform-locks"
+    dynamodb_table = "invoice-terraform-locks"
   }
 }

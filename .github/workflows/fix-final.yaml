@@ -39,8 +39,8 @@ env:
   # Default environment is staging, can be overridden by workflow_dispatch input
   ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
   COMPOSE_PROJECT_NAME: ${{ secrets.ECS_PROJECT_NAME || 'invoiceb2b' }}
-  TERRAFORM_STATE_BUCKET: "invoiceb2b-terraform-state"
-  TERRAFORM_LOCK_TABLE: "invoiceb2b-terraform-locks"
+  TERRAFORM_STATE_BUCKET: "invoiceapp-terraform-state"
+  TERRAFORM_LOCK_TABLE: "invoice-terraform-locks"
 
 jobs:
   # Reusable job for setting up Terraform
