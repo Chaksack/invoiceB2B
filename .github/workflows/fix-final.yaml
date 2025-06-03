@@ -95,12 +95,18 @@ jobs:
         env:
           # PROJECT_NAME is sourced from the output of a step in this same job, which is valid.
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
+          ENVIRONMENT: ${{ env.ENVIRONMENT }}
         run: |
           # Set S3 bucket and DynamoDB table names based on project_name
           S3_BUCKET="${PROJECT_NAME}-terraform-state"
           DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
           echo "Using S3 bucket: $S3_BUCKET"
           echo "Using DynamoDB table: $DYNAMODB_TABLE"
+
+          # Generate backend.tf file with the correct values for this environment
+          echo "Generating backend.tf file with dynamic configuration..."
+          chmod +x ./generate-backend.sh
+          ./generate-backend.sh $ENVIRONMENT
 
           # Check if S3 bucket exists
           S3_TARGET=""
@@ -286,13 +292,20 @@ jobs:
         env:
           # Using project_name from this job's own extract_project_name step or from needs.setup-terraform.outputs.project_name
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
+          ENVIRONMENT: ${{ env.ENVIRONMENT }}
           # Alternatively, if refactored: PROJECT_NAME: ${{ needs.setup-terraform.outputs.project_name }}
         run: |
           S3_BUCKET="${PROJECT_NAME}-terraform-state"
           DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
           echo "Using S3 bucket: $S3_BUCKET"
           echo "Using DynamoDB table: $DYNAMODB_TABLE"
-          terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
+
+          # Generate backend.tf file with the correct values for this environment
+          echo "Generating backend.tf file with dynamic configuration..."
+          chmod +x ./generate-backend.sh
+          ./generate-backend.sh $ENVIRONMENT
+
+          terraform init -reconfigure
           echo "Terraform initialized with environment-specific state file."
 
       # Create destroy plan (excluding S3 bucket with prevent_destroy=true)
@@ -408,13 +421,20 @@ jobs:
       - name: Terraform Init
         env:
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
+          ENVIRONMENT: ${{ env.ENVIRONMENT }}
           # Or: PROJECT_NAME: ${{ needs.setup-terraform.outputs.project_name }}
         run: |
           S3_BUCKET="${PROJECT_NAME}-terraform-state"
           DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
           echo "Using S3 bucket: $S3_BUCKET"
           echo "Using DynamoDB table: $DYNAMODB_TABLE"
-          terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
+
+          # Generate backend.tf file with the correct values for this environment
+          echo "Generating backend.tf file with dynamic configuration..."
+          chmod +x ./generate-backend.sh
+          ./generate-backend.sh $ENVIRONMENT
+
+          terraform init -reconfigure
           echo "Terraform initialized with environment-specific state file."
 
       - name: Terraform Format
@@ -508,13 +528,20 @@ jobs:
       - name: Terraform Init
         env:
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
+          ENVIRONMENT: ${{ env.ENVIRONMENT }}
           # Or: PROJECT_NAME: ${{ needs.setup-terraform.outputs.project_name }} # If setup-terraform is a direct need and outputs project_name
         run: |
           S3_BUCKET="${PROJECT_NAME}-terraform-state"
           DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
           echo "Using S3 bucket: $S3_BUCKET"
           echo "Using DynamoDB table: $DYNAMODB_TABLE"
-          terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
+
+          # Generate backend.tf file with the correct values for this environment
+          echo "Generating backend.tf file with dynamic configuration..."
+          chmod +x ./generate-backend.sh
+          ./generate-backend.sh $ENVIRONMENT
+
+          terraform init -reconfigure
           echo "Terraform initialized with environment-specific state file."
 
       - name: Get ECR Repository URLs
@@ -702,11 +729,18 @@ jobs:
         if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' # Only if proceeding
         env:
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
+          ENVIRONMENT: ${{ env.ENVIRONMENT }}
           # Or: PROJECT_NAME: ${{ needs.setup-terraform.outputs.project_name }}
         run: |
           S3_BUCKET="${PROJECT_NAME}-terraform-state"
           DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
-          terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
+
+          # Generate backend.tf file with the correct values for this environment
+          echo "Generating backend.tf file with dynamic configuration..."
+          chmod +x ./generate-backend.sh
+          ./generate-backend.sh $ENVIRONMENT
+
+          terraform init -reconfigure
 
       - name: Get ECS Service Names
         id: get-ecs-services
@@ -896,11 +930,18 @@ jobs:
       - name: Terraform Init
         env:
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
+          ENVIRONMENT: ${{ env.ENVIRONMENT }}
           # Or: PROJECT_NAME: ${{ needs.setup-terraform.outputs.project_name }}
         run: |
           S3_BUCKET="${PROJECT_NAME}-terraform-state"
           DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
-          terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
+
+          # Generate backend.tf file with the correct values for this environment
+          echo "Generating backend.tf file with dynamic configuration..."
+          chmod +x ./generate-backend.sh
+          ./generate-backend.sh $ENVIRONMENT
+
+          terraform init -reconfigure
 
       - name: Restore Previous State
         run: |
@@ -986,11 +1027,18 @@ jobs:
         if: steps.check-destroy.outputs.destroy_run == 'false'
         env:
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
+          ENVIRONMENT: ${{ env.ENVIRONMENT }}
           # Or: PROJECT_NAME: ${{ needs.setup-terraform.outputs.project_name }}
         run: |
           S3_BUCKET="${PROJECT_NAME}-terraform-state"
           DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
-          terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
+
+          # Generate backend.tf file with the correct values for this environment
+          echo "Generating backend.tf file with dynamic configuration..."
+          chmod +x ./generate-backend.sh
+          ./generate-backend.sh $ENVIRONMENT
+
+          terraform init -reconfigure
         continue-on-error: true
 
       - name: Generate Deployment Summary

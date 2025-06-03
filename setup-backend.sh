@@ -43,6 +43,10 @@ echo "Backend resources created successfully!"
 echo "S3 bucket: ${project_name}-terraform-state"
 echo "DynamoDB table: ${project_name}-terraform-locks"
 
+# Generate backend.tf file with the correct values
+echo "Generating backend.tf file with dynamic configuration..."
+./generate-backend.sh
+
 echo "You can now initialize the main Terraform configuration with the S3 backend:"
 echo "terraform init"
 
@@ -50,3 +54,8 @@ echo "For environment-specific state files, use:"
 echo "terraform init -backend-config=\"key=environments/dev/terraform.tfstate\""
 echo "terraform init -backend-config=\"key=environments/staging/terraform.tfstate\""
 echo "terraform init -backend-config=\"key=environments/prod/terraform.tfstate\""
+
+echo "Or regenerate the backend.tf file for a specific environment:"
+echo "./generate-backend.sh dev"
+echo "./generate-backend.sh staging"
+echo "./generate-backend.sh prod"
