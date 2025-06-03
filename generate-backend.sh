@@ -11,6 +11,15 @@ echo "Using project_name: $project_name"
 environment=${1:-dev}
 echo "Using environment: $environment"
 
+# For dev environment, use a different bucket name prefix
+if [ "$environment" = "dev" ]; then
+  bucket_prefix="invoicedev"
+  echo "Using dev-specific bucket prefix: $bucket_prefix"
+else
+  bucket_prefix="$project_name"
+  echo "Using standard bucket prefix: $bucket_prefix"
+fi
+
 # Generate the backend.tf file
 cat > backend.tf << EOF
 # Backend configuration for storing Terraform state in S3
@@ -32,18 +41,18 @@ cat > backend.tf << EOF
 # The values here are generated based on the project_name in variables.tf.
 terraform {
   backend "s3" {
-    bucket         = "${project_name}-terraform-state"
+    bucket         = "${bucket_prefix}-terraform-state"
     key            = "environments/${environment}/terraform.tfstate"  # Default state file path, override with -backend-config
     region         = "us-east-1"
     encrypt        = true
-    dynamodb_table = "${project_name}-terraform-locks"
+    dynamodb_table = "${bucket_prefix}-terraform-locks"
   }
 }
 EOF
 
 echo "Backend configuration generated successfully!"
-echo "S3 bucket: ${project_name}-terraform-state"
-echo "DynamoDB table: ${project_name}-terraform-locks"
+echo "S3 bucket: ${bucket_prefix}-terraform-state"
+echo "DynamoDB table: ${bucket_prefix}-terraform-locks"
 echo "Environment: ${environment}"
 echo "State file path: environments/${environment}/terraform.tfstate"
 

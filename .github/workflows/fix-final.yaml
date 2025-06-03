@@ -62,8 +62,8 @@ jobs:
           project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
           echo "project_name=$project_name" >> $GITHUB_OUTPUT
           echo "Using project_name: $project_name"
-          echo "S3 bucket will be: $project_name-terraform-state" # Informational
-          echo "DynamoDB table will be: $project_name-terraform-locks" # Informational
+          echo "S3 bucket will be: $project_name-terraform-state" 
+          echo "DynamoDB table will be: $project_name-terraform-locks" 
 
       # Configure AWS credentials
       - name: Configure AWS Credentials
