@@ -1,96 +1,28 @@
-# Bootstrap Terraform resources
-# This file creates the S3 bucket and DynamoDB table needed for the Terraform backend
-
-# Use the project_name variable from variables.tf
-# No need to redefine it here as it's already defined in variables.tf
-
-resource "aws_s3_bucket" "terraform_state" {
-  bucket = "${var.project_name}-terraform-state"
-
-  # Prevent accidental deletion of this S3 bucket
-  lifecycle {
-    prevent_destroy = true
-    # Ignore errors related to bucket already existing
-    ignore_changes = [bucket]
-  }
-
-  tags = {
-    Name        = "${var.project_name}-terraform-state"
-    Environment = "All"
-    Project     = var.project_name
-  }
-}
-
-resource "aws_s3_bucket_versioning" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
-
-  versioning_configuration {
-    status = "Enabled"
-  }
-
-  # Ignore errors if bucket already exists
-  lifecycle {
-    ignore_changes = [bucket]
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-
-  # Ignore errors if bucket already exists
-  lifecycle {
-    ignore_changes = [bucket]
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-
-  # Ignore errors if bucket already exists
-  lifecycle {
-    ignore_changes = [bucket]
-  }
-}
-
-resource "aws_dynamodb_table" "terraform_locks" {
-  name         = "${var.project_name}-terraform-locks"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "LockID"
-
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
-
-  lifecycle {
-    # Ignore errors related to table already existing
-    ignore_changes = [name]
-  }
-
-  tags = {
-    Name        = "${var.project_name}-terraform-locks"
-    Environment = "All"
-    Project     = var.project_name
-  }
-}
-
-output "s3_bucket_name" {
-  value       = aws_s3_bucket.terraform_state.id
-  description = "The name of the S3 bucket"
-}
-
-output "dynamodb_table_name" {
-  value       = aws_dynamodb_table.terraform_locks.id
-  description = "The name of the DynamoDB table"
-}
+# Backend configuration for storing Terraform state in S3
+# This allows for team collaboration, state locking, and versioning
+#
+# To use with different environments, initialize with:
+# terraform init -backend-config="key=environments/dev/terraform.tfstate"
+# terraform init -backend-config="key=environments/staging/terraform.tfstate"
+# terraform init -backend-config="key=environments/prod/terraform.tfstate"
+# Temporarily commented out S3 backend configuration until the S3 bucket is created
+# To enable this backend, first run the setup-backend.sh script to create the required resources
+# Then uncomment this configuration and run: terraform init
+# Backend configuration for storing Terraform state in S3
+# This allows for team collaboration, state locking, and versioning
+#
+# Note: The bucket and dynamodb_table names follow the pattern:
+# - bucket: "${var.project_name}-terraform-state"
+# - dynamodb_table: "${var.project_name}-terraform-locks"
+#
+# However, variables cannot be used directly in the backend configuration.
+# The values here must match the values in bootstrap.tf.
+# terraform {
+#   backend "s3" {
+#     bucket         = "invoicefin-terraform-state"
+#     key            = "terraform.tfstate"  # Default state file path, override with -backend-config
+#     region         = "us-east-1"
+#     encrypt        = true
+#     dynamodb_table = "invoicefin-terraform-locks"
+#   }
+# }
