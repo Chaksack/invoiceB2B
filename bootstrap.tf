@@ -1,10 +1,5 @@
-# Bootstrap Terraform resources
-# This file creates the S3 bucket and DynamoDB table needed for the Terraform backend
-# Run this with: terraform init && terraform apply
-# After running this, you can use the main Terraform configuration with the S3 backend
-
 provider "aws" {
-  region = "us-east-1"  # Use the same region as in your backend configuration
+  region = "us-east-1"
   alias  = "bootstrap"
 }
 
