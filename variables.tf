@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "A short name for the project, used for naming resources"
   type        = string
-  default     = "invoicedev"
+  default     = "invoiceapidev"
 }
 
 variable "vpc_cidr" {
@@ -75,4 +75,10 @@ variable "environment" {
   description = "Environment name (dev, staging, prod)"
   type        = string
   default     = "staging"
+}
+
+variable "create_bootstrap_resources" {
+  description = "Whether to create the bootstrap resources (S3 bucket and DynamoDB table)"
+  type        = bool
+  default     = true
 }

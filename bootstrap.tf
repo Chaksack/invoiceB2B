@@ -10,13 +10,14 @@ locals {
 }
 
 resource "aws_s3_bucket" "terraform_state" {
+  count  = var.create_bootstrap_resources ? 1 : 0
   bucket = "${local.bucket_prefix}-terraform-state"
 
   # Prevent accidental deletion of this S3 bucket
   lifecycle {
     prevent_destroy = true
     # Ignore errors related to bucket already existing
-    ignore_changes = [bucket]
+    ignore_changes = [bucket, id, arn, region]
     # Prevent errors when bucket already exists
     create_before_destroy = false
   }
@@ -29,7 +30,8 @@ resource "aws_s3_bucket" "terraform_state" {
 }
 
 resource "aws_s3_bucket_versioning" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
+  count  = var.create_bootstrap_resources ? 1 : 0
+  bucket = aws_s3_bucket.terraform_state[0].id
 
   versioning_configuration {
     status = "Enabled"
@@ -42,7 +44,8 @@ resource "aws_s3_bucket_versioning" "terraform_state" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
+  count  = var.create_bootstrap_resources ? 1 : 0
+  bucket = aws_s3_bucket.terraform_state[0].id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -57,7 +60,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" 
 }
 
 resource "aws_s3_bucket_public_access_block" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
+  count  = var.create_bootstrap_resources ? 1 : 0
+  bucket = aws_s3_bucket.terraform_state[0].id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -71,6 +75,7 @@ resource "aws_s3_bucket_public_access_block" "terraform_state" {
 }
 
 resource "aws_dynamodb_table" "terraform_locks" {
+  count        = var.create_bootstrap_resources ? 1 : 0
   name         = "${local.bucket_prefix}-terraform-locks"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
@@ -82,7 +87,7 @@ resource "aws_dynamodb_table" "terraform_locks" {
 
   lifecycle {
     # Ignore errors related to table already existing
-    ignore_changes = [name]
+    ignore_changes = [name, id, arn, hash_key]
     # Prevent errors when table already exists
     create_before_destroy = false
   }
@@ -95,11 +100,11 @@ resource "aws_dynamodb_table" "terraform_locks" {
 }
 
 output "s3_bucket_name" {
-  value       = aws_s3_bucket.terraform_state.id
+  value       = var.create_bootstrap_resources ? aws_s3_bucket.terraform_state[0].id : "${local.bucket_prefix}-terraform-state"
   description = "The name of the S3 bucket"
 }
 
 output "dynamodb_table_name" {
-  value       = aws_dynamodb_table.terraform_locks.id
+  value       = var.create_bootstrap_resources ? aws_dynamodb_table.terraform_locks[0].id : "${local.bucket_prefix}-terraform-locks"
   description = "The name of the DynamoDB table"
 }

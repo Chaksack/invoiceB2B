@@ -146,9 +146,18 @@ if [ "$s3_exists" = false ] || [ "$dynamodb_exists" = false ]; then
       exit 1
     fi
   fi
+
+  # Set create_bootstrap_resources to true since we're creating at least one resource
+  create_bootstrap_resources=true
 else
   echo "Both resources already exist, skipping creation"
+  # Set create_bootstrap_resources to false since both resources already exist
+  create_bootstrap_resources=false
 fi
+
+# Apply Terraform configuration with the create_bootstrap_resources variable
+echo "Applying Terraform configuration with create_bootstrap_resources=${create_bootstrap_resources}..."
+terraform apply -auto-approve -var="create_bootstrap_resources=${create_bootstrap_resources}"
 
 echo "Backend resources created successfully!"
 echo "S3 bucket: ${bucket_prefix}-terraform-state"
