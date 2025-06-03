@@ -103,8 +103,25 @@ jobs:
           echo "Using DynamoDB table: $DYNAMODB_TABLE"
 
           # Check if S3 bucket exists
+          S3_TARGET=""
           if aws s3 ls s3://$S3_BUCKET 2>&1 | grep -q 'NoSuchBucket'; then
-            echo "S3 bucket for Terraform state does not exist. Creating it..."
+            echo "S3 bucket for Terraform state does not exist. Will create it..."
+            S3_TARGET="-target=aws_s3_bucket.terraform_state"
+          else
+            echo "S3 bucket for Terraform state already exists."
+          fi
+
+          # Check if DynamoDB table exists
+          DYNAMODB_TARGET=""
+          if ! aws dynamodb describe-table --table-name $DYNAMODB_TABLE 2>/dev/null; then
+            echo "DynamoDB table for Terraform locks does not exist. Will create it..."
+            DYNAMODB_TARGET="-target=aws_dynamodb_table.terraform_locks"
+          else
+            echo "DynamoDB table for Terraform locks already exists."
+          fi
+
+          # Only create resources that don't exist
+          if [ -n "$S3_TARGET" ] || [ -n "$DYNAMODB_TARGET" ]; then
             # Initialize with local backend first
             terraform init -backend=false
 
@@ -112,13 +129,13 @@ jobs:
             echo "Initializing bootstrap Terraform configuration..."
             terraform init
 
-            echo "Creating S3 bucket and DynamoDB table for Terraform backend..."
-            terraform apply -auto-approve -target=aws_s3_bucket.terraform_state -target=aws_dynamodb_table.terraform_locks
+            echo "Creating necessary backend resources..."
+            terraform apply -auto-approve $S3_TARGET $DYNAMODB_TARGET
 
             # Now initialize with S3 backend
             terraform init -force-copy -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
           else
-            echo "S3 bucket for Terraform state exists. Proceeding with normal initialization..."
+            echo "Both S3 bucket and DynamoDB table already exist. Proceeding with normal initialization..."
             # Initialize with environment-specific state file
             terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
           fi
