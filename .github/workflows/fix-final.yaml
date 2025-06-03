@@ -38,10 +38,10 @@ env:
   TERRAFORM_VERSION: 1.7.0
   # Default environment is staging, can be overridden by workflow_dispatch input
   ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
-  COMPOSE_PROJECT_NAME: ${{ secrets.ECS_PROJECT_NAME || steps.extract_project_name.outputs.project_name }}
-  # Extract project_name from variables.tf and use it for bucket and table names
-  TERRAFORM_STATE_BUCKET: "${{ steps.extract_project_name.outputs.project_name }}-terraform-state"
-  TERRAFORM_LOCK_TABLE: "${{ steps.extract_project_name.outputs.project_name }}-terraform-locks"
+  # COMPOSE_PROJECT_NAME, TERRAFORM_STATE_BUCKET, and TERRAFORM_LOCK_TABLE were removed from here
+  # as 'steps' context is not available in global/job env.
+  # TERRAFORM_STATE_BUCKET and TERRAFORM_LOCK_TABLE are derived within run scripts.
+  # COMPOSE_PROJECT_NAME will be derived in the deploy-to-ecs job where it's needed.
 
 jobs:
   # Reusable job for setting up Terraform
@@ -62,8 +62,8 @@ jobs:
           project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
           echo "project_name=$project_name" >> $GITHUB_OUTPUT
           echo "Using project_name: $project_name"
-          echo "S3 bucket will be: $project_name-terraform-state"
-          echo "DynamoDB table will be: $project_name-terraform-locks"
+          echo "S3 bucket will be: $project_name-terraform-state" # Informational
+          echo "DynamoDB table will be: $project_name-terraform-locks" # Informational
 
       # Configure AWS credentials
       - name: Configure AWS Credentials
@@ -93,6 +93,7 @@ jobs:
       - name: Terraform Init
         id: terraform_init
         env:
+          # PROJECT_NAME is sourced from the output of a step in this same job, which is valid.
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
         run: |
           # Set S3 bucket and DynamoDB table names based on project_name
@@ -246,14 +247,13 @@ jobs:
         uses: actions/checkout@v4
 
       # Extract project_name from variables.tf
+      # This step is repeated here; consider using output from setup-terraform job in a refactor
       - name: Extract project_name
         id: extract_project_name
         run: |
           project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
           echo "project_name=$project_name" >> $GITHUB_OUTPUT
           echo "Using project_name: $project_name"
-          echo "S3 bucket will be: $project_name-terraform-state"
-          echo "DynamoDB table will be: $project_name-terraform-locks"
 
       # Configure AWS credentials
       - name: Configure AWS Credentials
@@ -273,22 +273,20 @@ jobs:
       # Initialize Terraform with proper backend configuration
       - name: Terraform Init
         env:
+          # Using project_name from this job's own extract_project_name step or from needs.setup-terraform.outputs.project_name
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
+          # Alternatively, if refactored: PROJECT_NAME: ${{ needs.setup-terraform.outputs.project_name }}
         run: |
-          # Set S3 bucket and DynamoDB table names based on project_name
           S3_BUCKET="${PROJECT_NAME}-terraform-state"
           DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
           echo "Using S3 bucket: $S3_BUCKET"
           echo "Using DynamoDB table: $DYNAMODB_TABLE"
-
-          # Initialize with environment-specific state file
           terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
           echo "Terraform initialized with environment-specific state file."
 
       # Create destroy plan (excluding S3 bucket with prevent_destroy=true)
       - name: Terraform Plan Destroy
         run: |
-          # Create destroy plan excluding the S3 bucket that has prevent_destroy=true
           terraform state list | grep -q "aws_s3_bucket.terraform_state" && \
             echo "Excluding S3 bucket with prevent_destroy=true from destroy plan" && \
             terraform plan -destroy -var="environment=${{ env.ENVIRONMENT }}" -out=tfdestroyplan -target=$(terraform state list | grep -v "aws_s3_bucket.terraform_state") || \
@@ -312,21 +310,15 @@ jobs:
           echo "Applying destroy plan..."
           terraform apply -auto-approve tfdestroyplan
 
-          # Check if destroy was successful
           if [ $? -eq 0 ]; then
             echo "Terraform destroy completed successfully."
           else
             echo "Terraform destroy encountered issues. This might be due to resources with prevent_destroy=true or dependencies."
             echo "Attempting targeted destroy for remaining resources..."
-
-            # List remaining resources
             REMAINING_RESOURCES=$(terraform state list || echo "")
-
             if [ -n "$REMAINING_RESOURCES" ]; then
               echo "Remaining resources in state:"
               echo "$REMAINING_RESOURCES"
-
-              # Try to destroy each resource individually, skipping the S3 bucket with prevent_destroy=true
               for resource in $REMAINING_RESOURCES; do
                 if [[ "$resource" != "aws_s3_bucket.terraform_state" ]]; then
                   echo "Attempting to destroy: $resource"
@@ -375,27 +367,20 @@ jobs:
     if: always() && (github.event_name != 'workflow_dispatch' || github.event.inputs.destroy_infrastructure != 'true')
     environment:
       name: ${{ github.event.inputs.environment || 'staging' }}
-
-    # Define outputs that can be used by other jobs
     outputs:
       terraform_success: ${{ steps.terraform_apply.outputs.success }}
       backup_created: ${{ steps.terraform_apply.outputs.backup_created }}
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Extract project_name from variables.tf
       - name: Extract project_name
         id: extract_project_name
         run: |
           project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
           echo "project_name=$project_name" >> $GITHUB_OUTPUT
           echo "Using project_name: $project_name"
-          echo "S3 bucket will be: $project_name-terraform-state"
-          echo "DynamoDB table will be: $project_name-terraform-locks"
 
-      # Configure AWS credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -403,42 +388,34 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Setup Terraform with latest stable version
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
-      # Initialize Terraform with proper backend configuration
       - name: Terraform Init
         env:
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
+          # Or: PROJECT_NAME: ${{ needs.setup-terraform.outputs.project_name }}
         run: |
-          # Set S3 bucket and DynamoDB table names based on project_name
           S3_BUCKET="${PROJECT_NAME}-terraform-state"
           DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
           echo "Using S3 bucket: $S3_BUCKET"
           echo "Using DynamoDB table: $DYNAMODB_TABLE"
-
-          # Initialize with environment-specific state file
           terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
           echo "Terraform initialized with environment-specific state file."
 
-      # Check formatting
       - name: Terraform Format
         run: terraform fmt -check -recursive
         continue-on-error: true
 
-      # Validate configuration
       - name: Terraform Validate
         run: terraform validate
 
-      # Create execution plan
       - name: Terraform Plan
         run: terraform plan -var="environment=${{ env.ENVIRONMENT }}" -out=tfplan
 
-      # Add a manual approval step for production deployments
       - name: Manual Approval for Production
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && env.ENVIRONMENT == 'prod'
         uses: trstringer/manual-approval@v1
@@ -451,12 +428,10 @@ jobs:
           exclude-workflow-initiator-as-approver: false
           timeout-minutes: 60
 
-      # Apply changes only on main branch and not in pull requests
       - name: Terraform Apply
         id: terraform_apply
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' || github.ref == 'refs/heads/staging'
         run: |
-          # Apply the changes
           if terraform apply -auto-approve tfplan; then
             echo "Terraform apply succeeded"
             echo "success=true" >> $GITHUB_OUTPUT
@@ -467,7 +442,6 @@ jobs:
             exit 1
           fi
 
-      # Upload state backup as an artifact
       - name: Upload State Backup
         if: steps.terraform_apply.outputs.backup_created == 'true'
         uses: actions/upload-artifact@v4
@@ -481,32 +455,25 @@ jobs:
     name: 'Build and Push Docker Images'
     needs: terraform
     runs-on: ubuntu-latest
-    # Only run on main branch and not in pull requests, and only if terraform was successful
     if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') && github.event_name != 'pull_request' && needs.terraform.outputs.terraform_success == 'true'
     environment:
       name: ${{ github.event.inputs.environment || 'staging' }}
-
-    # Define outputs that can be used by other jobs
     outputs:
       ecr_repos_found: ${{ steps.get-ecr-urls.outputs.ecr_repos_found }}
-      api_image_uri: ${{ steps.build-image-api.outputs.ecr_image_uri }}
-      image_tag: ${{ steps.build-image-api.outputs.image_tag }}
+      api_image_uri: ${{ steps.build-image-api.outputs.ecr_image_uri }} # Corrected: build-image-api step provides this
+      image_tag: ${{ steps.build-image-api.outputs.image_tag }} # Corrected: build-image-api step provides this
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Extract project_name from variables.tf
       - name: Extract project_name
         id: extract_project_name
         run: |
           project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
           echo "project_name=$project_name" >> $GITHUB_OUTPUT
           echo "Using project_name: $project_name"
-          echo "S3 bucket will be: $project_name-terraform-state"
-          echo "DynamoDB table will be: $project_name-terraform-locks"
 
-      # Configure AWS credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -514,45 +481,35 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Set up Docker Buildx for multi-platform builds and caching
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Login to Amazon ECR
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Initialize Terraform to get outputs
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
-      # Initialize Terraform with proper backend configuration
       - name: Terraform Init
         env:
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
+          # Or: PROJECT_NAME: ${{ needs.setup-terraform.outputs.project_name }} # If setup-terraform is a direct need and outputs project_name
         run: |
-          # Set S3 bucket and DynamoDB table names based on project_name
           S3_BUCKET="${PROJECT_NAME}-terraform-state"
           DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
           echo "Using S3 bucket: $S3_BUCKET"
           echo "Using DynamoDB table: $DYNAMODB_TABLE"
-
-          # Initialize with environment-specific state file
           terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
           echo "Terraform initialized with environment-specific state file."
 
-      # Get ECR Repository URLs from Terraform outputs
       - name: Get ECR Repository URLs
         id: get-ecr-urls
         run: |
-          # Only check for API repository as per requirements
           API_REPO=$(terraform output -raw api_repository_url || echo "")
-
-          # Check if repository was found
           if [ -z "$API_REPO" ]; then
             echo "ECR repository not found in Terraform outputs. Skipping push."
             echo "ecr_repos_found=false" >> $GITHUB_OUTPUT
@@ -561,7 +518,6 @@ jobs:
             echo "ecr_repos_found=true" >> $GITHUB_OUTPUT
           fi
 
-      # Cache Docker layers to speed up builds
       - name: Cache Docker layers
         uses: actions/cache@v4
         with:
@@ -570,9 +526,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      # Build, tag, and push API image to Amazon ECR using Buildx for efficient caching
       - name: Build and push API image to Amazon ECR
-        id: build-image-api
+        id: build-image-api # This step will set the outputs
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -581,19 +536,26 @@ jobs:
           tags: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_API }}:${{ github.sha }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-        env:
+        env: # env block for the action itself, not for the script inside the action
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY_API: ${{ secrets.ECR_REPOSITORY_API }}
           IMAGE_TAG: ${{ github.sha }}
 
-      # Set outputs for downstream jobs
-      - name: Set outputs
+      # This step was trying to set outputs that are now correctly set by build-image-api
+      # - name: Set outputs
+      #   run: |
+      #     echo "ecr_image_uri=${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_API }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+      #     echo "image_tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+      #     echo "Successfully pushed ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_API }}:${{ github.sha }}"
+      # Instead, we can rely on the outputs from 'build-image-api' step.
+      # If you need to explicitly echo, you can do it here using the previous step's outputs.
+      - name: Confirm image push details # Optional: for logging
         run: |
-          echo "ecr_image_uri=${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_API }}:${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "image_tag=${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "Successfully pushed ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_API }}:${{ github.sha }}"
+          echo "ECR Image URI: ${{ steps.build-image-api.outputs.ecr_image_uri || format('{0}/{1}:{2}', steps.login-ecr.outputs.registry, secrets.ECR_REPOSITORY_API, github.sha) }}"
+          echo "Image Tag: ${{ steps.build-image-api.outputs.image_tag || github.sha }}"
+          echo "Successfully pushed image."
 
-      # Move cache to prevent it from growing indefinitely
+
       - name: Move cache
         run: |
           rm -rf /tmp/.buildx-cache || true
@@ -603,20 +565,15 @@ jobs:
     name: 'Scan Docker Images for Vulnerabilities'
     needs: build-and-push
     runs-on: ubuntu-latest
-    # Run even if build-and-push job didn't push to ECR (we can still scan local images)
     if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') && github.event_name != 'pull_request'
     environment:
       name: ${{ github.event.inputs.environment || 'staging' }}
-
-    # Define outputs that can be used by other jobs
     outputs:
       scan_status: ${{ steps.check-vulnerabilities.outputs.scan_status }}
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Configure AWS credentials for ECR access
       - name: Configure AWS Credentials
         if: needs.build-and-push.outputs.ecr_repos_found == 'true'
         uses: aws-actions/configure-aws-credentials@v4
@@ -625,103 +582,86 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Set up Docker to access images from previous job
       - name: Set up Docker
         uses: docker/setup-buildx-action@v3
 
-      # Install Trivy scanner
       - name: Install Trivy
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.47.0
 
-      # Prepare images for scanning
       - name: Prepare Images for Scanning
         id: prepare-images
         run: |
-          # Only scan API image as per requirements
-          if [[ "${{ needs.build-and-push.outputs.ecr_repos_found }}" == "true" ]]; then
-            # Use ECR image if available
-            API_IMAGE="${{ needs.build-and-push.outputs.api_image_uri }}"
-
-            # Login to ECR and pull image
-            echo "Using ECR image for scanning"
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $(echo $API_IMAGE | cut -d: -f1)
-
-            if [ ! -z "$API_IMAGE" ]; then
-              echo "Pulling API image: $API_IMAGE"
-              docker pull $API_IMAGE || echo "Failed to pull API image"
-            fi
+          API_IMAGE_TO_SCAN=""
+          if [[ "${{ needs.build-and-push.outputs.ecr_repos_found }}" == "true" && -n "${{ needs.build-and-push.outputs.api_image_uri }}" ]]; then
+            API_IMAGE_TO_SCAN="${{ needs.build-and-push.outputs.api_image_uri }}"
+            echo "Using ECR image for scanning: $API_IMAGE_TO_SCAN"
+            # Ensure ECR login if pulling from ECR
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $(echo $API_IMAGE_TO_SCAN | cut -d/ -f1)
+            docker pull $API_IMAGE_TO_SCAN || echo "Failed to pull API image $API_IMAGE_TO_SCAN"
           else
-            # Use locally built image
-            echo "Using locally built image for scanning"
-            API_IMAGE="api:latest"
-
-            # Build image locally if needed
-            echo "Building API image"
-            docker build -t $API_IMAGE -f Dockerfile . || echo "Failed to build API image"
+            # Fallback or define local build logic if ECR image not available/pushed
+            echo "ECR image URI not available or ECR repos not found. Attempting to build locally for scan."
+            LOCAL_API_IMAGE_TAG="api:${{ needs.build-and-push.outputs.image_tag || github.sha }}"
+            docker build -t $LOCAL_API_IMAGE_TAG -f Dockerfile . || echo "Failed to build API image locally"
+            if docker image inspect $LOCAL_API_IMAGE_TAG > /dev/null 2>&1; then
+                 API_IMAGE_TO_SCAN=$LOCAL_API_IMAGE_TAG
+                 echo "Using locally built image for scanning: $API_IMAGE_TO_SCAN"
+            else
+                echo "Local API image $LOCAL_API_IMAGE_TAG not found after build attempt."
+            fi
           fi
+          echo "api_image=$API_IMAGE_TO_SCAN" >> $GITHUB_OUTPUT
 
-          # Export image name for later steps
-          echo "api_image=$API_IMAGE" >> $GITHUB_OUTPUT
-
-      # Scan images and check for vulnerabilities
       - name: Scan Images for Vulnerabilities
         id: check-vulnerabilities
         run: |
           API_IMAGE="${{ steps.prepare-images.outputs.api_image }}"
-          SCAN_STATUS="success"
+          SCAN_STATUS="success" # Default to success
 
           echo "## Docker Image Vulnerability Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "### API Image" >> $GITHUB_STEP_SUMMARY
 
-          # Only scan API image as per requirements
-          if [ ! -z "$API_IMAGE" ]; then
-            echo "Scanning API Docker image for vulnerabilities..."
-            echo "### API Image" >> $GITHUB_STEP_SUMMARY
-            if trivy image --format json --severity HIGH,CRITICAL --exit-code 1 $API_IMAGE > api_scan.json 2>/dev/null; then
-              echo "No HIGH or CRITICAL vulnerabilities found in API image" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$API_IMAGE" ]; then
+            echo "Scanning API Docker image: $API_IMAGE"
+            # Run Trivy, allow it to fail if vulnerabilities are found (exit-code 1)
+            if trivy image --format json --severity HIGH,CRITICAL --exit-code 1 $API_IMAGE > api_scan.json; then
+              echo "No HIGH or CRITICAL vulnerabilities found in API image." >> $GITHUB_STEP_SUMMARY
             else
-              SCAN_STATUS="warning"
-              VULN_COUNT=$(jq -r '.Results[] | .Vulnerabilities | length // 0' api_scan.json | awk '{sum+=$1} END {print sum}')
-              echo "Found $VULN_COUNT vulnerabilities in API image" >> $GITHUB_STEP_SUMMARY
-              echo "API image has vulnerabilities that need to be addressed"
+              # Trivy found vulnerabilities and exited with 1
+              SCAN_STATUS="warning" # Set status to warning as deployment might proceed
+              VULN_COUNT=$(jq -r 'try(.Results[].Vulnerabilities | length // 0) // 0' api_scan.json | awk '{sum+=$1} END {print sum}')
+              echo "Found $VULN_COUNT HIGH/CRITICAL vulnerabilities in API image." >> $GITHUB_STEP_SUMMARY
+              echo "API image has vulnerabilities that need to be addressed. Scan report: api_scan.json"
+              # Optionally, upload api_scan.json as an artifact
             fi
           else
-            echo "### API Image" >> $GITHUB_STEP_SUMMARY
-            echo "API image not available for scanning" >> $GITHUB_STEP_SUMMARY
+            echo "API image not available for scanning." >> $GITHUB_STEP_SUMMARY
+            SCAN_STATUS="skipped" # Or "failure" depending on policy
           fi
-
-          # Set output for use in other jobs
           echo "scan_status=$SCAN_STATUS" >> $GITHUB_OUTPUT
 
   deploy-to-ecs:
     name: 'Deploy to ECS'
     needs: [build-and-push, docker-image-scan]
     runs-on: ubuntu-latest
-    # Only run on main branch and not in pull requests, and only if ECR repositories were found
     if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') && github.event_name != 'pull_request'
     environment:
       name: ${{ github.event.inputs.environment || 'staging' }}
-
-    # Define outputs that can be used by other jobs
     outputs:
       ecr_repos_found: ${{ steps.check-ecr-repos.outputs.ecr_repos_found }}
       ecs_services_found: ${{ steps.get-ecs-services.outputs.ecs_services_found }}
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Extract project_name from variables.tf
       - name: Extract project_name
         id: extract_project_name
         run: |
           project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
           echo "project_name=$project_name" >> $GITHUB_OUTPUT
           echo "Using project_name: $project_name"
-          echo "S3 bucket will be: $project_name-terraform-state"
-          echo "DynamoDB table will be: $project_name-terraform-locks"
 
-      # Configure AWS credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -729,42 +669,34 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Check if ECR repositories were found in previous job
       - name: Check ECR Repositories
         id: check-ecr-repos
         run: |
-          # Get the value from the previous job's output
           if [[ "${{ needs.build-and-push.outputs.ecr_repos_found }}" != "true" ]]; then
-            echo "ECR repositories not found. Skipping deployment."
+            echo "ECR repositories not found by build-and-push job. Skipping ECS deployment."
             echo "ecr_repos_found=false" >> $GITHUB_OUTPUT
           else
             echo "ECR repositories found. Proceeding with deployment."
             echo "ecr_repos_found=true" >> $GITHUB_OUTPUT
           fi
 
-      # Initialize Terraform to get outputs
       - name: Setup Terraform
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' # Only if proceeding
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
-      # Initialize Terraform with proper backend configuration
       - name: Terraform Init
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' # Only if proceeding
         env:
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
+          # Or: PROJECT_NAME: ${{ needs.setup-terraform.outputs.project_name }}
         run: |
-          # Set S3 bucket and DynamoDB table names based on project_name
           S3_BUCKET="${PROJECT_NAME}-terraform-state"
           DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
-          echo "Using S3 bucket: $S3_BUCKET"
-          echo "Using DynamoDB table: $DYNAMODB_TABLE"
-
-          # Initialize with environment-specific state file
           terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
-          echo "Terraform initialized with environment-specific state file."
 
-      # Get ECS service names from Terraform outputs
       - name: Get ECS Service Names
         id: get-ecs-services
         if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true'
@@ -772,117 +704,119 @@ jobs:
           CLUSTER_NAME=$(terraform output -raw ecs_cluster_name || echo "")
           API_SERVICE=$(terraform output -raw api_service_name || echo "")
 
-          # Check if services were found
           if [ -z "$CLUSTER_NAME" ] || [ -z "$API_SERVICE" ]; then
-            echo "ECS services not found in Terraform outputs. Trying alternative approach."
-            CLUSTER_NAME="${{ secrets.ECS_CLUSTER_NAME }}"
-            if [ -z "$CLUSTER_NAME" ]; then
-              echo "ECS cluster name not found. Skipping deployment."
+            echo "ECS services not found in Terraform outputs. Will try Docker Compose CLI with secrets for cluster name."
+            # Try to use secrets if Terraform outputs are missing
+            CLUSTER_NAME_SECRET="${{ secrets.ECS_CLUSTER_NAME }}"
+            if [ -z "$CLUSTER_NAME_SECRET" ]; then
+              echo "ECS cluster name (ecs_cluster_name or secrets.ECS_CLUSTER_NAME) not found. Cannot deploy."
               echo "ecs_services_found=false" >> $GITHUB_OUTPUT
-              exit 0
+              exit 0 # Or exit 1 if this is a hard failure
+            else
+              echo "Using ECS_CLUSTER_NAME from secrets for Docker Compose CLI."
+              echo "ecs_services_found=partial" >> $GITHUB_OUTPUT # Indicates we'll use compose
+              echo "cluster_name_for_compose=$CLUSTER_NAME_SECRET" >> $GITHUB_OUTPUT
             fi
-            echo "ecs_services_found=partial" >> $GITHUB_OUTPUT
           else
-            echo "ECS services found. Proceeding with deployment."
+            echo "ECS services found via Terraform outputs. Proceeding with AWS CLI deployment."
             echo "ecs_services_found=true" >> $GITHUB_OUTPUT
             echo "cluster_name=$CLUSTER_NAME" >> $GITHUB_OUTPUT
             echo "api_service=$API_SERVICE" >> $GITHUB_OUTPUT
           fi
-        continue-on-error: true
+        continue-on-error: true # Allow workflow to proceed to Docker CLI method if TF outputs fail
 
-      # Install yq for Docker Compose file manipulation
       - name: Install yq
-        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.get-ecs-services.outputs.ecs_services_found != 'true'
+        # Run if ECR repos found AND (ECS services not fully found via Terraform OR found partially for compose)
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && (steps.get-ecs-services.outputs.ecs_services_found == 'false' || steps.get-ecs-services.outputs.ecs_services_found == 'partial')
         run: |
           sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
           sudo chmod +x /usr/bin/yq
           yq --version
 
-      # Install Docker CLI ECS integration
       - name: Install Docker CLI ECS integration
-        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.get-ecs-services.outputs.ecs_services_found != 'true'
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && (steps.get-ecs-services.outputs.ecs_services_found == 'false' || steps.get-ecs-services.outputs.ecs_services_found == 'partial')
         run: |
           echo "Installing Docker CLI ECS integration..."
-          # Install the Docker Compose CLI for ECS
           curl -L https://raw.githubusercontent.com/docker/compose-cli/main/scripts/install/install_linux.sh | sh
-          # Verify installation
           docker context ls
           echo "Docker CLI ECS integration installed successfully."
 
-      # Prepare ECS-specific Docker Compose file
       - name: Prepare ECS-specific Docker Compose file
         id: prepare-compose
-        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.get-ecs-services.outputs.ecs_services_found != 'true'
+        # Run if ECR repos found AND (ECS services not fully found via Terraform OR found partially for compose)
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && (steps.get-ecs-services.outputs.ecs_services_found == 'false' || steps.get-ecs-services.outputs.ecs_services_found == 'partial')
         env:
           API_IMAGE_URI: ${{ needs.build-and-push.outputs.api_image_uri }}
           AWS_REGION_ENV: ${{ env.AWS_REGION }}
-          LOG_GROUP_NAME_ENV: "/ecs/${{ env.COMPOSE_PROJECT_NAME }}"
+          # Correctly scope steps.extract_project_name to this job's step
+          # This defines the project name for compose, preferring secret if available
+          EFFECTIVE_COMPOSE_PROJECT_NAME: ${{ secrets.ECS_PROJECT_NAME || steps.extract_project_name.outputs.project_name }}
+          LOG_GROUP_NAME_ENV: "/ecs/${{ secrets.ECS_PROJECT_NAME || steps.extract_project_name.outputs.project_name }}"
         run: |
           echo "Preparing docker-compose.ecs.yml from docker-compose.yaml..."
           cp docker-compose.yaml docker-compose.ecs.yml
 
-          # Modify the docker-compose file for ECS deployment
-          # This is a simplified version - adjust according to your actual docker-compose structure
           yq -i 'del(.services.postgres)' docker-compose.ecs.yml || true
           yq -i 'del(.services.redis)' docker-compose.ecs.yml || true
-
-          # Only keep the API service as per requirements
           yq -i 'del(.services.frontend)' docker-compose.ecs.yml || true
           yq -i 'del(.services.client)' docker-compose.ecs.yml || true
 
-          # Update API image reference
           if [ ! -z "$API_IMAGE_URI" ]; then
             yq -i '.services.api.image = env(API_IMAGE_URI)' docker-compose.ecs.yml || true
             yq -i 'del(.services.api.build)' docker-compose.ecs.yml || true
           fi
 
-          # Add AWS logging configuration
           for service in $(yq -r '.services | keys | .[]' docker-compose.ecs.yml); do
             yq -i ".services.$service.logging.driver = \"awslogs\"" docker-compose.ecs.yml || true
             yq -i ".services.$service.logging.options.\"awslogs-group\" = env(LOG_GROUP_NAME_ENV)" docker-compose.ecs.yml || true
             yq -i ".services.$service.logging.options.\"awslogs-region\" = env(AWS_REGION_ENV)" docker-compose.ecs.yml || true
             yq -i ".services.$service.logging.options.\"awslogs-stream-prefix\" = \"$service\"" docker-compose.ecs.yml || true
           done
-
           echo "compose_file_path=docker-compose.ecs.yml" >> $GITHUB_OUTPUT
+          # Output the compose project name to be used by the docker ecs compose command
+          echo "compose_project_name_for_cli=${EFFECTIVE_COMPOSE_PROJECT_NAME}" >> $GITHUB_OUTPUT
 
-      # Deploy to ECS using Docker CLI
+
       - name: Deploy to ECS using Docker CLI
-        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.get-ecs-services.outputs.ecs_services_found != 'true'
+        # Run if ECR repos found AND (ECS services not fully found via Terraform OR found partially for compose)
+        # AND compose file was prepared
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && (steps.get-ecs-services.outputs.ecs_services_found == 'false' || steps.get-ecs-services.outputs.ecs_services_found == 'partial') && steps.prepare-compose.outputs.compose_file_path
         env:
           AWS_REGION: ${{ env.AWS_REGION }}
-          ECS_CLUSTER_NAME: ${{ secrets.ECS_CLUSTER_NAME }}
+          # Use the cluster name from get-ecs-services if it was set for compose
+          ECS_CLUSTER_NAME_FOR_CLI: ${{ steps.get-ecs-services.outputs.cluster_name_for_compose || secrets.ECS_CLUSTER_NAME }}
+          # Use the project name from prepare-compose step's output
+          COMPOSE_PROJECT_NAME_CLI: ${{ steps.prepare-compose.outputs.compose_project_name_for_cli }}
         run: |
-          echo "Deploying services from ${{ steps.prepare-compose.outputs.compose_file_path }} to ECS cluster: ${ECS_CLUSTER_NAME}"
-          docker ecs compose --cluster ${ECS_CLUSTER_NAME} --aws-region ${AWS_REGION} \
+          echo "Deploying services from ${{ steps.prepare-compose.outputs.compose_file_path }} to ECS cluster: ${ECS_CLUSTER_NAME_FOR_CLI}"
+          docker ecs compose --cluster ${ECS_CLUSTER_NAME_FOR_CLI} --aws-region ${AWS_REGION} \
             -f ${{ steps.prepare-compose.outputs.compose_file_path }} \
-            --project-name ${COMPOSE_PROJECT_NAME} up
-          echo "ECS deployment initiated. Monitor progress in AWS Console (ECS & CloudFormation)."
+            --project-name ${COMPOSE_PROJECT_NAME_CLI} up
+          echo "ECS deployment initiated via Docker CLI. Monitor progress in AWS Console (ECS & CloudFormation)."
         continue-on-error: true
 
-      # Deploy new versions to ECS services using AWS CLI
-      - name: Force New ECS Deployment
+
+      - name: Force New ECS Deployment (AWS CLI)
         id: deploy
         if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.get-ecs-services.outputs.ecs_services_found == 'true'
         run: |
-          echo "Starting deployment to ECS..."
+          echo "Starting AWS CLI deployment to ECS..."
           aws ecs update-service --cluster ${{ steps.get-ecs-services.outputs.cluster_name }} --service ${{ steps.get-ecs-services.outputs.api_service }} --force-new-deployment
-          echo "Deployment completed successfully!"
+          echo "AWS CLI ECS deployment completed successfully!"
         continue-on-error: true
 
-      # Skip deployment message
       - name: Skip Deployment Message
+        # If ECR repos not found OR (neither full Terraform ECS discovery nor partial for compose worked)
         if: steps.check-ecr-repos.outputs.ecr_repos_found != 'true' || (steps.get-ecs-services.outputs.ecs_services_found != 'true' && steps.get-ecs-services.outputs.ecs_services_found != 'partial')
         run: |
-          echo "Skipping deployment to ECS because:"
+          echo "Skipping deployment to ECS because required conditions were not met."
           if [ "${{ steps.check-ecr-repos.outputs.ecr_repos_found }}" != "true" ]; then
-            echo "- ECR repositories were not found"
+            echo "- ECR repositories were not found by the build-and-push job."
           fi
           if [ "${{ steps.get-ecs-services.outputs.ecs_services_found }}" != "true" ] && [ "${{ steps.get-ecs-services.outputs.ecs_services_found }}" != "partial" ]; then
-            echo "- ECS services were not found"
+            echo "- ECS services/cluster information could not be determined for deployment."
           fi
 
-      # Send notification on completion
       - name: Notify Deployment Status
         if: always()
         uses: slackapi/slack-github-action@v1.26.0
@@ -911,7 +845,6 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         continue-on-error: true
 
-  # Rollback job that runs when deployment fails
   rollback:
     name: 'Rollback Failed Deployment'
     needs: [terraform, deploy-to-ecs]
@@ -919,22 +852,17 @@ jobs:
     if: always() && (needs.terraform.result == 'failure' || needs.deploy-to-ecs.result == 'failure') && needs.terraform.outputs.backup_created == 'true'
     environment:
       name: ${{ github.event.inputs.environment || 'staging' }}
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Extract project_name from variables.tf
       - name: Extract project_name
         id: extract_project_name
         run: |
           project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
           echo "project_name=$project_name" >> $GITHUB_OUTPUT
           echo "Using project_name: $project_name"
-          echo "S3 bucket will be: $project_name-terraform-state"
-          echo "DynamoDB table will be: $project_name-terraform-locks"
 
-      # Configure AWS credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -942,36 +870,27 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
-      # Download state backup
       - name: Download State Backup
         uses: actions/download-artifact@v4
         with:
           name: terraform-state-backup-${{ github.event.inputs.environment || 'staging' }}
           path: .
 
-      # Initialize Terraform with proper backend configuration
       - name: Terraform Init
         env:
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
+          # Or: PROJECT_NAME: ${{ needs.setup-terraform.outputs.project_name }}
         run: |
-          # Set S3 bucket and DynamoDB table names based on project_name
           S3_BUCKET="${PROJECT_NAME}-terraform-state"
           DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
-          echo "Using S3 bucket: $S3_BUCKET"
-          echo "Using DynamoDB table: $DYNAMODB_TABLE"
-
-          # Initialize with environment-specific state file
           terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
-          echo "Terraform initialized with environment-specific state file."
 
-      # Restore previous state
       - name: Restore Previous State
         run: |
           echo "Restoring previous state from backup..."
@@ -979,7 +898,6 @@ jobs:
           terraform apply -auto-approve -var="environment=${{ github.event.inputs.environment || 'staging' }}"
           echo "Rollback completed successfully!"
 
-      # Notify rollback status
       - name: Notify Rollback Status
         if: always()
         uses: slackapi/slack-github-action@v1.26.0
@@ -1008,7 +926,6 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         continue-on-error: true
 
-  # Summary job to report overall workflow status
   deployment-summary:
     name: 'Deployment Summary'
     needs: [terraform-destroy, terraform, build-and-push, docker-image-scan, deploy-to-ecs, rollback, vulnerability-scan]
@@ -1016,33 +933,29 @@ jobs:
     if: always()
     environment:
       name: ${{ github.event.inputs.environment || 'staging' }}
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Extract project_name from variables.tf
       - name: Extract project_name
         id: extract_project_name
         run: |
           project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
           echo "project_name=$project_name" >> $GITHUB_OUTPUT
           echo "Using project_name: $project_name"
-          echo "S3 bucket will be: $project_name-terraform-state"
-          echo "DynamoDB table will be: $project_name-terraform-locks"
 
-      # Set a variable to check if destroy job was run
       - name: Check if destroy job was run
         id: check-destroy
         run: |
-          if [[ "${{ needs.terraform-destroy.result }}" != "" ]]; then
+          if [[ "${{ needs.terraform-destroy.result }}" != "" && "${{ needs.terraform-destroy.result }}" != "skipped" ]]; then
             echo "destroy_run=true" >> $GITHUB_OUTPUT
           else
             echo "destroy_run=false" >> $GITHUB_OUTPUT
           fi
 
-      # Configure AWS credentials for Terraform outputs
       - name: Configure AWS Credentials
+        # Only configure if not destroying, as TF outputs are relevant for deployments
+        if: steps.check-destroy.outputs.destroy_run == 'false'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -1050,28 +963,23 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
         continue-on-error: true
 
-      # Setup Terraform
       - name: Setup Terraform
+        if: steps.check-destroy.outputs.destroy_run == 'false'
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
         continue-on-error: true
 
-      # Initialize Terraform with proper backend configuration
       - name: Terraform Init
+        if: steps.check-destroy.outputs.destroy_run == 'false'
         env:
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
+          # Or: PROJECT_NAME: ${{ needs.setup-terraform.outputs.project_name }}
         run: |
-          # Set S3 bucket and DynamoDB table names based on project_name
           S3_BUCKET="${PROJECT_NAME}-terraform-state"
           DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
-          echo "Using S3 bucket: $S3_BUCKET"
-          echo "Using DynamoDB table: $DYNAMODB_TABLE"
-
-          # Initialize with environment-specific state file
           terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
-          echo "Terraform initialized with environment-specific state file."
         continue-on-error: true
 
       - name: Generate Deployment Summary
@@ -1081,63 +989,47 @@ jobs:
           echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
           echo "| --- | ------ |" >> $GITHUB_STEP_SUMMARY
 
-          # Always include vulnerability scan results if it was run
-          if [[ "${{ contains(needs.*.result, needs.vulnerability-scan.result) }}" == "true" ]]; then
+          if [[ "${{ needs.vulnerability-scan.result }}" != "" && "${{ needs.vulnerability-scan.result }}" != "skipped" ]]; then
             echo "| Vulnerability Scanning | ${{ needs.vulnerability-scan.result }} |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          # Check if destroy job was run
           if [[ "${{ steps.check-destroy.outputs.destroy_run }}" == "true" ]]; then
             echo "| Infrastructure Destruction | ${{ needs.terraform-destroy.result }} |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Infrastructure destruction completed at $(date)" >> $GITHUB_STEP_SUMMARY
+            echo "Infrastructure destruction process for **${{ env.ENVIRONMENT }}** completed at $(date)" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Infrastructure Deployment | ${{ needs.terraform.result }} |" >> $GITHUB_STEP_SUMMARY
             echo "| Docker Image Build & Push | ${{ needs.build-and-push.result }} |" >> $GITHUB_STEP_SUMMARY
-            echo "| Docker Image Scanning | ${{ needs.docker-image-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Docker Image Scanning | ${{ needs.docker-image-scan.result }} (Scan Status: ${{ needs.docker-image-scan.outputs.scan_status }}) |" >> $GITHUB_STEP_SUMMARY
             echo "| ECS Deployment | ${{ needs.deploy-to-ecs.result }} |" >> $GITHUB_STEP_SUMMARY
 
-            # Check if rollback was performed
-            if [[ "${{ contains(needs.*.result, needs.rollback.result) }}" == "true" ]]; then
+            if [[ "${{ needs.rollback.result }}" != "" && "${{ needs.rollback.result }}" != "skipped" ]]; then
               echo "| Deployment Rollback | ${{ needs.rollback.result }} |" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
-              echo "**Note:** A rollback was performed due to deployment failure in the ${{ github.event.inputs.environment || 'staging' }} environment." >> $GITHUB_STEP_SUMMARY
+              echo "**Note:** A rollback was attempted/performed for the ${{ env.ENVIRONMENT }} environment." >> $GITHUB_STEP_SUMMARY
             fi
 
-            # Get the load balancer DNS from Terraform outputs
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "## Application Access" >> $GITHUB_STEP_SUMMARY
-
-            # Get the load balancer DNS
             LB_DNS=$(terraform output -raw load_balancer_dns 2>/dev/null || echo "Not available")
-
-            if [ "$LB_DNS" != "Not available" ]; then
+            if [ "$LB_DNS" != "Not available" ] && [ "$LB_DNS" != "" ]; then
               echo "Application URL: https://$LB_DNS" >> $GITHUB_STEP_SUMMARY
-
-              # Generate Load Balancer DNS Report
-              echo "## Load Balancer DNS Report" >> $GITHUB_STEP_SUMMARY
-              echo "### Load Balancer DNS" >> $GITHUB_STEP_SUMMARY
-              echo "Found 1 Load Balancer DNS: $LB_DNS" >> $GITHUB_STEP_SUMMARY
             else
-              echo "Load balancer DNS not available" >> $GITHUB_STEP_SUMMARY
+              echo "Load balancer DNS not available or not deployed." >> $GITHUB_STEP_SUMMARY
             fi
 
-            # Generate Infrastructure Report
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## Infrastructure Report" >> $GITHUB_STEP_SUMMARY
-            echo "The following outputs are available from the deployed infrastructure:" >> $GITHUB_STEP_SUMMARY
+            echo "## Infrastructure Report (Outputs)" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            terraform output 2>/dev/null || echo "No terraform outputs available" >> $GITHUB_STEP_SUMMARY
+            terraform output 2>/dev/null || echo "No terraform outputs available or error fetching them." >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Deployment for environment: **${{ env.ENVIRONMENT }}**" >> $GITHUB_STEP_SUMMARY
+            echo "Deployment process for environment: **${{ env.ENVIRONMENT }}**" >> $GITHUB_STEP_SUMMARY
             echo "Completed at $(date)" >> $GITHUB_STEP_SUMMARY
           fi
 
-      # Create and save infrastructure report as an artifact
       - name: Save Infrastructure Report as Artifact
-        if: always() && steps.check-destroy.outputs.destroy_run != 'true'
+        if: always() && steps.check-destroy.outputs.destroy_run == 'false'
         run: |
           mkdir -p infrastructure-report
           echo "# Infrastructure Deployment Report" > infrastructure-report/terraform-outputs.md
@@ -1148,13 +1040,10 @@ jobs:
           echo '```' >> infrastructure-report/terraform-outputs.md
           terraform output 2>/dev/null || echo "No terraform outputs available" >> infrastructure-report/terraform-outputs.md
           echo '```' >> infrastructure-report/terraform-outputs.md
-
-          # Also save as JSON for potential programmatic use
           terraform output -json 2>/dev/null > infrastructure-report/terraform-outputs.json || echo "{}" > infrastructure-report/terraform-outputs.json
 
-      # Upload the infrastructure report as an artifact
       - name: Upload Infrastructure Report
-        if: always() && steps.check-destroy.outputs.destroy_run != 'true'
+        if: always() && steps.check-destroy.outputs.destroy_run == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: infrastructure-report-${{ env.ENVIRONMENT }}
@@ -1162,7 +1051,6 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
-      # Send notification for deployment
       - name: Send Deployment Summary Notification
         if: always() && steps.check-destroy.outputs.destroy_run == 'false'
         uses: slackapi/slack-github-action@v1.26.0
@@ -1175,7 +1063,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Deployment Summary - ${{ env.ENVIRONMENT }} Environment*\n\n*Environment*: ${{ env.ENVIRONMENT }}\n${{ contains(needs.*.result, needs.vulnerability-scan.result) && format('*Vulnerability Scanning*: {0}', needs.vulnerability-scan.result) || '' }}\n*Infrastructure*: ${{ needs.terraform.result }}\n*Docker Images*: ${{ needs.build-and-push.result }}\n*Docker Image Scanning*: ${{ needs.docker-image-scan.result }}\n*ECS Deployment*: ${{ needs.deploy-to-ecs.result }}\n${{ contains(needs.*.result, needs.rollback.result) && format('*Rollback*: {0}', needs.rollback.result) || '' }}\n\n${{ contains(needs.*.result, needs.rollback.result) && '⚠️ *A rollback was performed due to deployment failure*' || '' }}\n${{ contains(needs.*.result, needs.vulnerability-scan.result) && needs.vulnerability-scan.result != 'success' && '⚠️ *Vulnerabilities were found during dependency scanning*' || '' }}\n${{ contains(needs.*.result, needs.docker-image-scan.result) && needs.docker-image-scan.outputs.scan_status == 'warning' && '⚠️ *Vulnerabilities were found in Docker images, but deployment continued*' || '' }}"
+                    "text": "*Deployment Summary - ${{ env.ENVIRONMENT }} Environment*\n\n*Environment*: ${{ env.ENVIRONMENT }}\n${{ needs.vulnerability-scan.result != '' && needs.vulnerability-scan.result != 'skipped' && format('*Vulnerability Scanning*: {0}', needs.vulnerability-scan.result) || '' }}\n*Infrastructure*: ${{ needs.terraform.result }}\n*Docker Images*: ${{ needs.build-and-push.result }}\n*Docker Image Scanning*: ${{ needs.docker-image-scan.result }} (Scan: ${{ needs.docker-image-scan.outputs.scan_status }})\n*ECS Deployment*: ${{ needs.deploy-to-ecs.result }}\n${{ needs.rollback.result != '' && needs.rollback.result != 'skipped' && format('*Rollback*: {0}', needs.rollback.result) || '' }}\n\n${{ needs.rollback.result != '' && needs.rollback.result != 'skipped' && needs.rollback.result != 'success' && '⚠️ *Rollback was performed due to deployment failure*' || '' }}\n${{ needs.vulnerability-scan.result != '' && needs.vulnerability-scan.result != 'skipped' && needs.vulnerability-scan.result != 'success' && '⚠️ *Vulnerabilities were found during dependency scanning*' || '' }}\n${{ needs.docker-image-scan.outputs.scan_status == 'warning' && '⚠️ *Vulnerabilities were found in Docker images, but deployment continued*' || '' }}"
                   }
                 },
                 {
@@ -1191,7 +1079,6 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         continue-on-error: true
 
-      # Send notification for destruction
       - name: Send Destruction Summary Notification
         if: always() && steps.check-destroy.outputs.destroy_run == 'true'
         uses: slackapi/slack-github-action@v1.26.0
