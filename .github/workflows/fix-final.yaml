@@ -108,18 +108,12 @@ jobs:
             # Initialize with local backend first
             terraform init -backend=false
 
-            # Navigate to bootstrap directory
-            cd bootstrap
-
-            # Initialize and apply bootstrap configuration
+            # Initialize and apply bootstrap configuration directly in the root directory
             echo "Initializing bootstrap Terraform configuration..."
             terraform init
 
             echo "Creating S3 bucket and DynamoDB table for Terraform backend..."
-            terraform apply -auto-approve
-
-            # Navigate back to main directory
-            cd ..
+            terraform apply -auto-approve -target=aws_s3_bucket.terraform_state -target=aws_dynamodb_table.terraform_locks
 
             # Now initialize with S3 backend
             terraform init -force-copy -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
