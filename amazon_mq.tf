@@ -10,7 +10,7 @@ resource "random_string" "rabbitmq_username" {
 resource "random_password" "rabbitmq_password" {
   length           = 24
   special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
+  override_special = "!#$%&*()-_+<>?"
 }
 
 resource "aws_mq_broker" "main" {
