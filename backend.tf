@@ -19,10 +19,10 @@
 # The values here must match the values in bootstrap.tf.
 terraform {
   backend "s3" {
-    bucket         = "invoicedemo-terraform-state"
+    bucket         = "invoicedev-terraform-state"
     key            = "terraform.tfstate"  # Default state file path, override with -backend-config
     region         = "us-east-1"
     encrypt        = true
-    dynamodb_table = "invoicedemo-terraform-locks"
+    dynamodb_table = "invoicedev-terraform-locks"
   }
 }
