@@ -5,7 +5,7 @@ resource "aws_lb" "main" {
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id # ALB in public subnets
 
-  enable_deletion_protection = true # Enabled for production
+  enable_deletion_protection = false # Enabled for production
 
   tags = {
     Name        = "${var.project_name}-alb"
