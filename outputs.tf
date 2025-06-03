@@ -28,15 +28,6 @@ output "ecs_cluster_name_output" {
   value       = aws_ecs_cluster.main.name
 }
 
-output "github_actions_role_arn" {
-  description = "ARN of the IAM role for GitHub Actions (general)"
-  value       = aws_iam_role.github_actions_role.arn
-}
-
-output "github_actions_ecs_deploy_role_arn" {
-  description = "ARN of the IAM role for GitHub Actions (ECS deploy)"
-  value       = aws_iam_role.github_actions_ecs_deploy_role.arn
-}
 
 output "efs_uploads_id" {
   description = "ID of the EFS for uploads"

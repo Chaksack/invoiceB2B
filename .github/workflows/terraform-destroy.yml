@@ -1,0 +1,170 @@
+name: Terraform Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to destroy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      confirmation:
+        description: 'Type "destroy" to confirm destruction of infrastructure for the selected environment'
+        required: true
+        type: string
+
+# Define permissions required for the workflow.
+# contents: read - To checkout the repository.
+# issues: write - For the manual-approval action to create an issue.
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  # Job to validate the user's confirmation input.
+  validate-confirmation:
+    name: Validate Confirmation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation string
+        if: ${{ github.event.inputs.confirmation != 'destroy' }}
+        run: |
+          echo "Error: Confirmation input was '${{ github.event.inputs.confirmation }}'."
+          echo "You must type 'destroy' exactly to confirm infrastructure destruction for the environment: ${{ github.event.inputs.environment }}."
+          exit 1
+      - name: Confirmation successful
+        if: ${{ github.event.inputs.confirmation == 'destroy' }}
+        run: |
+          echo "Confirmation successful for destroying environment: ${{ github.event.inputs.environment }}."
+
+  # Job to perform the Terraform destroy operation.
+  terraform-destroy:
+    name: Destroy Terraform Infrastructure
+    needs: validate-confirmation # This job depends on the successful completion of 'validate-confirmation'.
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    env:
+      TARGET_ENVIRONMENT: ${{ github.event.inputs.environment }}
+      TERRAFORM_VERSION: "1.7.0"
+      AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+      TERRAFORM_STATE_BUCKET_NAME: "invoicefnd-terraform-state"
+      TERRAFORM_LOCK_TABLE_NAME: "invoiceb2bapi-terraform-locks"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        id: init
+        run: |
+          echo "Initializing Terraform for environment: ${{ env.TARGET_ENVIRONMENT }}"
+          echo "Using S3 bucket: ${{ env.TERRAFORM_STATE_BUCKET_NAME }}"
+          echo "Using S3 key: environments/${{ env.TARGET_ENVIRONMENT }}/terraform.tfstate"
+          echo "Using DynamoDB table: ${{ env.TERRAFORM_LOCK_TABLE_NAME }}"
+          terraform init \
+            -backend-config="bucket=${{ env.TERRAFORM_STATE_BUCKET_NAME }}" \
+            -backend-config="key=environments/${{ env.TARGET_ENVIRONMENT }}/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ env.TERRAFORM_LOCK_TABLE_NAME }}" \
+            -reconfigure
+
+      - name: Debug S3 State File Access
+        if: always() # Run this step even if previous steps fail, to gather info
+        run: |
+          echo "Attempting to access S3 state file for debugging..."
+          S3_KEY="environments/${{ env.TARGET_ENVIRONMENT }}/terraform.tfstate"
+          echo "Checking S3 object: s3://${{ env.TERRAFORM_STATE_BUCKET_NAME }}/${S3_KEY}"
+          aws s3 ls "s3://${{ env.TERRAFORM_STATE_BUCKET_NAME }}/${S3_KEY}" || echo "State file not found via 'aws s3 ls' or access issue."
+          echo "Checking S3 object metadata with 'aws s3api head-object':"
+          aws s3api head-object --bucket "${{ env.TERRAFORM_STATE_BUCKET_NAME }}" --key "${S3_KEY}" || echo "State file metadata not found via 'aws s3api head-object' or access issue."
+
+      - name: List Terraform State
+        if: always() # Run this step to see what Terraform loaded
+        run: |
+          echo "Listing resources in current Terraform state (after init):"
+          terraform state list || echo "Failed to list terraform state or state is empty."
+          echo "Finished listing state."
+
+
+      - name: Terraform Plan Destroy
+        id: plan
+        run: |
+          echo "Creating Terraform destroy plan for environment: ${{ env.TARGET_ENVIRONMENT }}"
+          terraform plan -destroy \
+            -var="environment=${{ env.TARGET_ENVIRONMENT }}" \
+            -out=tfdestroyplan
+
+      - name: Manual Approval for Destruction
+        uses: trstringer/manual-approval@v1.9.0 # Updated to a more recent version
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: ${{ github.actor }}
+          minimum-approvals: 1
+          issue-title: "Approve Infrastructure Destruction for Environment: ${{ env.TARGET_ENVIRONMENT }}"
+          issue-body: |
+            Please approve the destruction of the infrastructure for the **${{ env.TARGET_ENVIRONMENT }}** environment.
+            **Repository:** `${{ github.repository }}`
+            **Triggered by:** `${{ github.actor }}`
+            **Workflow Run:** <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>
+
+            Review the Terraform destroy plan logs above.
+            To approve, comment 'approve' on the issue created by this action.
+          timeout-minutes: 60
+
+      - name: Terraform Destroy
+        id: destroy
+        run: |
+          echo "Applying Terraform destroy plan for environment: ${{ env.TARGET_ENVIRONMENT }}"
+          terraform apply -auto-approve tfdestroyplan
+
+  notify-destroy-status:
+    name: Notify Destroy Status
+    runs-on: ubuntu-latest
+    needs: terraform-destroy
+    if: always()
+    env:
+      TARGET_ENVIRONMENT: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Send Slack Notification for Destroy Status
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "${{ needs.terraform-destroy.result == 'success' && '✅ Terraform Infrastructure Destroyed Successfully' || '❌ Terraform Destroy Failed' }} for `${{ github.repository }}` in `${{ env.TARGET_ENVIRONMENT }}` environment.",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ needs.terraform-destroy.result == 'success' && ':white_check_mark: *Terraform Infrastructure Destroyed Successfully*' || ':x: *Terraform Destroy Failed*' }}\n*Repository:* `${{ github.repository }}`\n*Environment:* `${{ env.TARGET_ENVIRONMENT }}`"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    { "type": "mrkdwn", "text": "Triggered by: `${{ github.actor }}`" },
+                    { "type": "mrkdwn", "text": "Workflow Run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>" }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

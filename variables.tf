@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "A short name for the project, used for naming resources"
   type        = string
-  default     = "invoiceb2b"
+  default     = "invoice"
 }
 
 variable "vpc_cidr" {
@@ -35,28 +35,6 @@ variable "availability_zones" {
   default = ["us-east-1a", "us-east-1b"]
 }
 
-variable "github_oidc_provider_url" {
-  description = "URL of the GitHub OIDC provider (e.g., token.actions.githubusercontent.com)"
-  type        = string
-}
-
-variable "github_actions_role_name" {
-  description = "Name for the IAM role assumed by GitHub Actions for ECR/general access"
-  type        = string
-  default     = "GitHubActionECRAccessRole"
-}
-
-variable "github_actions_ecs_deploy_role_name" {
-  description = "Name for the IAM role assumed by GitHub Actions for ECS deployments"
-  type        = string
-  default     = "GitHubActionECSDeployRole"
-}
-
-variable "github_repository" {
-  description = "GitHub repository (owner/repo) for OIDC trust policy"
-  type        = string
-  # Example: "your-github-username/your-repo-name"
-}
 
 variable "ecr_repository_api_name" {
   description = "Name for the ECR repository for the API service"
@@ -76,17 +54,6 @@ variable "app_port" {
   default     = 3000
 }
 
-variable "db_username" {
-  description = "Username for the RDS database"
-  type        = string
-  sensitive   = true
-}
-
-variable "db_password" {
-  description = "Password for the RDS database"
-  type        = string
-  sensitive   = true
-}
 
 variable "db_name" {
   description = "Name for the main application database in RDS"
@@ -101,28 +68,24 @@ variable "sonarqube_db_name" {
 }
 
 // Add more variables as needed for N8N, SonarQube, other secrets, etc.
-variable "n8n_encryption_key" {
-  description = "N8N encryption key"
-  type        = string
-  sensitive   = true
-}
 
-variable "internal_api_key" {
-  description = "Internal API Key for service-to-service communication"
-  type        = string
-  sensitive   = true
-}
 
 variable "rabbitmq_user" {
   description = "RabbitMQ default username"
   type        = string
-  default     = "guest"
+  default     = "invoicefnd"
   sensitive   = true
 }
 
 variable "rabbitmq_password" {
   description = "RabbitMQ default password"
   type        = string
-  default     = "guest"
+  default     = "guestpassword123456"
   sensitive   = true
+}
+
+variable "environment" {
+  description = "Environment name (dev, staging, prod)"
+  type        = string
+  default     = "staging"
 }

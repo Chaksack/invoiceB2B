@@ -5,7 +5,7 @@ resource "aws_lb" "main" {
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id # ALB in public subnets
 
-  enable_deletion_protection = false # Set to true for production
+  enable_deletion_protection = true # Enabled for production
 
   tags = {
     Name        = "${var.project_name}-alb"
@@ -81,6 +81,25 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  # Using a self-signed certificate for testing
+  # In production, you should use a proper certificate from ACM
+  certificate_arn = aws_acm_certificate.self_signed.arn
+
+  default_action {
     type = "fixed-response"
     fixed_response {
       content_type = "text/plain"
@@ -88,12 +107,42 @@ resource "aws_lb_listener" "http" {
       status_code  = "404"
     }
   }
-  # For HTTPS, you'd add another listener on port 443 with an ACM certificate
+}
+
+# Create a self-signed certificate for testing
+resource "aws_acm_certificate" "self_signed" {
+  private_key      = tls_private_key.self_signed.private_key_pem
+  certificate_body = tls_self_signed_cert.self_signed.cert_pem
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "tls_private_key" "self_signed" {
+  algorithm = "RSA"
+}
+
+resource "tls_self_signed_cert" "self_signed" {
+  private_key_pem = tls_private_key.self_signed.private_key_pem
+
+  subject {
+    common_name  = "example.com"
+    organization = "Example Organization"
+  }
+
+  validity_period_hours = 8760 # 1 year
+
+  allowed_uses = [
+    "key_encipherment",
+    "digital_signature",
+    "server_auth",
+  ]
 }
 
 # Listener Rule for API Service (e.g., path-based or host-based)
 resource "aws_lb_listener_rule" "api_rule" {
-  listener_arn = aws_lb_listener.http.arn
+  listener_arn = aws_lb_listener.https.arn
   priority     = 100
 
   action {
@@ -116,7 +165,7 @@ resource "aws_lb_listener_rule" "api_rule" {
 
 # Listener Rule for N8N Service
 resource "aws_lb_listener_rule" "n8n_rule" {
-  listener_arn = aws_lb_listener.http.arn
+  listener_arn = aws_lb_listener.https.arn
   priority     = 110
   action {
     type             = "forward"
@@ -130,7 +179,7 @@ resource "aws_lb_listener_rule" "n8n_rule" {
 
 # Listener Rule for SonarQube Service
 resource "aws_lb_listener_rule" "sonarqube_rule" {
-  listener_arn = aws_lb_listener.http.arn
+  listener_arn = aws_lb_listener.https.arn
   priority     = 120
   action {
     type             = "forward"

@@ -110,12 +110,11 @@ resource "aws_security_group" "rabbitmq" {
     protocol        = "tcp"
     security_groups = [aws_security_group.ecs_tasks.id]
   }
-  ingress { # Management UI (if exposed, restrict source)
-    from_port   = 15672 # For RabbitMQ Management UI (if broker exposes it and you want to access it)
-    to_port     = 15672
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # WARNING: Open to internet. Restrict to your IP.
-    # security_groups = [aws_security_group.ecs_tasks.id] # Or from ECS tasks if needed
+  ingress {                 # Management UI (restricted to ECS tasks)
+    from_port       = 15672 # For RabbitMQ Management UI
+    to_port         = 15672
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ecs_tasks.id] # Only allow access from ECS tasks
   }
   tags = { Name = "${var.project_name}-rabbitmq-sg", Project = var.project_name }
 }
