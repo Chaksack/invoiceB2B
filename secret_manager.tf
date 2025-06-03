@@ -44,8 +44,8 @@ resource "aws_secretsmanager_secret_version" "rabbitmq_config_version" {
   secret_string = jsonencode({
     host     = aws_mq_broker.main.instances[0].endpoints[0] # Primary endpoint from amazon_mq.tf (adjust index/protocol if needed)
     port     = 5671                                         # AMQPS default, or 5672 for AMQP (adjust based on broker config)
-    username = var.rabbitmq_user
-    password = var.rabbitmq_password
+    username = random_string.rabbitmq_username.result
+    password = random_password.rabbitmq_password.result
   })
 }
 

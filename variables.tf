@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "A short name for the project, used for naming resources"
   type        = string
-  default     = "invoice"
+  default     = "invoice_demo"
 }
 
 variable "vpc_cidr" {
@@ -39,13 +39,13 @@ variable "availability_zones" {
 variable "ecr_repository_api_name" {
   description = "Name for the ECR repository for the API service"
   type        = string
-  default     = "invoice-api" # Corresponds to secrets.ECR_REPOSITORY_API
+  default     = "invoicefin-api" # Corresponds to secrets.ECR_REPOSITORY_API, uses project_name prefix
 }
 
 variable "ecs_cluster_name" {
   description = "Name for the ECS cluster"
   type        = string
-  default     = "invoice-b2b-cluster" # Corresponds to secrets.ECS_CLUSTER_NAME
+  default     = "invoicefin-cluster" # Corresponds to secrets.ECS_CLUSTER_NAME, uses project_name prefix
 }
 
 variable "app_port" {
@@ -70,19 +70,6 @@ variable "sonarqube_db_name" {
 // Add more variables as needed for N8N, SonarQube, other secrets, etc.
 
 
-variable "rabbitmq_user" {
-  description = "RabbitMQ default username"
-  type        = string
-  default     = "invoicefnd"
-  sensitive   = true
-}
-
-variable "rabbitmq_password" {
-  description = "RabbitMQ default password"
-  type        = string
-  default     = "guestpassword123456"
-  sensitive   = true
-}
 
 variable "environment" {
   description = "Environment name (dev, staging, prod)"

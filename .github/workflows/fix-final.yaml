@@ -38,9 +38,10 @@ env:
   TERRAFORM_VERSION: 1.7.0
   # Default environment is staging, can be overridden by workflow_dispatch input
   ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
-  COMPOSE_PROJECT_NAME: ${{ secrets.ECS_PROJECT_NAME || 'invoiceb2b' }}
-  TERRAFORM_STATE_BUCKET: "invoiceapp-terraform-state"
-  TERRAFORM_LOCK_TABLE: "invoice-terraform-locks"
+  COMPOSE_PROJECT_NAME: ${{ secrets.ECS_PROJECT_NAME || steps.extract_project_name.outputs.project_name }}
+  # Extract project_name from variables.tf and use it for bucket and table names
+  TERRAFORM_STATE_BUCKET: "${{ steps.extract_project_name.outputs.project_name }}-terraform-state"
+  TERRAFORM_LOCK_TABLE: "${{ steps.extract_project_name.outputs.project_name }}-terraform-locks"
 
 jobs:
   # Reusable job for setting up Terraform
@@ -49,9 +50,20 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       terraform_initialized: ${{ steps.terraform_init.outputs.initialized }}
+      project_name: ${{ steps.extract_project_name.outputs.project_name }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      # Extract project_name from variables.tf
+      - name: Extract project_name
+        id: extract_project_name
+        run: |
+          project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "project_name=$project_name" >> $GITHUB_OUTPUT
+          echo "Using project_name: $project_name"
+          echo "S3 bucket will be: $project_name-terraform-state"
+          echo "DynamoDB table will be: $project_name-terraform-locks"
 
       # Configure AWS credentials
       - name: Configure AWS Credentials
@@ -80,9 +92,17 @@ jobs:
       # Initialize Terraform with proper backend configuration
       - name: Terraform Init
         id: terraform_init
+        env:
+          PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
         run: |
+          # Set S3 bucket and DynamoDB table names based on project_name
+          S3_BUCKET="${PROJECT_NAME}-terraform-state"
+          DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
+          echo "Using S3 bucket: $S3_BUCKET"
+          echo "Using DynamoDB table: $DYNAMODB_TABLE"
+
           # Check if S3 bucket exists
-          if aws s3 ls s3://${{ env.TERRAFORM_STATE_BUCKET }} 2>&1 | grep -q 'NoSuchBucket'; then
+          if aws s3 ls s3://$S3_BUCKET 2>&1 | grep -q 'NoSuchBucket'; then
             echo "S3 bucket for Terraform state does not exist. Creating it..."
             # Initialize with local backend first
             terraform init -backend=false
@@ -101,11 +121,11 @@ jobs:
             cd ..
 
             # Now initialize with S3 backend
-            terraform init -force-copy -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+            terraform init -force-copy -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
           else
             echo "S3 bucket for Terraform state exists. Proceeding with normal initialization..."
             # Initialize with environment-specific state file
-            terraform init -reconfigure -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+            terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
           fi
           echo "Terraform initialized with environment-specific state file."
           echo "initialized=true" >> $GITHUB_OUTPUT
@@ -225,6 +245,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Extract project_name from variables.tf
+      - name: Extract project_name
+        id: extract_project_name
+        run: |
+          project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "project_name=$project_name" >> $GITHUB_OUTPUT
+          echo "Using project_name: $project_name"
+          echo "S3 bucket will be: $project_name-terraform-state"
+          echo "DynamoDB table will be: $project_name-terraform-locks"
+
       # Configure AWS credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -242,9 +272,17 @@ jobs:
 
       # Initialize Terraform with proper backend configuration
       - name: Terraform Init
+        env:
+          PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
         run: |
+          # Set S3 bucket and DynamoDB table names based on project_name
+          S3_BUCKET="${PROJECT_NAME}-terraform-state"
+          DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
+          echo "Using S3 bucket: $S3_BUCKET"
+          echo "Using DynamoDB table: $DYNAMODB_TABLE"
+
           # Initialize with environment-specific state file
-          terraform init -reconfigure -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
           echo "Terraform initialized with environment-specific state file."
 
       # Create destroy plan (excluding S3 bucket with prevent_destroy=true)
@@ -347,6 +385,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Extract project_name from variables.tf
+      - name: Extract project_name
+        id: extract_project_name
+        run: |
+          project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "project_name=$project_name" >> $GITHUB_OUTPUT
+          echo "Using project_name: $project_name"
+          echo "S3 bucket will be: $project_name-terraform-state"
+          echo "DynamoDB table will be: $project_name-terraform-locks"
+
       # Configure AWS credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -364,9 +412,17 @@ jobs:
 
       # Initialize Terraform with proper backend configuration
       - name: Terraform Init
+        env:
+          PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
         run: |
+          # Set S3 bucket and DynamoDB table names based on project_name
+          S3_BUCKET="${PROJECT_NAME}-terraform-state"
+          DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
+          echo "Using S3 bucket: $S3_BUCKET"
+          echo "Using DynamoDB table: $DYNAMODB_TABLE"
+
           # Initialize with environment-specific state file
-          terraform init -reconfigure -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
           echo "Terraform initialized with environment-specific state file."
 
       # Check formatting
@@ -440,6 +496,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Extract project_name from variables.tf
+      - name: Extract project_name
+        id: extract_project_name
+        run: |
+          project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "project_name=$project_name" >> $GITHUB_OUTPUT
+          echo "Using project_name: $project_name"
+          echo "S3 bucket will be: $project_name-terraform-state"
+          echo "DynamoDB table will be: $project_name-terraform-locks"
+
       # Configure AWS credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -466,9 +532,17 @@ jobs:
 
       # Initialize Terraform with proper backend configuration
       - name: Terraform Init
+        env:
+          PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
         run: |
+          # Set S3 bucket and DynamoDB table names based on project_name
+          S3_BUCKET="${PROJECT_NAME}-terraform-state"
+          DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
+          echo "Using S3 bucket: $S3_BUCKET"
+          echo "Using DynamoDB table: $DYNAMODB_TABLE"
+
           # Initialize with environment-specific state file
-          terraform init -reconfigure -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
           echo "Terraform initialized with environment-specific state file."
 
       # Get ECR Repository URLs from Terraform outputs
@@ -637,6 +711,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Extract project_name from variables.tf
+      - name: Extract project_name
+        id: extract_project_name
+        run: |
+          project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "project_name=$project_name" >> $GITHUB_OUTPUT
+          echo "Using project_name: $project_name"
+          echo "S3 bucket will be: $project_name-terraform-state"
+          echo "DynamoDB table will be: $project_name-terraform-locks"
+
       # Configure AWS credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -667,9 +751,17 @@ jobs:
 
       # Initialize Terraform with proper backend configuration
       - name: Terraform Init
+        env:
+          PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
         run: |
+          # Set S3 bucket and DynamoDB table names based on project_name
+          S3_BUCKET="${PROJECT_NAME}-terraform-state"
+          DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
+          echo "Using S3 bucket: $S3_BUCKET"
+          echo "Using DynamoDB table: $DYNAMODB_TABLE"
+
           # Initialize with environment-specific state file
-          terraform init -reconfigure -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
           echo "Terraform initialized with environment-specific state file."
 
       # Get ECS service names from Terraform outputs
@@ -832,6 +924,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Extract project_name from variables.tf
+      - name: Extract project_name
+        id: extract_project_name
+        run: |
+          project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "project_name=$project_name" >> $GITHUB_OUTPUT
+          echo "Using project_name: $project_name"
+          echo "S3 bucket will be: $project_name-terraform-state"
+          echo "DynamoDB table will be: $project_name-terraform-locks"
+
       # Configure AWS credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -856,9 +958,17 @@ jobs:
 
       # Initialize Terraform with proper backend configuration
       - name: Terraform Init
+        env:
+          PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
         run: |
+          # Set S3 bucket and DynamoDB table names based on project_name
+          S3_BUCKET="${PROJECT_NAME}-terraform-state"
+          DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
+          echo "Using S3 bucket: $S3_BUCKET"
+          echo "Using DynamoDB table: $DYNAMODB_TABLE"
+
           # Initialize with environment-specific state file
-          terraform init -reconfigure -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
           echo "Terraform initialized with environment-specific state file."
 
       # Restore previous state
@@ -911,6 +1021,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Extract project_name from variables.tf
+      - name: Extract project_name
+        id: extract_project_name
+        run: |
+          project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "project_name=$project_name" >> $GITHUB_OUTPUT
+          echo "Using project_name: $project_name"
+          echo "S3 bucket will be: $project_name-terraform-state"
+          echo "DynamoDB table will be: $project_name-terraform-locks"
+
       # Set a variable to check if destroy job was run
       - name: Check if destroy job was run
         id: check-destroy
@@ -940,9 +1060,17 @@ jobs:
 
       # Initialize Terraform with proper backend configuration
       - name: Terraform Init
+        env:
+          PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
         run: |
+          # Set S3 bucket and DynamoDB table names based on project_name
+          S3_BUCKET="${PROJECT_NAME}-terraform-state"
+          DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
+          echo "Using S3 bucket: $S3_BUCKET"
+          echo "Using DynamoDB table: $DYNAMODB_TABLE"
+
           # Initialize with environment-specific state file
-          terraform init -reconfigure -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          terraform init -reconfigure -backend-config="bucket=$S3_BUCKET" -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate" -backend-config="dynamodb_table=$DYNAMODB_TABLE"
           echo "Terraform initialized with environment-specific state file."
         continue-on-error: true
 

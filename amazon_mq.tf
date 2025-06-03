@@ -1,3 +1,18 @@
+# Generate a random username for RabbitMQ
+resource "random_string" "rabbitmq_username" {
+  length  = 16
+  special = false
+  numeric = false
+  upper   = false
+}
+
+# Generate a random password for RabbitMQ
+resource "random_password" "rabbitmq_password" {
+  length           = 24
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
 resource "aws_mq_broker" "main" {
   broker_name         = "${var.project_name}-rabbitmq"
   engine_type         = "RabbitMQ"
@@ -11,8 +26,8 @@ resource "aws_mq_broker" "main" {
 
 
   user {
-    username = var.rabbitmq_user
-    password = var.rabbitmq_password
+    username = random_string.rabbitmq_username.result
+    password = random_password.rabbitmq_password.result
   }
 
   # maintenance_window_start_time { # Optional
@@ -32,4 +47,3 @@ resource "aws_mq_broker" "main" {
     Environment = "production"
   }
 }
-

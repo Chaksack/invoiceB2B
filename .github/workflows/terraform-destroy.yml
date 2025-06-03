@@ -52,12 +52,20 @@ jobs:
       TARGET_ENVIRONMENT: ${{ github.event.inputs.environment }}
       TERRAFORM_VERSION: "1.7.0"
       AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
-      TERRAFORM_STATE_BUCKET_NAME: "invoiceapp-terraform-state"
-      TERRAFORM_LOCK_TABLE_NAME: "invoice-terraform-locks"
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      # Extract project_name from variables.tf
+      - name: Extract project_name
+        id: extract_project_name
+        run: |
+          project_name=$(grep -A 3 'variable "project_name"' variables.tf | grep 'default' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "project_name=$project_name" >> $GITHUB_OUTPUT
+          echo "Using project_name: $project_name"
+          echo "S3 bucket will be: $project_name-terraform-state"
+          echo "DynamoDB table will be: $project_name-terraform-locks"
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -74,27 +82,39 @@ jobs:
 
       - name: Terraform Init
         id: init
+        env:
+          PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
         run: |
+          # Set S3 bucket and DynamoDB table names based on project_name
+          S3_BUCKET="${PROJECT_NAME}-terraform-state"
+          DYNAMODB_TABLE="${PROJECT_NAME}-terraform-locks"
+
           echo "Initializing Terraform for environment: ${{ env.TARGET_ENVIRONMENT }}"
-          echo "Using S3 bucket: ${{ env.TERRAFORM_STATE_BUCKET_NAME }}"
+          echo "Using S3 bucket: $S3_BUCKET"
           echo "Using S3 key: environments/${{ env.TARGET_ENVIRONMENT }}/terraform.tfstate"
-          echo "Using DynamoDB table: ${{ env.TERRAFORM_LOCK_TABLE_NAME }}"
+          echo "Using DynamoDB table: $DYNAMODB_TABLE"
+
           terraform init \
-            -backend-config="bucket=${{ env.TERRAFORM_STATE_BUCKET_NAME }}" \
+            -backend-config="bucket=$S3_BUCKET" \
             -backend-config="key=environments/${{ env.TARGET_ENVIRONMENT }}/terraform.tfstate" \
             -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="dynamodb_table=${{ env.TERRAFORM_LOCK_TABLE_NAME }}" \
+            -backend-config="dynamodb_table=$DYNAMODB_TABLE" \
             -reconfigure
 
       - name: Debug S3 State File Access
         if: always() # Run this step even if previous steps fail, to gather info
+        env:
+          PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
         run: |
+          # Set S3 bucket name based on project_name
+          S3_BUCKET="${PROJECT_NAME}-terraform-state"
+
           echo "Attempting to access S3 state file for debugging..."
           S3_KEY="environments/${{ env.TARGET_ENVIRONMENT }}/terraform.tfstate"
-          echo "Checking S3 object: s3://${{ env.TERRAFORM_STATE_BUCKET_NAME }}/${S3_KEY}"
-          aws s3 ls "s3://${{ env.TERRAFORM_STATE_BUCKET_NAME }}/${S3_KEY}" || echo "State file not found via 'aws s3 ls' or access issue."
+          echo "Checking S3 object: s3://$S3_BUCKET/${S3_KEY}"
+          aws s3 ls "s3://$S3_BUCKET/${S3_KEY}" || echo "State file not found via 'aws s3 ls' or access issue."
           echo "Checking S3 object metadata with 'aws s3api head-object':"
-          aws s3api head-object --bucket "${{ env.TERRAFORM_STATE_BUCKET_NAME }}" --key "${S3_KEY}" || echo "State file metadata not found via 'aws s3api head-object' or access issue."
+          aws s3api head-object --bucket "$S3_BUCKET" --key "${S3_KEY}" || echo "State file metadata not found via 'aws s3api head-object' or access issue."
 
       - name: List Terraform State
         if: always() # Run this step to see what Terraform loaded
