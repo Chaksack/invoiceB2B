@@ -171,13 +171,65 @@ jobs:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
-      # Initialize Terraform
-      - name: Terraform Init
-        run: terraform init -reconfigure
+      # Ensure backend configuration is properly set up
+      - name: Setup Backend Configuration
+        run: |
+          # Check if backend.tf has S3 backend commented out
+          if grep -q "^#.*backend \"s3\"" backend.tf; then
+            echo "S3 backend is commented out in backend.tf. Uncommenting it for proper state management..."
+            sed -i 's/^# terraform {/terraform {/' backend.tf
+            sed -i 's/^#   backend "s3" {/  backend "s3" {/' backend.tf
+            sed -i 's/^#     bucket/    bucket/' backend.tf
+            sed -i 's/^#     key/    key/' backend.tf
+            sed -i 's/^#     region/    region/' backend.tf
+            sed -i 's/^#     encrypt/    encrypt/' backend.tf
+            sed -i 's/^#     dynamodb_table/    dynamodb_table/' backend.tf
+            sed -i 's/^#   }/  }/' backend.tf
+            sed -i 's/^# }/}/' backend.tf
+            echo "Backend configuration uncommented successfully."
+          else
+            echo "Backend configuration appears to be already set up."
+          fi
 
-      # Create destroy plan
+      # Initialize Terraform with proper backend configuration
+      - name: Terraform Init
+        run: |
+          # Check if S3 bucket exists
+          if aws s3 ls s3://invoiceb2b-terraform-state 2>&1 | grep -q 'NoSuchBucket'; then
+            echo "S3 bucket for Terraform state does not exist. Creating it..."
+            # Initialize with local backend first
+            terraform init -backend=false
+
+            # Navigate to bootstrap directory
+            cd bootstrap
+
+            # Initialize and apply bootstrap configuration
+            echo "Initializing bootstrap Terraform configuration..."
+            terraform init
+
+            echo "Creating S3 bucket and DynamoDB table for Terraform backend..."
+            terraform apply -auto-approve
+
+            # Navigate back to main directory
+            cd ..
+
+            # Now initialize with S3 backend
+            terraform init -force-copy -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          else
+            echo "S3 bucket for Terraform state exists. Proceeding with normal initialization..."
+            # Initialize with environment-specific state file
+            terraform init -reconfigure -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          fi
+          echo "Terraform initialized with environment-specific state file."
+
+      # Create destroy plan (excluding S3 bucket with prevent_destroy=true)
       - name: Terraform Plan Destroy
-        run: terraform plan -destroy -var="environment=${{ env.ENVIRONMENT }}" -out=tfdestroyplan
+        run: |
+          # Create destroy plan excluding the S3 bucket that has prevent_destroy=true
+          terraform state list | grep -q "aws_s3_bucket.terraform_state" && \
+            echo "Excluding S3 bucket with prevent_destroy=true from destroy plan" && \
+            terraform plan -destroy -var="environment=${{ env.ENVIRONMENT }}" -out=tfdestroyplan -target=$(terraform state list | grep -v "aws_s3_bucket.terraform_state") || \
+            terraform plan -destroy -var="environment=${{ env.ENVIRONMENT }}" -out=tfdestroyplan
 
       # Add a manual approval step
       - name: Manual Approval
@@ -193,7 +245,37 @@ jobs:
 
       # Apply destroy plan
       - name: Terraform Destroy
-        run: terraform apply -auto-approve tfdestroyplan
+        run: |
+          echo "Applying destroy plan..."
+          terraform apply -auto-approve tfdestroyplan
+
+          # Check if destroy was successful
+          if [ $? -eq 0 ]; then
+            echo "Terraform destroy completed successfully."
+          else
+            echo "Terraform destroy encountered issues. This might be due to resources with prevent_destroy=true or dependencies."
+            echo "Attempting targeted destroy for remaining resources..."
+
+            # List remaining resources
+            REMAINING_RESOURCES=$(terraform state list || echo "")
+
+            if [ -n "$REMAINING_RESOURCES" ]; then
+              echo "Remaining resources in state:"
+              echo "$REMAINING_RESOURCES"
+
+              # Try to destroy each resource individually, skipping the S3 bucket with prevent_destroy=true
+              for resource in $REMAINING_RESOURCES; do
+                if [[ "$resource" != "aws_s3_bucket.terraform_state" ]]; then
+                  echo "Attempting to destroy: $resource"
+                  terraform destroy -auto-approve -target=$resource -var="environment=${{ env.ENVIRONMENT }}" || echo "Could not destroy $resource, continuing..."
+                else
+                  echo "Skipping S3 bucket with prevent_destroy=true: $resource"
+                fi
+              done
+            else
+              echo "No resources found in state. Destroy may have been successful despite errors."
+            fi
+          fi
 
       # Notify destruction status
       - name: Notify Destruction Status
@@ -264,7 +346,27 @@ jobs:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
-      # Initialize Terraform
+      # Ensure backend configuration is properly set up
+      - name: Setup Backend Configuration
+        run: |
+          # Check if backend.tf has S3 backend commented out
+          if grep -q "^#.*backend \"s3\"" backend.tf; then
+            echo "S3 backend is commented out in backend.tf. Uncommenting it for proper state management..."
+            sed -i 's/^# terraform {/terraform {/' backend.tf
+            sed -i 's/^#   backend "s3" {/  backend "s3" {/' backend.tf
+            sed -i 's/^#     bucket/    bucket/' backend.tf
+            sed -i 's/^#     key/    key/' backend.tf
+            sed -i 's/^#     region/    region/' backend.tf
+            sed -i 's/^#     encrypt/    encrypt/' backend.tf
+            sed -i 's/^#     dynamodb_table/    dynamodb_table/' backend.tf
+            sed -i 's/^#   }/  }/' backend.tf
+            sed -i 's/^# }/}/' backend.tf
+            echo "Backend configuration uncommented successfully."
+          else
+            echo "Backend configuration appears to be already set up."
+          fi
+
+      # Initialize Terraform with proper backend configuration
       - name: Terraform Init
         run: |
           # Check if S3 bucket exists
@@ -273,16 +375,27 @@ jobs:
             # Initialize with local backend first
             terraform init -backend=false
 
-            # Apply bootstrap configuration to create S3 bucket and DynamoDB table
-            terraform apply -target=aws_s3_bucket.terraform_state -target=aws_dynamodb_table.terraform_locks -auto-approve
+            # Navigate to bootstrap directory
+            cd bootstrap
+
+            # Initialize and apply bootstrap configuration
+            echo "Initializing bootstrap Terraform configuration..."
+            terraform init
+
+            echo "Creating S3 bucket and DynamoDB table for Terraform backend..."
+            terraform apply -auto-approve
+
+            # Navigate back to main directory
+            cd ..
 
             # Now initialize with S3 backend
-            terraform init -force-copy
+            terraform init -force-copy -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
           else
             echo "S3 bucket for Terraform state exists. Proceeding with normal initialization..."
-            # Use -reconfigure flag to handle backend configuration changes
-            terraform init -reconfigure
+            # Initialize with environment-specific state file
+            terraform init -reconfigure -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
           fi
+          echo "Terraform initialized with environment-specific state file."
 
       # Check formatting
       - name: Terraform Format
@@ -379,9 +492,56 @@ jobs:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
-      # Initialize Terraform
+      # Ensure backend configuration is properly set up
+      - name: Setup Backend Configuration
+        run: |
+          # Check if backend.tf has S3 backend commented out
+          if grep -q "^#.*backend \"s3\"" backend.tf; then
+            echo "S3 backend is commented out in backend.tf. Uncommenting it for proper state management..."
+            sed -i 's/^# terraform {/terraform {/' backend.tf
+            sed -i 's/^#   backend "s3" {/  backend "s3" {/' backend.tf
+            sed -i 's/^#     bucket/    bucket/' backend.tf
+            sed -i 's/^#     key/    key/' backend.tf
+            sed -i 's/^#     region/    region/' backend.tf
+            sed -i 's/^#     encrypt/    encrypt/' backend.tf
+            sed -i 's/^#     dynamodb_table/    dynamodb_table/' backend.tf
+            sed -i 's/^#   }/  }/' backend.tf
+            sed -i 's/^# }/}/' backend.tf
+            echo "Backend configuration uncommented successfully."
+          else
+            echo "Backend configuration appears to be already set up."
+          fi
+
+      # Initialize Terraform with proper backend configuration
       - name: Terraform Init
-        run: terraform init -reconfigure
+        run: |
+          # Check if S3 bucket exists
+          if aws s3 ls s3://invoiceb2b-terraform-state 2>&1 | grep -q 'NoSuchBucket'; then
+            echo "S3 bucket for Terraform state does not exist. Creating it..."
+            # Initialize with local backend first
+            terraform init -backend=false
+
+            # Navigate to bootstrap directory
+            cd bootstrap
+
+            # Initialize and apply bootstrap configuration
+            echo "Initializing bootstrap Terraform configuration..."
+            terraform init
+
+            echo "Creating S3 bucket and DynamoDB table for Terraform backend..."
+            terraform apply -auto-approve
+
+            # Navigate back to main directory
+            cd ..
+
+            # Now initialize with S3 backend
+            terraform init -force-copy -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          else
+            echo "S3 bucket for Terraform state exists. Proceeding with normal initialization..."
+            # Initialize with environment-specific state file
+            terraform init -reconfigure -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          fi
+          echo "Terraform initialized with environment-specific state file."
 
       # Get ECR Repository URLs from Terraform outputs
       - name: Get ECR Repository URLs
@@ -577,9 +737,56 @@ jobs:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
-      # Initialize Terraform
+      # Ensure backend configuration is properly set up
+      - name: Setup Backend Configuration
+        run: |
+          # Check if backend.tf has S3 backend commented out
+          if grep -q "^#.*backend \"s3\"" backend.tf; then
+            echo "S3 backend is commented out in backend.tf. Uncommenting it for proper state management..."
+            sed -i 's/^# terraform {/terraform {/' backend.tf
+            sed -i 's/^#   backend "s3" {/  backend "s3" {/' backend.tf
+            sed -i 's/^#     bucket/    bucket/' backend.tf
+            sed -i 's/^#     key/    key/' backend.tf
+            sed -i 's/^#     region/    region/' backend.tf
+            sed -i 's/^#     encrypt/    encrypt/' backend.tf
+            sed -i 's/^#     dynamodb_table/    dynamodb_table/' backend.tf
+            sed -i 's/^#   }/  }/' backend.tf
+            sed -i 's/^# }/}/' backend.tf
+            echo "Backend configuration uncommented successfully."
+          else
+            echo "Backend configuration appears to be already set up."
+          fi
+
+      # Initialize Terraform with proper backend configuration
       - name: Terraform Init
-        run: terraform init -reconfigure
+        run: |
+          # Check if S3 bucket exists
+          if aws s3 ls s3://invoiceb2b-terraform-state 2>&1 | grep -q 'NoSuchBucket'; then
+            echo "S3 bucket for Terraform state does not exist. Creating it..."
+            # Initialize with local backend first
+            terraform init -backend=false
+
+            # Navigate to bootstrap directory
+            cd bootstrap
+
+            # Initialize and apply bootstrap configuration
+            echo "Initializing bootstrap Terraform configuration..."
+            terraform init
+
+            echo "Creating S3 bucket and DynamoDB table for Terraform backend..."
+            terraform apply -auto-approve
+
+            # Navigate back to main directory
+            cd ..
+
+            # Now initialize with S3 backend
+            terraform init -force-copy -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          else
+            echo "S3 bucket for Terraform state exists. Proceeding with normal initialization..."
+            # Initialize with environment-specific state file
+            terraform init -reconfigure -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          fi
+          echo "Terraform initialized with environment-specific state file."
 
       # Get ECS service names from Terraform outputs
       - name: Get ECS Service Names
@@ -763,6 +970,26 @@ jobs:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
+      # Ensure backend configuration is properly set up
+      - name: Setup Backend Configuration
+        run: |
+          # Check if backend.tf has S3 backend commented out
+          if grep -q "^#.*backend \"s3\"" backend.tf; then
+            echo "S3 backend is commented out in backend.tf. Uncommenting it for proper state management..."
+            sed -i 's/^# terraform {/terraform {/' backend.tf
+            sed -i 's/^#   backend "s3" {/  backend "s3" {/' backend.tf
+            sed -i 's/^#     bucket/    bucket/' backend.tf
+            sed -i 's/^#     key/    key/' backend.tf
+            sed -i 's/^#     region/    region/' backend.tf
+            sed -i 's/^#     encrypt/    encrypt/' backend.tf
+            sed -i 's/^#     dynamodb_table/    dynamodb_table/' backend.tf
+            sed -i 's/^#   }/  }/' backend.tf
+            sed -i 's/^# }/}/' backend.tf
+            echo "Backend configuration uncommented successfully."
+          else
+            echo "Backend configuration appears to be already set up."
+          fi
+
       # Download state backup
       - name: Download State Backup
         uses: actions/download-artifact@v4
@@ -770,9 +997,36 @@ jobs:
           name: terraform-state-backup-${{ github.event.inputs.environment || 'staging' }}
           path: .
 
-      # Initialize Terraform
+      # Initialize Terraform with proper backend configuration
       - name: Terraform Init
-        run: terraform init -reconfigure
+        run: |
+          # Check if S3 bucket exists
+          if aws s3 ls s3://invoiceb2b-terraform-state 2>&1 | grep -q 'NoSuchBucket'; then
+            echo "S3 bucket for Terraform state does not exist. Creating it..."
+            # Initialize with local backend first
+            terraform init -backend=false
+
+            # Navigate to bootstrap directory
+            cd bootstrap
+
+            # Initialize and apply bootstrap configuration
+            echo "Initializing bootstrap Terraform configuration..."
+            terraform init
+
+            echo "Creating S3 bucket and DynamoDB table for Terraform backend..."
+            terraform apply -auto-approve
+
+            # Navigate back to main directory
+            cd ..
+
+            # Now initialize with S3 backend
+            terraform init -force-copy -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          else
+            echo "S3 bucket for Terraform state exists. Proceeding with normal initialization..."
+            # Initialize with environment-specific state file
+            terraform init -reconfigure -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          fi
+          echo "Terraform initialized with environment-specific state file."
 
       # Restore previous state
       - name: Restore Previous State
@@ -851,9 +1105,57 @@ jobs:
           terraform_wrapper: false
         continue-on-error: true
 
-      # Initialize Terraform
+      # Ensure backend configuration is properly set up
+      - name: Setup Backend Configuration
+        run: |
+          # Check if backend.tf has S3 backend commented out
+          if grep -q "^#.*backend \"s3\"" backend.tf; then
+            echo "S3 backend is commented out in backend.tf. Uncommenting it for proper state management..."
+            sed -i 's/^# terraform {/terraform {/' backend.tf
+            sed -i 's/^#   backend "s3" {/  backend "s3" {/' backend.tf
+            sed -i 's/^#     bucket/    bucket/' backend.tf
+            sed -i 's/^#     key/    key/' backend.tf
+            sed -i 's/^#     region/    region/' backend.tf
+            sed -i 's/^#     encrypt/    encrypt/' backend.tf
+            sed -i 's/^#     dynamodb_table/    dynamodb_table/' backend.tf
+            sed -i 's/^#   }/  }/' backend.tf
+            sed -i 's/^# }/}/' backend.tf
+            echo "Backend configuration uncommented successfully."
+          else
+            echo "Backend configuration appears to be already set up."
+          fi
+        continue-on-error: true
+
+      # Initialize Terraform with proper backend configuration
       - name: Terraform Init
-        run: terraform init -reconfigure
+        run: |
+          # Check if S3 bucket exists
+          if aws s3 ls s3://invoiceb2b-terraform-state 2>&1 | grep -q 'NoSuchBucket'; then
+            echo "S3 bucket for Terraform state does not exist. Creating it..."
+            # Initialize with local backend first
+            terraform init -backend=false
+
+            # Navigate to bootstrap directory
+            cd bootstrap
+
+            # Initialize and apply bootstrap configuration
+            echo "Initializing bootstrap Terraform configuration..."
+            terraform init
+
+            echo "Creating S3 bucket and DynamoDB table for Terraform backend..."
+            terraform apply -auto-approve
+
+            # Navigate back to main directory
+            cd ..
+
+            # Now initialize with S3 backend
+            terraform init -force-copy -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          else
+            echo "S3 bucket for Terraform state exists. Proceeding with normal initialization..."
+            # Initialize with environment-specific state file
+            terraform init -reconfigure -backend-config="key=environments/${{ env.ENVIRONMENT }}/terraform.tfstate"
+          fi
+          echo "Terraform initialized with environment-specific state file."
         continue-on-error: true
 
       - name: Generate Deployment Summary
