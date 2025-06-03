@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "A short name for the project, used for naming resources"
   type        = string
-  default     = "invoiceapp"
+  default     = "invoice_demo"
 }
 
 variable "vpc_cidr" {
