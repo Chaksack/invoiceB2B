@@ -1,10 +1,3 @@
-## Me
-write the gitignore for terraform, nuxt.js and golang
-
-## AI Assistant
-I'll help you create a comprehensive `.gitignore` file that combines rules for Terraform, Nuxt.js, and Go projects. Here's the merged `.gitignore`:
-
-```.gitignore (gitignore)
 # Terraform
 *.tfstate
 *.tfstate.*
@@ -22,24 +15,25 @@ override.tf.json
 terraform.rc
 
 # Nuxt.js
-.nuxt
-.nitro
-.cache
-.output
-.env
-dist
-node_modules
-.DS_Store
+.nuxt/
+.nitro/
+.cache/
+.output/
+dist/
+node_modules/
+
+# Environment variable files (for Nuxt.js and general use)
+.env*
+env
+env/
 
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-
-.env
 
 # Go
 # Binaries for programs and plugins
@@ -58,7 +52,7 @@ yarn-error.log*
 # Go workspace file
 go.work
 
-# Dependency directories (remove the comment below to include it)
+# Dependency directories
 vendor/
 
 # Build output
@@ -75,4 +69,3 @@ build/
 # OS specific
 .DS_Store
 Thumbs.db
-```
