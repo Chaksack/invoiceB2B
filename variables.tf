@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "A short name for the project, used for naming resources"
   type        = string
-  default     = "proformerdemo"
+  default     = "profundrdemo"
 }
 
 variable "vpc_cidr" {
@@ -39,13 +39,13 @@ variable "availability_zones" {
 variable "ecr_repository_api_name" {
   description = "Name for the ECR repository for the API service"
   type        = string
-  default     = "proformer-api" # Corresponds to secrets.ECR_REPOSITORY_API, uses project_name prefix
+  default     = "profundr-api" # Corresponds to secrets.ECR_REPOSITORY_API, uses project_name prefix
 }
 
 variable "ecs_cluster_name" {
   description = "Name for the ECS cluster"
   type        = string
-  default     = "proformer-cluster" # Corresponds to secrets.ECS_CLUSTER_NAME, uses project_name prefix
+  default     = "profundr-cluster" # Corresponds to secrets.ECS_CLUSTER_NAME, uses project_name prefix
 }
 
 variable "app_port" {
@@ -87,4 +87,16 @@ variable "bucket_prefix_override" {
   description = "Override for the bucket prefix used for S3 and DynamoDB resources (useful for migration or special environments)"
   type        = string
   default     = null
+}
+
+variable "bastion_public_key" {
+  description = "Public SSH key for accessing the bastion host. If not provided, a new key pair will be generated."
+  type        = string
+  default     = ""
+}
+
+variable "bastion_ami" {
+  description = "AMI ID for the bastion host"
+  type        = string
+  default     = "ami-0c55b159cbfafe1f0" # Amazon Linux 2 AMI in us-east-1, update for your region
 }

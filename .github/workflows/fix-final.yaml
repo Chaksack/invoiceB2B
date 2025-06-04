@@ -637,7 +637,7 @@ jobs:
 
       - name: Create ECR Repository if it doesn't exist
         run: |
-          ECR_REPO_NAME="${{ secrets.ECR_REPOSITORY_API || 'invoicefin-api' }}"
+          ECR_REPO_NAME="${{ steps.extract_project_name.outputs.project_name }}-api"
           echo "Checking if ECR repository $ECR_REPO_NAME exists..."
           if ! aws ecr describe-repositories --repository-names $ECR_REPO_NAME 2>/dev/null; then
             echo "ECR repository $ECR_REPO_NAME does not exist. Creating it..."
@@ -709,12 +709,12 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_API || 'performer-api' }}:${{ github.sha }}
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.extract_project_name.outputs.project_name }}-api:${{ github.sha }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
         env: # env block for the action itself, not for the script inside the action
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY_API: ${{ secrets.ECR_REPOSITORY_API || 'performer-api' }}
+          ECR_REPOSITORY_API: "${{ steps.extract_project_name.outputs.project_name }}-api"
           IMAGE_TAG: ${{ github.sha }}
 
       # This step was trying to set outputs that are now correctly set by build-image-api
@@ -727,7 +727,7 @@ jobs:
       # If you need to explicitly echo, you can do it here using the previous step's outputs.
       - name: Confirm image push details # Optional: for logging
         run: |
-          echo "ECR Image URI: ${{ steps.build-image-api.outputs.ecr_image_uri || format('{0}/{1}:{2}', steps.login-ecr.outputs.registry, secrets.ECR_REPOSITORY_API || 'invoicefin-api', github.sha) }}"
+          echo "ECR Image URI: ${{ steps.build-image-api.outputs.ecr_image_uri || format('{0}/{1}-api:{2}', steps.login-ecr.outputs.registry, steps.extract_project_name.outputs.project_name, github.sha) }}"
           echo "Image Tag: ${{ steps.build-image-api.outputs.image_tag || github.sha }}"
           echo "Successfully pushed image."
 
