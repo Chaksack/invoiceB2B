@@ -17,8 +17,7 @@ resource "aws_s3_bucket" "terraform_state" {
   lifecycle {
     prevent_destroy = true
     # Ignore errors related to bucket already existing
-    ignore_changes = [bucket, id, arn, region]
-    # Prevent errors when bucket already exists
+    ignore_changes = [bucket, id]
     create_before_destroy = false
   }
 
