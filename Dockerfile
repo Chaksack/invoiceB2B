@@ -13,7 +13,7 @@ RUN echo "--- Contents of /client/.output/public/ after Nuxt build ---" && \
     ls -lA /client/.output/public/ && \
     echo "--- End of /client/.output/public/ contents ---"
 
-FROM golang:1.23-alpine AS go-builder
+FROM golang:1.24-alpine AS go-builder
 
 WORKDIR /app
 
