@@ -23,6 +23,13 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# Attach Secrets Manager access policy to the task execution role
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_secrets_policy" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = aws_iam_policy.ecs_secrets_access_policy.arn
+  depends_on = [aws_iam_policy.ecs_secrets_access_policy]
+}
+
 # (Optional) ECS Task Role for API service (if it needs to interact with other AWS services)
 # resource "aws_iam_role" "api_task_role" {
 #   name = "${var.project_name}-api-task-role"
