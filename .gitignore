@@ -39,6 +39,8 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+.env
+
 # Go
 # Binaries for programs and plugins
 *.exe
