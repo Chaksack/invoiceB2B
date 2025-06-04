@@ -508,6 +508,7 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.extract_project_name.outputs.project_name }}-api:latest # Only use latest tag
+          platforms: linux/amd64 # Explicitly build for a single platform to ensure it's an image manifest, not an index
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
         env:
