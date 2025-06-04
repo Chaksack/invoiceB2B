@@ -6,18 +6,44 @@
 
 locals {
   # For dev environment, use a different bucket name prefix
-  bucket_prefix = var.environment == "dev" ? "invoicedev" : var.project_name
+  # If the environment variable BUCKET_PREFIX is set, use that instead
+  # This allows for overriding the bucket prefix at runtime
+  bucket_prefix = var.environment == "dev" ? (coalesce(var.bucket_prefix_override, "invoicedev", "invoiceapidev")) : var.project_name
+
+  # Check if resources exist with the invoiceapidev prefix (for backward compatibility)
+  # These will be computed after the data sources are evaluated
+  use_api_prefix_for_s3 = (!var.create_bootstrap_resources && var.environment == "dev" &&
+  local.bucket_prefix != "invoiceapidev" &&
+  length(data.aws_s3_bucket.existing_terraform_state_api) > 0)
+
+  use_api_prefix_for_dynamodb = (!var.create_bootstrap_resources && var.environment == "dev" &&
+  local.bucket_prefix != "invoiceapidev" &&
+  length(data.aws_dynamodb_table.existing_terraform_locks_api) > 0)
 }
+
+# Check if the S3 bucket already exists with the current prefix
+data "aws_s3_bucket" "existing_terraform_state" {
+  count  = var.create_bootstrap_resources ? 0 : 1
+  bucket = "${local.bucket_prefix}-terraform-state"
+}
+
+# Check if the S3 bucket already exists with the invoiceapidev prefix (for backward compatibility)
+data "aws_s3_bucket" "existing_terraform_state_api" {
+  count  = (!var.create_bootstrap_resources && var.environment == "dev" && local.bucket_prefix != "invoiceapidev") ? 1 : 0
+  bucket = "invoiceapidev-terraform-state"
+}
+
 
 resource "aws_s3_bucket" "terraform_state" {
   count  = var.create_bootstrap_resources ? 1 : 0
-  bucket = "${local.bucket_prefix}-terraform-state"
+  bucket = local.use_api_prefix_for_s3 ? "invoiceapidev-terraform-state" : "${local.bucket_prefix}-terraform-state"
 
   # Prevent accidental deletion of this S3 bucket
   lifecycle {
     prevent_destroy = true
     # Ignore errors related to bucket already existing
     ignore_changes = [bucket, id]
+    # Prevent errors when bucket already exists
     create_before_destroy = false
   }
 
@@ -73,9 +99,22 @@ resource "aws_s3_bucket_public_access_block" "terraform_state" {
   }
 }
 
+# Check if the DynamoDB table already exists with the current prefix
+data "aws_dynamodb_table" "existing_terraform_locks" {
+  count = var.create_bootstrap_resources ? 0 : 1
+  name  = "${local.bucket_prefix}-terraform-locks"
+}
+
+# Check if the DynamoDB table already exists with the invoiceapidev prefix (for backward compatibility)
+data "aws_dynamodb_table" "existing_terraform_locks_api" {
+  count = (!var.create_bootstrap_resources && var.environment == "dev" && local.bucket_prefix != "invoiceapidev") ? 1 : 0
+  name  = "invoiceapidev-terraform-locks"
+}
+
+
 resource "aws_dynamodb_table" "terraform_locks" {
   count        = var.create_bootstrap_resources ? 1 : 0
-  name         = "${local.bucket_prefix}-terraform-locks"
+  name         = local.use_api_prefix_for_dynamodb ? "invoiceapidev-terraform-locks" : "${local.bucket_prefix}-terraform-locks"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
 
@@ -86,7 +125,7 @@ resource "aws_dynamodb_table" "terraform_locks" {
 
   lifecycle {
     # Ignore errors related to table already existing
-    ignore_changes = [name, id, arn, hash_key]
+    ignore_changes = [name, id]
     # Prevent errors when table already exists
     create_before_destroy = false
   }
@@ -99,11 +138,19 @@ resource "aws_dynamodb_table" "terraform_locks" {
 }
 
 output "s3_bucket_name" {
-  value       = var.create_bootstrap_resources ? aws_s3_bucket.terraform_state[0].id : "${local.bucket_prefix}-terraform-state"
+  value = var.create_bootstrap_resources ? aws_s3_bucket.terraform_state[0].id : (
+  try(data.aws_s3_bucket.existing_terraform_state[0].id,
+    try(data.aws_s3_bucket.existing_terraform_state_api[0].id, "${local.bucket_prefix}-terraform-state")
+  )
+  )
   description = "The name of the S3 bucket"
 }
 
 output "dynamodb_table_name" {
-  value       = var.create_bootstrap_resources ? aws_dynamodb_table.terraform_locks[0].id : "${local.bucket_prefix}-terraform-locks"
+  value = var.create_bootstrap_resources ? aws_dynamodb_table.terraform_locks[0].id : (
+  try(data.aws_dynamodb_table.existing_terraform_locks[0].name,
+    try(data.aws_dynamodb_table.existing_terraform_locks_api[0].name, "${local.bucket_prefix}-terraform-locks")
+  )
+  )
   description = "The name of the DynamoDB table"
 }
