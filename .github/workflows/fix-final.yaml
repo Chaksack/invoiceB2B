@@ -607,9 +607,8 @@ jobs:
       name: ${{ github.event.inputs.environment || 'staging' }}
     outputs:
       ecr_repos_found: ${{ steps.get-ecr-urls.outputs.ecr_repos_found }}
-      api_image_uri: ${{ steps.build-image-api.outputs.ecr_image_uri }} # Corrected: build-image-api step provides this
-      image_tag: ${{ steps.build-image-api.outputs.image_tag }} # Corrected: build-image-api step provides this
-
+      api_image_uri: ${{ steps.set-image-outputs.outputs.api_image_uri }} # Points to the SHA-tagged image URI
+      image_tag: ${{ steps.set-image-outputs.outputs.image_tag }}       # Points to the SHA tag
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -657,28 +656,18 @@ jobs:
         env:
           PROJECT_NAME: ${{ steps.extract_project_name.outputs.project_name }}
           ENVIRONMENT: ${{ env.ENVIRONMENT }}
-          # Or: PROJECT_NAME: ${{ needs.setup-terraform.outputs.project_name }} # If setup-terraform is a direct need and outputs project_name
         run: |
-          # Set S3 bucket and DynamoDB table names based on project_name and environment
-          # For dev environment, use a different bucket name prefix
           if [ "$ENVIRONMENT" = "dev" ]; then
             BUCKET_PREFIX="invoicedev"
-            echo "Using dev-specific bucket prefix: $BUCKET_PREFIX"
           else
             BUCKET_PREFIX="$PROJECT_NAME"
-            echo "Using standard bucket prefix: $BUCKET_PREFIX"
           fi
-
           S3_BUCKET="${BUCKET_PREFIX}-terraform-state"
           DYNAMODB_TABLE="${BUCKET_PREFIX}-terraform-locks"
           echo "Using S3 bucket: $S3_BUCKET"
           echo "Using DynamoDB table: $DYNAMODB_TABLE"
-
-          # Generate backend.tf file with the correct values for this environment
-          echo "Generating backend.tf file with dynamic configuration..."
           chmod +x ./generate-backend.sh
           ./generate-backend.sh $ENVIRONMENT
-
           terraform init -reconfigure
           echo "Terraform initialized with environment-specific state file."
 
@@ -703,34 +692,37 @@ jobs:
             ${{ runner.os }}-buildx-
 
       - name: Build and push API image to Amazon ECR
-        id: build-image-api # This step will set the outputs
+        id: build-image-api
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.extract_project_name.outputs.project_name }}-api:${{ github.sha }}
+          tags: | # Updated to include both SHA and latest tags
+            ${{ steps.login-ecr.outputs.registry }}/${{ steps.extract_project_name.outputs.project_name }}-api:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ steps.extract_project_name.outputs.project_name }}-api:latest
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-        env: # env block for the action itself, not for the script inside the action
+        env: # env block for the action itself
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY_API: "${{ steps.extract_project_name.outputs.project_name }}-api"
-          IMAGE_TAG: ${{ github.sha }}
+          # IMAGE_TAG: ${{ latest }} # This was incorrect and has been removed
 
-      # This step was trying to set outputs that are now correctly set by build-image-api
-      # - name: Set outputs
-      #   run: |
-      #     echo "ecr_image_uri=${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_API || 'invoicefin-api' }}:${{ github.sha }}" >> $GITHUB_OUTPUT
-      #     echo "image_tag=${{ github.sha }}" >> $GITHUB_OUTPUT
-      #     echo "Successfully pushed ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_API || 'invoicefin-api' }}:${{ github.sha }}"
-      # Instead, we can rely on the outputs from 'build-image-api' step.
-      # If you need to explicitly echo, you can do it here using the previous step's outputs.
-      - name: Confirm image push details # Optional: for logging
+      - name: Set image outputs # New step to explicitly define job outputs
+        id: set-image-outputs
         run: |
-          echo "ECR Image URI: ${{ steps.build-image-api.outputs.ecr_image_uri || format('{0}/{1}-api:{2}', steps.login-ecr.outputs.registry, steps.extract_project_name.outputs.project_name, github.sha) }}"
-          echo "Image Tag: ${{ steps.build-image-api.outputs.image_tag || github.sha }}"
-          echo "Successfully pushed image."
+          API_IMAGE_URI_SHA="${{ steps.login-ecr.outputs.registry }}/${{ steps.extract_project_name.outputs.project_name }}-api:${{ github.sha }}"
+          IMAGE_TAG_SHA="${{ github.sha }}"
+          echo "api_image_uri=$API_IMAGE_URI_SHA" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG_SHA" >> $GITHUB_OUTPUT
+          echo "Job output 'api_image_uri' set to: $API_IMAGE_URI_SHA"
+          echo "Job output 'image_tag' set to: $IMAGE_TAG_SHA"
 
+      - name: Confirm image push details # Updated for better logging
+        run: |
+          echo "Pushed ECR Image (SHA tagged): ${{ steps.set-image-outputs.outputs.api_image_uri }}"
+          echo "Pushed ECR Image (latest tagged): ${{ steps.login-ecr.outputs.registry }}/${{ steps.extract_project_name.outputs.project_name }}-api:latest"
+          echo "Image Tag (SHA): ${{ steps.set-image-outputs.outputs.image_tag }}"
 
       - name: Move cache
         run: |
