@@ -909,15 +909,15 @@ jobs:
         continue-on-error: true # Allow workflow to proceed to Docker CLI method if TF outputs fail
 
       - name: Install yq
-        # Run if ECR repos found AND (ECS services not fully found via Terraform OR found partially for compose)
-        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && (steps.get-ecs-services.outputs.ecs_services_found == 'false' || steps.get-ecs-services.outputs.ecs_services_found == 'partial')
+        # Always install yq for ECS deployments
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true'
         run: |
           sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
           sudo chmod +x /usr/bin/yq
           yq --version
 
       - name: Install Docker CLI ECS integration
-        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && (steps.get-ecs-services.outputs.ecs_services_found == 'false' || steps.get-ecs-services.outputs.ecs_services_found == 'partial')
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true'
         run: |
           echo "Installing Docker CLI ECS integration..."
           curl -L https://raw.githubusercontent.com/docker/compose-cli/main/scripts/install/install_linux.sh | sh
@@ -926,8 +926,8 @@ jobs:
 
       - name: Prepare ECS-specific Docker Compose file
         id: prepare-compose
-        # Run if ECR repos found AND (ECS services not fully found via Terraform OR found partially for compose)
-        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && (steps.get-ecs-services.outputs.ecs_services_found == 'false' || steps.get-ecs-services.outputs.ecs_services_found == 'partial')
+        # Run if ECR repos found
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true'
         env:
           API_IMAGE_URI: ${{ needs.build-and-push.outputs.api_image_uri }}
           AWS_REGION_ENV: ${{ env.AWS_REGION }}
@@ -961,9 +961,8 @@ jobs:
 
 
       - name: Deploy to ECS using Docker CLI
-        # Run if ECR repos found AND (ECS services not fully found via Terraform OR found partially for compose)
-        # AND compose file was prepared
-        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && (steps.get-ecs-services.outputs.ecs_services_found == 'false' || steps.get-ecs-services.outputs.ecs_services_found == 'partial') && steps.prepare-compose.outputs.compose_file_path
+        # Run if ECR repos found AND compose file was prepared
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.prepare-compose.outputs.compose_file_path
         env:
           AWS_REGION: ${{ env.AWS_REGION }}
           # Use the cluster name from get-ecs-services if it was set for compose
