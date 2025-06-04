@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "A short name for the project, used for naming resources"
   type        = string
-  default     = "profundrdemo"
+  default     = "profundrdev"
 }
 
 variable "vpc_cidr" {
@@ -39,13 +39,13 @@ variable "availability_zones" {
 variable "ecr_repository_api_name" {
   description = "Name for the ECR repository for the API service"
   type        = string
-  default     = "profundr-api" # Corresponds to secrets.ECR_REPOSITORY_API, uses project_name prefix
+  default     = "profundrdev-api"
 }
 
 variable "ecs_cluster_name" {
   description = "Name for the ECS cluster"
   type        = string
-  default     = "profundr-cluster" # Corresponds to secrets.ECS_CLUSTER_NAME, uses project_name prefix
+  default     = "profundrdev-cluster" # Corresponds to secrets.ECS_CLUSTER_NAME, uses project_name prefix
 }
 
 variable "app_port" {

@@ -256,6 +256,14 @@ resource "aws_ecs_task_definition" "n8n" {
         {
           name  = "GO_API_BASE_URL"
           value = "http://api:3000/api/v1"
+        },
+        {
+          name  = "DB_TYPE"
+          value = "postgresdb"
+        },
+        {
+          name  = "DB_POSTGRESDB_DATABASE"
+          value = var.db_name
         }
       ]
 
@@ -267,6 +275,34 @@ resource "aws_ecs_task_definition" "n8n" {
         {
           name      = "N8N_ENCRYPTION_KEY"
           valueFrom = "${aws_secretsmanager_secret.n8n_encryption_key.arn}:key::"
+        },
+        {
+          name      = "DB_POSTGRESDB_HOST"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:host::"
+        },
+        {
+          name      = "DB_POSTGRESDB_PORT"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:port::"
+        },
+        {
+          name      = "DB_POSTGRESDB_USER"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:username::"
+        },
+        {
+          name      = "DB_POSTGRESDB_PASSWORD"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:password::"
+        },
+        {
+          name      = "REDIS_HOST"
+          valueFrom = "${aws_secretsmanager_secret.redis_config.arn}:host::"
+        },
+        {
+          name      = "REDIS_PORT"
+          valueFrom = "${aws_secretsmanager_secret.redis_config.arn}:port::"
+        },
+        {
+          name      = "RABBITMQ_URL"
+          valueFrom = "${aws_secretsmanager_secret.rabbitmq_config.arn}:url::"
         }
       ]
 
