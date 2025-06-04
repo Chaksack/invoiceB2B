@@ -635,6 +635,18 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Create ECR Repository if it doesn't exist
+        run: |
+          ECR_REPO_NAME="${{ secrets.ECR_REPOSITORY_API || 'invoicefin-api' }}"
+          echo "Checking if ECR repository $ECR_REPO_NAME exists..."
+          if ! aws ecr describe-repositories --repository-names $ECR_REPO_NAME 2>/dev/null; then
+            echo "ECR repository $ECR_REPO_NAME does not exist. Creating it..."
+            aws ecr create-repository --repository-name $ECR_REPO_NAME --image-scanning-configuration scanOnPush=true
+            echo "ECR repository $ECR_REPO_NAME created successfully."
+          else
+            echo "ECR repository $ECR_REPO_NAME already exists."
+          fi
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -915,6 +927,8 @@ jobs:
           sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
           sudo chmod +x /usr/bin/yq
           yq --version
+
+
 
       - name: Update ECS Services with New Image
         id: deploy
