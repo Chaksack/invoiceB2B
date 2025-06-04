@@ -34,35 +34,7 @@ resource "aws_cloudwatch_log_group" "ecs_logs" {
   }
 }
 
-# ECS Task Execution Role
-resource "aws_iam_role" "ecs_task_execution_role" {
-  name = "${var.project_name}-ecs-task-execution-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ecs-tasks.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Name        = "${var.project_name}-ecs-task-execution-role"
-    Project     = var.project_name
-    Environment = var.environment
-  }
-}
-
-# Attach the AmazonECSTaskExecutionRolePolicy to the task execution role
-resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
-  role       = aws_iam_role.ecs_task_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
+# Using the ECS Task Execution Role defined in iam.tf
 
 # ECS Task Role (for task-specific permissions)
 resource "aws_iam_role" "ecs_task_role" {
@@ -419,82 +391,6 @@ resource "aws_ecs_service" "n8n" {
   }
 }
 
-# Target Group for API
-resource "aws_lb_target_group" "api" {
-  name        = "${var.project_name}-api-tg"
-  port        = var.app_port
-  protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
-  target_type = "ip"
+# Using the Target Groups defined in alb.tf
 
-  health_check {
-    enabled             = true
-    interval            = 30
-    path                = "/health"
-    port                = "traffic-port"
-    healthy_threshold   = 3
-    unhealthy_threshold = 3
-    timeout             = 5
-    matcher             = "200"
-  }
-
-  tags = {
-    Name        = "${var.project_name}-api-tg"
-    Project     = var.project_name
-    Environment = var.environment
-  }
-}
-
-# Target Group for N8N
-resource "aws_lb_target_group" "n8n" {
-  name        = "${var.project_name}-n8n-tg"
-  port        = 5678
-  protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
-  target_type = "ip"
-
-  health_check {
-    enabled             = true
-    interval            = 30
-    path                = "/"
-    port                = "traffic-port"
-    healthy_threshold   = 3
-    unhealthy_threshold = 3
-    timeout             = 5
-    matcher             = "200"
-  }
-
-  tags = {
-    Name        = "${var.project_name}-n8n-tg"
-    Project     = var.project_name
-    Environment = var.environment
-  }
-}
-
-# Security Group for ECS Tasks
-resource "aws_security_group" "ecs_tasks" {
-  name        = "${var.project_name}-ecs-tasks-sg"
-  description = "Allow inbound traffic to ECS tasks"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description     = "Allow traffic from ALB"
-    from_port       = 0
-    to_port         = 0
-    protocol        = "-1"
-    security_groups = [aws_security_group.alb.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name        = "${var.project_name}-ecs-tasks-sg"
-    Project     = var.project_name
-    Environment = var.environment
-  }
-}
+# Using the Security Group for ECS Tasks defined in security_groups.tf
