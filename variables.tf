@@ -98,5 +98,5 @@ variable "bastion_public_key" {
 variable "bastion_ami" {
   description = "AMI ID for the bastion host"
   type        = string
-  default     = "ami-0c55b159cbfafe1f0" # Amazon Linux 2 AMI in us-east-1, update for your region
+  default     = "ami-02457590d33d576c3" # Amazon Linux 2 AMI in us-east-1, update for your region
 }
