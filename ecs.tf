@@ -107,7 +107,9 @@ resource "aws_iam_policy" "ecs_secrets_access_policy" {
           aws_secretsmanager_secret.redis_config.arn,
           aws_secretsmanager_secret.rabbitmq_config.arn,
           aws_secretsmanager_secret.internal_api_key.arn,
-          aws_secretsmanager_secret.n8n_encryption_key.arn
+          "${aws_secretsmanager_secret.internal_api_key.arn}-*",
+          aws_secretsmanager_secret.n8n_encryption_key.arn,
+          "${aws_secretsmanager_secret.n8n_encryption_key.arn}-*"
         ]
       }
     ]
