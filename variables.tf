@@ -80,5 +80,11 @@ variable "environment" {
 variable "create_bootstrap_resources" {
   description = "Whether to create the bootstrap resources (S3 bucket and DynamoDB table)"
   type        = bool
-  default     = true
+  default     = false
+}
+
+variable "bucket_prefix_override" {
+  description = "Override for the bucket prefix used for S3 and DynamoDB resources (useful for migration or special environments)"
+  type        = string
+  default     = null
 }
