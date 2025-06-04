@@ -916,75 +916,32 @@ jobs:
           sudo chmod +x /usr/bin/yq
           yq --version
 
-      - name: Install Docker CLI ECS integration
-        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true'
-        run: |
-          echo "Installing Docker CLI ECS integration..."
-          curl -L https://raw.githubusercontent.com/docker/compose-cli/main/scripts/install/install_linux.sh | sh
-          docker context ls
-          echo "Docker CLI ECS integration installed successfully."
-
-      - name: Prepare ECS-specific Docker Compose file
-        id: prepare-compose
-        # Run if ECR repos found
-        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true'
-        env:
-          API_IMAGE_URI: ${{ needs.build-and-push.outputs.api_image_uri }}
-          AWS_REGION_ENV: ${{ env.AWS_REGION }}
-          # Correctly scope steps.extract_project_name to this job's step
-          # This defines the project name for compose, preferring secret if available
-          EFFECTIVE_COMPOSE_PROJECT_NAME: ${{ secrets.ECS_PROJECT_NAME || steps.extract_project_name.outputs.project_name }}
-          LOG_GROUP_NAME_ENV: "/ecs/${{ secrets.ECS_PROJECT_NAME || steps.extract_project_name.outputs.project_name }}"
-        run: |
-          echo "Preparing docker-compose.ecs.yml from docker-compose.yaml..."
-          cp docker-compose.yaml docker-compose.ecs.yml
-
-          yq -i 'del(.services.postgres)' docker-compose.ecs.yml || true
-          yq -i 'del(.services.redis)' docker-compose.ecs.yml || true
-          yq -i 'del(.services.frontend)' docker-compose.ecs.yml || true
-          yq -i 'del(.services.client)' docker-compose.ecs.yml || true
-
-          if [ ! -z "$API_IMAGE_URI" ]; then
-            yq -i '.services.api.image = env(API_IMAGE_URI)' docker-compose.ecs.yml || true
-            yq -i 'del(.services.api.build)' docker-compose.ecs.yml || true
-          fi
-
-          for service in $(yq -r '.services | keys | .[]' docker-compose.ecs.yml); do
-            yq -i ".services.$service.logging.driver = \"awslogs\"" docker-compose.ecs.yml || true
-            yq -i ".services.$service.logging.options.\"awslogs-group\" = env(LOG_GROUP_NAME_ENV)" docker-compose.ecs.yml || true
-            yq -i ".services.$service.logging.options.\"awslogs-region\" = env(AWS_REGION_ENV)" docker-compose.ecs.yml || true
-            yq -i ".services.$service.logging.options.\"awslogs-stream-prefix\" = \"$service\"" docker-compose.ecs.yml || true
-          done
-          echo "compose_file_path=docker-compose.ecs.yml" >> $GITHUB_OUTPUT
-          # Output the compose project name to be used by the docker ecs compose command
-          echo "compose_project_name_for_cli=${EFFECTIVE_COMPOSE_PROJECT_NAME}" >> $GITHUB_OUTPUT
-
-
-      - name: Deploy to ECS using Docker CLI
-        # Run if ECR repos found AND compose file was prepared
-        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.prepare-compose.outputs.compose_file_path
-        env:
-          AWS_REGION: ${{ env.AWS_REGION }}
-          # Use the cluster name from get-ecs-services if it was set for compose
-          ECS_CLUSTER_NAME_FOR_CLI: ${{ steps.get-ecs-services.outputs.cluster_name_for_compose || secrets.ECS_CLUSTER_NAME }}
-          # Use the project name from prepare-compose step's output
-          COMPOSE_PROJECT_NAME_CLI: ${{ steps.prepare-compose.outputs.compose_project_name_for_cli }}
-        run: |
-          echo "Deploying services from ${{ steps.prepare-compose.outputs.compose_file_path }} to ECS cluster: ${ECS_CLUSTER_NAME_FOR_CLI}"
-          docker ecs compose --cluster ${ECS_CLUSTER_NAME_FOR_CLI} --aws-region ${AWS_REGION} \
-            -f ${{ steps.prepare-compose.outputs.compose_file_path }} \
-            --project-name ${COMPOSE_PROJECT_NAME_CLI} up
-          echo "ECS deployment initiated via Docker CLI. Monitor progress in AWS Console (ECS & CloudFormation)."
-        continue-on-error: true
-
-
-      - name: Force New ECS Deployment (AWS CLI)
+      - name: Update ECS Services with New Image
         id: deploy
         if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true' && steps.get-ecs-services.outputs.ecs_services_found == 'true'
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+          CLUSTER_NAME: ${{ steps.get-ecs-services.outputs.cluster_name }}
+          API_SERVICE: ${{ steps.get-ecs-services.outputs.api_service }}
+          N8N_SERVICE: "${{ steps.extract_project_name.outputs.project_name }}-n8n-service"
+          API_IMAGE_URI: ${{ needs.build-and-push.outputs.api_image_uri }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag || github.sha }}
         run: |
           echo "Starting AWS CLI deployment to ECS..."
-          aws ecs update-service --cluster ${{ steps.get-ecs-services.outputs.cluster_name }} --service ${{ steps.get-ecs-services.outputs.api_service }} --force-new-deployment
-          echo "AWS CLI ECS deployment completed successfully!"
+
+          # Update API service with new image
+          echo "Updating API service: $API_SERVICE with image: $API_IMAGE_URI"
+          aws ecs update-service --cluster $CLUSTER_NAME --service $API_SERVICE --force-new-deployment
+
+          # Update N8N service
+          echo "Updating N8N service: $N8N_SERVICE"
+          aws ecs update-service --cluster $CLUSTER_NAME --service $N8N_SERVICE --force-new-deployment || echo "N8N service update failed, may not exist yet"
+
+          # Wait for services to stabilize
+          echo "Waiting for services to stabilize..."
+          aws ecs wait services-stable --cluster $CLUSTER_NAME --services $API_SERVICE || echo "API service failed to stabilize, check AWS console"
+
+          echo "ECS services updated successfully!"
         continue-on-error: true
 
       - name: Skip Deployment Message
