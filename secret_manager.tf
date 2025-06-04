@@ -16,6 +16,8 @@ resource "aws_secretsmanager_secret_version" "db_credentials_version" {
     # If different, create another secret or add to this JSON.
     # For simplicity, assuming SonarQube uses the main db user for now.
     sonardbname = var.sonarqube_db_name
+    # Add connection string for direct use in application
+    connectionString = "postgres://${random_string.db_username.result}:${random_password.db_password.result}@${aws_db_instance.main.address}:${aws_db_instance.main.port}/${var.db_name}"
   })
 }
 
@@ -31,6 +33,8 @@ resource "aws_secretsmanager_secret_version" "redis_config_version" {
     host = aws_elasticache_replication_group.main.primary_endpoint_address # From elasticache.tf
     port = aws_elasticache_replication_group.main.port                     # From elasticache.tf
     # password = var.redis_password # If you set one
+    # Add URL for direct use in application
+    url = "redis://${aws_elasticache_replication_group.main.primary_endpoint_address}:${aws_elasticache_replication_group.main.port}"
   })
 }
 
@@ -46,6 +50,8 @@ resource "aws_secretsmanager_secret_version" "rabbitmq_config_version" {
     port     = 5671                                         # AMQPS default, or 5672 for AMQP (adjust based on broker config)
     username = random_string.rabbitmq_username.result
     password = random_password.rabbitmq_password.result
+    # Add URL for direct use in application
+    url = "amqps://${random_string.rabbitmq_username.result}:${random_password.rabbitmq_password.result}@${aws_mq_broker.main.instances[0].endpoints[0]}:5671"
   })
 }
 
@@ -62,8 +68,10 @@ resource "random_password" "internal_api_key" {
 }
 
 resource "aws_secretsmanager_secret_version" "internal_api_key_version" {
-  secret_id     = aws_secretsmanager_secret.internal_api_key.id
-  secret_string = random_password.internal_api_key.result
+  secret_id = aws_secretsmanager_secret.internal_api_key.id
+  secret_string = jsonencode({
+    key = random_password.internal_api_key.result
+  })
 }
 
 resource "random_password" "n8n_encryption_key" {
@@ -79,8 +87,10 @@ resource "aws_secretsmanager_secret" "n8n_encryption_key" {
 }
 
 resource "aws_secretsmanager_secret_version" "n8n_encryption_key_version" {
-  secret_id     = aws_secretsmanager_secret.n8n_encryption_key.id
-  secret_string = random_password.n8n_encryption_key.result
+  secret_id = aws_secretsmanager_secret.n8n_encryption_key.id
+  secret_string = jsonencode({
+    key = random_password.n8n_encryption_key.result
+  })
 }
 
 # Secret for VPC ID to be used by docker-compose.ecs.yml x-aws-vpc extension
