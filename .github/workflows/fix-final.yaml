@@ -709,12 +709,12 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_API || 'invoicefin-api' }}:${{ github.sha }}
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_API || 'performer-api' }}:${{ github.sha }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
         env: # env block for the action itself, not for the script inside the action
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY_API: ${{ secrets.ECR_REPOSITORY_API || 'invoicefin-api' }}
+          ECR_REPOSITORY_API: ${{ secrets.ECR_REPOSITORY_API || 'performer-api' }}
           IMAGE_TAG: ${{ github.sha }}
 
       # This step was trying to set outputs that are now correctly set by build-image-api

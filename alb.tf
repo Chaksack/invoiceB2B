@@ -127,8 +127,8 @@ resource "tls_self_signed_cert" "self_signed" {
   private_key_pem = tls_private_key.self_signed.private_key_pem
 
   subject {
-    common_name  = "example.com"
-    organization = "Example Organization"
+    common_name  = "syentia.io"
+    organization = "Syentia"
   }
 
   validity_period_hours = 8760 # 1 year
