@@ -98,5 +98,23 @@ variable "bastion_public_key" {
 variable "bastion_ami" {
   description = "AMI ID for the bastion host"
   type        = string
-  default     = "ami-02457590d33d576c3" # Amazon Linux 2 AMI in us-east-1, update for your region
+  default     = "ami-02457590d33d576c3"
+}
+
+variable "n8n_generic_timezone" {
+  description = "Timezone for the N8N container"
+  type        = string
+  default     = "UTC"
+}
+
+variable "n8n_webhook_url" {
+  description = "The public-facing base URL for N8N webhooks. Should include http/https."
+  type        = string
+  default     = "http://localhost:5678/"
+}
+
+variable "api_service_discovery_name" {
+  description = "The service discovery name for the API service (e.g., used for internal communication from N8N)."
+  type        = string
+  default     = "api"
 }

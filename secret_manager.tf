@@ -104,3 +104,24 @@ resource "aws_secretsmanager_secret_version" "vpc_id_version" {
   secret_id     = aws_secretsmanager_secret.vpc_id.id
   secret_string = aws_vpc.main.id
 }
+
+resource "aws_secretsmanager_secret" "smtp_config" {
+  name        = "${var.project_name}/smtp_config"
+  description = "SMTP configuration details for sending emails"
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "smtp_config_version" {
+  secret_id = aws_secretsmanager_secret.smtp_config.id
+  secret_string = jsonencode({
+    host         = "smtp.gmail.com"
+    port         = "465"
+    user         = "andrew.sackey@syentia.io"
+    password     = "xyspnvdkrwabrnmb"
+    sender_email = "Profundr Invoice Financing <no-reply@profundr.io>"
+  })
+}
