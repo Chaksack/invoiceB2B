@@ -45,34 +45,34 @@ const data = {
     },
     {
       title: 'Invoices',
-      url: '#',
+      url: '/admin/invoices',
       icon: Bot,
     },
     {
       title: 'Users',
-      url: '#',
+      url: '/admin/users',
       icon: BookOpen,
     },
     {
       title: 'Staffs',
-      url: '#',
+      url: '/admin.staff',
       icon: BookOpen,
     },
   ],
   navSecondary: [
     {
       title: 'Settings',
-      url: '#',
+      url: '/admin/settings',
       icon: Settings2,
     },
     {
       title: 'Help Center',
-      url: '#',
+      url: '/help',
       icon: LifeBuoy,
     },
     {
       title: 'Feedback',
-      url: '#',
+      url: '/feedback',
       icon: Send,
     },
   ],

@@ -23,6 +23,23 @@ resource "random_password" "db_password" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
+resource "aws_db_parameter_group" "postgres15" {
+  name        = "${var.project_name}-postgres15"
+  family      = "postgres15"
+  description = "Custom parameter group for PostgreSQL 15"
+
+  parameter {
+    name  = "rds.force_ssl"
+    value = "0"  # Disable SSL requirement to allow non-SSL connections
+  }
+
+  tags = {
+    Name        = "${var.project_name}-postgres15-params"
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
 resource "aws_db_instance" "main" {
   identifier_prefix      = "${var.project_name}-db-" # Prefix for the instance identifier
   allocated_storage      = 20
@@ -35,8 +52,8 @@ resource "aws_db_instance" "main" {
   password               = random_password.db_password.result
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
-  parameter_group_name   = "default.postgres15"
-  skip_final_snapshot    = true
+  parameter_group_name   = aws_db_parameter_group.postgres15.name
+  skip_final_snapshot    = false # Enabled for production
   publicly_accessible    = false
   multi_az               = true # Enabled for production HA
 
