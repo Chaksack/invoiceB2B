@@ -188,7 +188,7 @@ resource "aws_ecs_task_definition" "api" {
         { name = "SMTP_PORT", valueFrom = "${aws_secretsmanager_secret.smtp_config.arn}:port::" },
         { name = "SMTP_USER", valueFrom = "${aws_secretsmanager_secret.smtp_config.arn}:user::" },
         { name = "SMTP_PASSWORD", valueFrom = "${aws_secretsmanager_secret.smtp_config.arn}:password::" },
-        { name = "SMTPSenderEmail", valueFrom = "${aws_secretsmanager_secret.smtp_config.arn}:sender_email::" }, 
+        { name = "SMTPSenderEmail", valueFrom = "${aws_secretsmanager_secret.smtp_config.arn}:sender_email::" },
 
         # JWT Secret (assuming you create a secret for this, e.g., aws_secretsmanager_secret.jwt_secret_config)
         # Example:
@@ -267,6 +267,8 @@ resource "aws_ecs_task_definition" "n8n" {
         { name  = "GO_API_BASE_URL", value = "http://${var.api_service_discovery_name}:${var.app_port}/api/v1" }, # Example using service discovery
         { name  = "DB_TYPE", value = "postgresdb"},
         { name  = "DB_POSTGRESDB_DATABASE",  value = var.db_name },
+        { name  = "DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED", value = "false" }, # Allow self-signed certificates
+        { name  = "DB_POSTGRESDB_SSL", value = "false" }, # Disable SSL for PostgreSQL connections
         { name  = "NODE_ENV", value = "production" } # Good practice for Node.js apps
       ]
 

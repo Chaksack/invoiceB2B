@@ -58,6 +58,8 @@ func LoadConfig(path string) (*Config, error) {
 		log.Println("Warning: APP_ENV not set, defaulting to 'development'.")
 	}
 
+	log.Printf("Loading configuration with APP_ENV=%s", appEnv)
+
 	if appEnv != "production" {
 		envPath := path
 		if envPath == "." || envPath == "" {
@@ -125,6 +127,11 @@ func LoadConfig(path string) (*Config, error) {
 	cfg.DSN = fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=UTC",
 		cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort, cfg.DBSslMode)
 
+	// Log the DSN with password masked for debugging
+	maskedDSN := fmt.Sprintf("host=%s user=%s password=*** dbname=%s port=%s sslmode=%s TimeZone=UTC",
+		cfg.DBHost, cfg.DBUser, cfg.DBName, cfg.DBPort, cfg.DBSslMode)
+	log.Printf("Database DSN: %s", maskedDSN)
+
 	redisDBStr := getEnv("REDIS_DB", "0")
 	var redisDB int
 	parsedRedisDB, err := strconv.Atoi(redisDBStr)
@@ -154,6 +161,7 @@ func LoadConfig(path string) (*Config, error) {
 // getEnv retrieves an environment variable or returns a default value.
 func getEnv(key, defaultValue string) string {
 	if value, exists := os.LookupEnv(key); exists {
+		log.Printf("Environment variable %s found with value: %s", key, value)
 		return value
 	}
 	log.Printf("Environment variable %s not set, using default value: %s", key, defaultValue)
