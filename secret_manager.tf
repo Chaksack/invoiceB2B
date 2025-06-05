@@ -12,6 +12,7 @@ resource "aws_secretsmanager_secret_version" "db_credentials_version" {
     host     = aws_db_instance.main.address # From rds.tf
     port     = aws_db_instance.main.port    # From rds.tf
     dbname   = var.db_name
+    sslmode  = "disable"
     # For SonarQube, it might use the same user or a different one.
     # If different, create another secret or add to this JSON.
     # For simplicity, assuming SonarQube uses the main db user for now.
