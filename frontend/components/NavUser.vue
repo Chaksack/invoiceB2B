@@ -62,24 +62,6 @@ const { isMobile } = useSidebar()
             <ChevronsUpDown class="ml-auto size-4" />
           </SidebarMenuButton>
         </DropdownMenuTrigger>
-        <DropdownMenuContent
-            class="w-[--reka-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-            :side="isMobile ? 'bottom' : 'right'"
-            align="end"
-            :side-offset="4"
-        >
-          <DropdownMenuGroup>
-            <DropdownMenuItem>
-              <Bell />
-              Notifications
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>
-            <LogOut />
-            Log out
-          </DropdownMenuItem>
-        </DropdownMenuContent>
       </DropdownMenu>
     </SidebarMenuItem>
   </SidebarMenu>

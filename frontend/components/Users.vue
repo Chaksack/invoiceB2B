@@ -1,8 +1,8 @@
 <template>
-  <main class="flex flex-col font-inter bg-gray-100 z-50 items-start gap-4 p-4 sm:px-6 sm:py-2 md:gap-8">
+  <main class="flex flex-col font-inter z-50 items-start gap-4 p-4 sm:px-6 sm:py-2 md:gap-8">
     <div class="container w-full mx-auto p-4 md:p-6 lg:p-8">
 
-      <div class="bg-white p-6 rounded-lg shadow-md">
+      <div class=" p-6 rounded-lg shadow-md">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4">
           <Input
               type="text"
@@ -13,16 +13,16 @@
         </div>
 
         <div v-if="isLoadingCustomers" class="flex flex-col justify-center items-center h-64">
-          <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-600"></div>
-          <p class="mt-3 text-gray-600">Loading Customers...</p>
+          <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary"></div>
+          <p class="mt-3">Loading Customers...</p>
         </div>
         <div v-else-if="customersError" class="text-center py-10 text-red-500">
           <AlertCircle class="w-12 h-12 mx-auto mb-2 text-red-400" />
           <p class="text-xl font-semibold">Error Loading Customers</p>
           <p>{{ customersError }}</p>
         </div>
-        <div v-else-if="filteredCustomers.length === 0" class="text-center py-10 text-gray-500">
-          <Ban class="w-12 h-12 mx-auto mb-2 text-gray-400" />
+        <div v-else-if="filteredCustomers.length === 0" class="text-center py-10 ">
+          <Ban class="w-12 h-12 mx-auto mb-2 " />
           <p class="text-xl font-semibold">No Customers Found</p>
           <p>{{ searchTerm ? 'Try adjusting your search.' : 'There are no customers to display for the current page.' }}</p>
         </div>

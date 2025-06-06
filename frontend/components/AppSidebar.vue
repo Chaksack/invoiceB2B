@@ -2,7 +2,9 @@
 import {
   BookOpen,
   Bot,
+  Bell,
   Command,
+  LogOut,
   Frame,
   LifeBuoy,
   Map,
@@ -11,7 +13,10 @@ import {
   Settings2,
   SquareTerminal,
 } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { useRoute } from '#app'
 
+// Importing all the necessary child components for the sidebar
 import NavMain from '@/components/NavMain.vue'
 import NavSecondary from '@/components/NavSecondary.vue'
 import NavUser from '@/components/NavUser.vue'
@@ -30,6 +35,10 @@ const props = withDefaults(defineProps<SidebarProps>(), {
   collapsible: 'icon',
 })
 
+// Get the current route using Nuxt's composable to determine the active page
+const route = useRoute()
+
+// Static data for the sidebar navigation links and user info
 const data = {
   user: {
     name: 'Andrew Chakdahah',
@@ -41,7 +50,6 @@ const data = {
       title: 'Dashboard',
       url: '/admin',
       icon: SquareTerminal,
-      isActive: true,
     },
     {
       title: 'Invoices',
@@ -55,14 +63,14 @@ const data = {
     },
     {
       title: 'Staffs',
-      url: '/admin.staff',
+      url: '/admin/staff', // Corrected URL from '/admin.staff'
       icon: BookOpen,
     },
   ],
   navSecondary: [
     {
       title: 'Settings',
-      url: '/admin/settings',
+      url: '/settings/profile',
       icon: Settings2,
     },
     {
@@ -71,29 +79,29 @@ const data = {
       icon: LifeBuoy,
     },
     {
-      title: 'Feedback',
-      url: '/feedback',
-      icon: Send,
-    },
-  ],
-  projects: [
-    {
-      name: 'Design Engineering',
-      url: '#',
-      icon: Frame,
+      title: 'Notifications',
+      url: '/notifications',
+      icon: Bell,
     },
     {
-      name: 'Sales & Marketing',
-      url: '#',
-      icon: PieChart,
-    },
-    {
-      name: 'Travel',
-      url: '#',
-      icon: Map,
+      title: 'Log Out',
+      url: '/logout',
+      icon: LogOut,
     },
   ],
 }
+
+// Create computed properties to dynamically add `isActive: true` to the
+// nav item that matches the current route. This is the cleanest way to handle active state.
+const navMainItems = computed(() => data.navMain.map(item => ({
+  ...item,
+  isActive: route.path === item.url,
+})))
+
+const navSecondaryItems = computed(() => data.navSecondary.map(item => ({
+  ...item,
+  isActive: route.path === item.url,
+})))
 </script>
 
 <template>
@@ -103,11 +111,11 @@ const data = {
         <SidebarMenuItem>
           <SidebarMenuButton size="lg" as-child>
             <a href="#">
-              <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+              <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary">
                 <Command class="size-4" />
               </div>
               <div class="grid flex-1 text-left text-sm leading-tight">
-                <span class="truncate font-semibold">InvoiceFnd Inc</span>
+                <span class="truncate font-semibold">Profundr Inc</span>
                 <span class="truncate text-xs">Demo</span>
               </div>
             </a>
@@ -116,9 +124,8 @@ const data = {
       </SidebarMenu>
     </SidebarHeader>
     <SidebarContent>
-      <NavMain :items="data.navMain" />
-      <NavProjects :projects="data.projects" />
-      <NavSecondary :items="data.navSecondary" class="mt-auto" />
+      <NavMain :items="navMainItems" />
+      <NavSecondary :items="navSecondaryItems" class="mt-auto" />
     </SidebarContent>
     <SidebarFooter>
       <NavUser :user="data.user" />

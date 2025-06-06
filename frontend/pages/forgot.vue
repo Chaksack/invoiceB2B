@@ -15,7 +15,7 @@ import { GalleryVerticalEnd } from 'lucide-vue-next'
         </div>
         InvoiceFnd Inc.
       </a>
-      <ForgotForm />
+      <AuthForgotForm />
     </div>
   </div>
 </template>

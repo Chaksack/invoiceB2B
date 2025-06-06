@@ -23,8 +23,9 @@ const props = defineProps<{
     <SidebarGroupContent>
       <SidebarMenu>
         <SidebarMenuItem v-for="item in items" :key="item.title">
-          <SidebarMenuButton as-child size="sm">
-            <a :href="item.url">
+          <SidebarMenuButton as-child size="sm"               :tooltip="item.title"
+          >
+            <a :href="item.url" >
               <component :is="item.icon" />
               <span>{{ item.title }}</span>
             </a>

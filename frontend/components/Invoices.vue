@@ -1,10 +1,10 @@
 <template>
-  <main class="bg-gray-100 font-inter min-h-screen">
+  <main class="font-inter min-h-screen">
     <div class="container mx-auto p-4 md:p-6 lg:p-8">
       <div class="md:flex md:space-x-6">
-        <div class="md:w-1/3 bg-white p-6 rounded-lg shadow-md mb-6 md:mb-0 flex flex-col">
+        <div class="md:w-1/3 p-6 rounded-lg shadow-md mb-6 md:mb-0 flex flex-col">
           <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold text-gray-700">All Invoices</h2>
+            <h2 class="text-xl font-semibold ">All Invoices</h2>
           </div>
 
           <div class="mb-4 space-y-3">
@@ -13,21 +13,21 @@
                   type="text"
                   v-model="searchTerm"
                   placeholder="Search invoices..."
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-lime-500 focus:border-blue-500 text-sm"
               />
             </div>
             <div>
-              <Label class="text-xs text-gray-600">Filter by Status:</Label>
+              <Label class="text-xs">Filter by Status:</Label>
               <div class="flex flex-wrap gap-2 mt-1">
                 <Button
                     v-for="status in availableStatuses"
                     :key="status.value"
                     @click="toggleStatusFilter(status.value)"
                     :variant="selectedStatusFilters.includes(status.value) ? 'default' : 'outline'"
-                    class="text-xs px-2.5 py-1 rounded-full"
+                    class="text-xs px-2.5 py-1 rounded-lg"
                     :class="{
-                    'bg-blue-600 text-white hover:bg-blue-700': selectedStatusFilters.includes(status.value),
-                    'border-gray-300 text-gray-700 hover:bg-gray-100': !selectedStatusFilters.includes(status.value)
+                    'bg-primary text-white hover:bg-primary': selectedStatusFilters.includes(status.value),
+                    'border-primary hover:bg-gray-100': !selectedStatusFilters.includes(status.value)
                   }"
                 >
                   {{ status.label }}
@@ -45,18 +45,18 @@
           </div>
 
           <div class="flex-grow overflow-hidden">
-            <div v-if="isLoadingInvoices" class="text-center py-10 text-gray-500">
+            <div v-if="isLoadingInvoices" class="text-center py-10s">
               <p>Loading invoices...</p>
             </div>
             <div v-else-if="invoicesError" class="text-center py-10 text-red-500">
               <p>{{ invoicesError }}</p>
             </div>
-            <div v-else-if="paginatedInvoices.length === 0 && invoices.length > 0" class="text-center py-6 text-gray-500">
+            <div v-else-if="paginatedInvoices.length === 0 && invoices.length > 0" class="text-center py-6 ">
               <p class="text-md font-semibold">No invoices match your criteria.</p>
               <p class="text-sm">Try adjusting your search or filters.</p>
             </div>
-            <div v-else-if="paginatedInvoices.length === 0" class="text-center py-10 text-gray-500 flex flex-col items-center">
-              <Ban class="w-12 h-12 mb-4 text-gray-400" />
+            <div v-else-if="paginatedInvoices.length === 0" class="text-center py-10  flex flex-col items-center">
+              <Ban class="w-12 h-12 mb-4 " />
               <p class="text-xl font-semibold">No invoices found.</p>
               <p class="text-sm">Upload your first invoice to get started!</p>
             </div>
@@ -71,14 +71,14 @@
                 ]"
               >
                 <div class="flex items-center">
-                  <input type="checkbox" class="form-checkbox h-4 w-4 text-blue-600 mr-3 rounded border-gray-300 focus:ring-blue-500" @click.stop />
+                  <input type="checkbox" class="form-checkbox h-4 w-4 text-primary mr-3 rounded border-gray-300 focus:ring-primary" @click.stop />
                   <div class="flex-grow">
                     <div class="flex justify-between items-start">
-                      <span class="font-semibold text-gray-800 text-sm">{{ invoice.customerName || 'N/A' }}</span>
-                      <span class="font-semibold text-gray-800 text-sm">{{ invoice.currencySymbol || '$' }}{{ (invoice.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                      <span class="font-semibold  text-sm">{{ invoice.customerName || 'N/A' }}</span>
+                      <span class="font-semibold  text-sm">{{ invoice.currencySymbol || '$' }}{{ (invoice.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
                     </div>
                     <div class="flex justify-between items-center mt-1">
-                      <span class="text-xs text-gray-500">
+                      <span class="text-xs ">
                         {{ invoice.invoiceNumber || invoice.id }} &bull; {{ formatDate(invoice.invoiceDate, 'dd/MM/yyyy') }}
                       </span>
                       <Badge :class="getListInvoiceStatusBadgeClass(invoice.statusForBadge)" class="py-0.5 px-2 rounded-full text-xs font-medium">
@@ -97,22 +97,22 @@
           </div>
         </div>
 
-        <div class="md:w-2/3 bg-white p-6 rounded-lg shadow-md">
-          <div v-if="isLoadingInvoices && invoices.length === 0" class="text-center py-10 text-gray-500">
+        <div class="md:w-2/3 p-6 rounded-lg shadow-md">
+          <div v-if="isLoadingInvoices && invoices.length === 0" class="text-center py-10 ">
             <p>Loading details...</p>
           </div>
-          <div v-else-if="!computedSelectedInvoice && paginatedInvoices.length > 0" class="text-center py-10 text-gray-500">
+          <div v-else-if="!computedSelectedInvoice && paginatedInvoices.length > 0" class="text-center py-10 ">
             <p>Select an invoice to view details.</p>
           </div>
-          <div v-else-if="!computedSelectedInvoice && invoices.length > 0 && paginatedInvoices.length === 0" class="text-center py-10 text-gray-500">
+          <div v-else-if="!computedSelectedInvoice && invoices.length > 0 && paginatedInvoices.length === 0" class="text-center py-10 ">
             <p>No invoices match your current filters. Clear filters or select from available invoices if any.</p>
           </div>
-          <div v-else-if="!computedSelectedInvoice && invoices.length === 0" class="text-center py-10 text-gray-500">
+          <div v-else-if="!computedSelectedInvoice && invoices.length === 0" class="text-center py-10 ">
             <p>No invoices available to display.</p>
           </div>
           <div v-else-if="computedSelectedInvoice">
             <div class="flex justify-between items-center mb-6 pb-4 border-b border-gray-200">
-              <h2 class="text-2xl font-bold text-gray-800">{{ computedSelectedInvoice.invoiceNumber || computedSelectedInvoice.id }}</h2>
+              <h2 class="text-2xl font-bold ">{{ computedSelectedInvoice.invoiceNumber || computedSelectedInvoice.id }}</h2>
               <div class="flex space-x-2">
 
                 <DropdownMenu>

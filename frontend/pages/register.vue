@@ -15,7 +15,7 @@ import { GalleryVerticalEnd } from 'lucide-vue-next'
         </div>
         Profundr Inc.
       </a>
-      <RegisterForm />
+      <AuthSignUp />
     </div>
   </div>
 </template>

@@ -15,7 +15,7 @@ import { GalleryVerticalEnd } from 'lucide-vue-next'
         </div>
         InvoiceFnd Inc.
       </a>
-      <NewpasswordForm />
+      <AuthNewpasswordForm />
     </div>
   </div>
 </template>
