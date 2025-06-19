@@ -1,50 +1,56 @@
 <template>
   <main class="font-inter">
-    <Toaster richColors position="top-right" /> <section>
-    <div class="flex mb-2 gap-8 pt-10 items-center py-2 px-4 mx-auto max-w-screen-xl ">
-      <div>
-        <h3 v-if="isLoadingUser && !user">Loading user...</h3>
-        <h3 v-else-if="userError">{{ userError }}</h3>
-        <div v-if="user">
-          <h2 class="text-2xl tracking-tight font-bold">Welcome,
-            <span class=" bg-gradient-to-r from-sky-500 via-purple-500 to-pink-500 bg-clip-text text-transparent ">
+    <Toaster richColors position="top-right" />
+    <section>
+      <div class="flex mb-2 gap-8 pt-10 items-center py-2 px-4 mx-auto max-w-screen-xl ">
+        <div>
+          <h3 v-if="isLoadingUser && !user">Loading user...</h3>
+          <h3 v-else-if="userError">{{ userError }}</h3>
+          <div v-if="user">
+            <h2 class="text-2xl tracking-tight font-bold">Welcome,
+              <span class=" bg-gradient-to-r from-sky-500 via-purple-500 to-pink-500 bg-clip-text text-transparent ">
                 {{ user.firstName }} {{ user.lastName }}
               </span>
-          </h2>
-          <p class="mt-2">Submit, track, and fund your business invoices with ease.</p>
-          <p class="mt-1 text-sm">Company: {{ user.companyName }} | KYC Status: <span :class="kycStatusClass(user.kycStatus)">{{ user.kycStatus }}</span></p>
+            </h2>
+            <p class="mt-2">Submit, track, and fund your business invoices with ease.</p>
+            <p class="mt-1 text-sm">Company: {{ user.companyName }} | KYC Status: <span :class="kycStatusClass(user.kycStatus)">{{ user.kycStatus }}</span></p>
+          </div>
+          <div v-else-if="!isLoadingUser && !userError && !user">
+            <h2 class="text-2xl tracking-tight font-bold">Welcome!</h2>
+            <p class="mt-2">Could not load user details. Please ensure you are logged in.</p>
+          </div>
         </div>
-        <div v-else-if="!isLoadingUser && !userError && !user">
-          <h2 class="text-2xl tracking-tight font-bold">Welcome!</h2>
-          <p class="mt-2">Could not load user details. Please ensure you are logged in.</p>
-        </div>
-      </div>
 
-      <div class="ml-auto">
-        <Dialog v-model:open="isUploadDialogOpen">
-          <DialogTrigger as-child>
-            <Button @click="isUploadDialogOpen = true" class=" bg-primary rounded-md hover:bg-gray-200 transition-colors">
-              <Upload class="mr-2 h-4 w-4" />Upload Invoice
-            </Button>
-          </DialogTrigger>
-          <DialogContent class="sm:max-w-[600px] shadow-lg rounded-lg">
-            <div class="">
-              <FileUpload class="">
-                <FileUploadGrid />
-                <p v-if="fileUploadError" class="text-red-500 text-sm mt-1">{{ fileUploadError }}</p>
-              </FileUpload>
-            </div>
-            <DialogFooter>
-              <Button @click="submitInvoice" :disabled="isUploadingInvoice || !selectedFile" class="rounded-md">
-                <span v-if="isUploadingInvoice">Uploading...</span>
-                <span v-else>Upload Invoice</span>
+        <div class="ml-auto">
+          <Dialog v-model:open="isUploadDialogOpen">
+            <DialogTrigger as-child>
+              <Button @click="isUploadDialogOpen = true" class=" bg-primary rounded-md hover:bg-gray-200 transition-colors">
+                <Upload class="mr-2 h-4 w-4" />Upload Invoice
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent class="sm:max-w-[600px] shadow-lg rounded-lg">
+              <DialogHeader>
+                <DialogTitle>Upload New Invoice</DialogTitle>
+                <DialogDescription>
+                  Upload your invoice file (PDF, CSV, XLSX formats supported).
+                </DialogDescription>
+              </DialogHeader>
+              <div class="grid w-full max-w-sm items-center gap-1.5 py-4">
+                <Label for="invoiceFile">Invoice File</Label>
+                <Input id="invoiceFile" type="file" @change="handleFileSelect" accept=".pdf,.csv,.xlsx,.xls" class="rounded-md"/>
+                <p v-if="fileUploadError" class="text-red-500 text-sm mt-1">{{ fileUploadError }}</p>
+              </div>
+              <DialogFooter>
+                <Button @click="submitInvoice" :disabled="isUploadingInvoice || !selectedFile" class="rounded-md">
+                  <span v-if="isUploadingInvoice">Uploading...</span>
+                  <span v-else>Upload Invoice</span>
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
     <div v-if="user && user.kycStatus !== 'approved' && user.kycStatus !== 'Verified'" class="relative bg-red-500 isolate flex items-center gap-x-6 overflow-hidden bg-gray-50 px-6 py-2.5 sm:px-3.5 sm:before:flex-1 mb-6">
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -53,8 +59,8 @@
           <svg viewBox="0 0 2 2" class="mx-2 inline size-0.5 fill-current" aria-hidden="true"><circle cx="1" cy="1" r="1" /></svg>
           To get more out of your score kindly complete the compliance forms.
         </p>
-        <Dialog v-model:open="isUploadDialogOpen"> <DialogTrigger as-child>
-          <Button @click="isUploadDialogOpen = true" class="text-white bg-black rounded-md hover:bg-gray-800 transition-colors">
+        <Dialog v-model:open="isKycDialogOpen"> <DialogTrigger as-child>
+          <Button @click="isKycDialogOpen = true" class="text-white bg-black rounded-md hover:bg-gray-800 transition-colors">
             Complete now
           </Button>
         </DialogTrigger>
@@ -66,11 +72,11 @@
               </DialogDescription>
             </DialogHeader>
             <div class="grid w-full max-w-sm items-center gap-1.5 py-4">
-              <Label for="kycFile">Business Registration</Label> <Input id="kycFile" type="file" @change="handleFileSelect" accept=".pdf,.csv,.xlsx,.xls" class="rounded-md"/> <p v-if="fileUploadError" class="text-red-500 text-sm mt-1">{{ fileUploadError }}</p>
+              <Label for="kycFile">Business Registration</Label> <Input id="kycFile" type="file" @change="handleKycFileSelect" accept=".pdf,.csv,.xlsx,.xls" class="rounded-md"/> <p v-if="kycFileUploadError" class="text-red-500 text-sm mt-1">{{ kycFileUploadError }}</p>
             </div>
             <DialogFooter>
-              <Button @click="submitInvoice" :disabled="isUploadingInvoice || !selectedFile" class="rounded-md">
-                <span v-if="isUploadingInvoice">Uploading...</span>
+              <Button @click="submitKycFile" :disabled="isUploadingKyc || !selectedKycFile" class="rounded-md">
+                <span v-if="isUploadingKyc">Uploading...</span>
                 <span v-else>Upload Business files</span>
               </Button>
             </DialogFooter>
@@ -124,7 +130,11 @@
     <section class="">
       <div class="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 lg:px-6">
         <div class="flex items-center mb-6 gap-4">
-          <h2 class="text-xl tracking-tight font-semibold ">Recent Invoices</h2>
+          <h2 class="text-xl tracking-tight font-semibold">Recent Invoices</h2>
+          <Button @click="fetchInvoices" variant="outline" class="border-gray-400 hover:bg-gray-200 rounded-md" :disabled="isLoadingInvoices">
+            <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': isLoadingInvoices }" />
+            Refresh
+          </Button>
           <div class="ml-auto flex items-center gap-2">
             <!-- Search Input -->
             <div class="relative w-full max-w-sm">
@@ -349,6 +359,56 @@
         </div>
       </div>
     </section>
+
+    <!-- New Post-Upload Invoice Details & Providers Dialog -->
+    <Dialog v-model:open="isPostUploadDetailsDialogOpen">
+      <DialogContent class="sm:max-w-[700px] shadow-lg rounded-lg">
+        <DialogHeader>
+          <DialogTitle>Invoice Submitted Successfully!</DialogTitle>
+          <DialogDescription>
+            Review the extracted details and choose a financial provider to fund your invoice.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div v-if="uploadedInvoiceDetails" class="grid gap-4 py-4">
+          <h3 class="text-lg font-semibold border-b pb-2">Extracted Invoice Details</h3>
+          <div class="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+            <div><span class="font-semibold">Customer Name:</span> {{ uploadedInvoiceDetails.customerName || 'N/A' }}</div>
+            <div><span class="font-semibold">Invoice Number:</span> {{ uploadedInvoiceDetails.invoiceNumber || 'N/A' }}</div>
+            <div><span class="font-semibold">Invoice Date:</span> {{ formatDate(uploadedInvoiceDetails.invoiceDate) }}</div>
+            <div><span class="font-semibold">Due Date:</span> {{ formatDate(uploadedInvoiceDetails.dueDate) }}</div>
+            <div class="col-span-2"><span class="font-semibold">Total Amount:</span> {{ uploadedInvoiceDetails.currency || 'GHS' }} {{ (uploadedInvoiceDetails.totalAmount || 0).toLocaleString() }}</div>
+          </div>
+
+          <h3 class="text-lg font-semibold border-b pb-2 mt-4">Available Financial Providers</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card v-for="provider in financialProviders" :key="provider.id"
+                  class="flex items-center p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                  :class="{ 'border-2 border-blue-500': selectedProvider?.id === provider.id }"
+                  @click="selectedProvider = provider">
+              <img :src="provider.logo" :alt="provider.name" class="h-10 w-10 mr-4 rounded-full object-cover">
+              <div>
+                <p class="font-semibold">{{ provider.name }}</p>
+                <p class="text-sm text-muted-foreground">{{ provider.description }}</p>
+              </div>
+            </Card>
+            <p v-if="financialProviders.length === 0" class="col-span-2 text-center text-muted-foreground">No financial providers available at this moment. Please check back later.</p>
+          </div>
+          <p v-if="providerSelectionError" class="text-red-500 text-sm mt-2">{{ providerSelectionError }}</p>
+        </div>
+        <div v-else class="text-center py-4 text-muted-foreground">
+          No invoice details to display.
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" @click="isPostUploadDetailsDialogOpen = false" class="rounded-md">Close</Button>
+          <Button @click="fundInvoice" :disabled="!selectedProvider || isFundingInvoice" class="bg-green-600 hover:bg-green-700 rounded-md">
+            <span v-if="isFundingInvoice">Funding...</span>
+            <span v-else>Fund Invoice Now</span>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </main>
 </template>
 
@@ -357,7 +417,7 @@ import { ref, onMounted, computed, h } from 'vue'
 import axios from 'axios'
 import {
   Upload, Download, Eye, CreditCard, CircleCheckBig, FileWarning, FileText,
-  CircleCheck, BookUser, HandCoins, Clock, AlertCircle, CircleX, Ban, Search
+  CircleCheck, BookUser, HandCoins, Clock, AlertCircle, CircleX, Ban, Search, RefreshCw
 } from 'lucide-vue-next'
 import { useCookie } from '#app';
 import { Toaster, toast } from 'vue-sonner'
@@ -401,12 +461,30 @@ const isUploadingInvoice = ref(false)
 const fileUploadError = ref<string | null>(null)
 const isUploadDialogOpen = ref(false);
 
+const selectedKycFile = ref<File | null>(null) // New state for KYC file
+const isUploadingKyc = ref(false) // New state for KYC upload loading
+const kycFileUploadError = ref<string | null>(null) // New state for KYC file upload error
+const isKycDialogOpen = ref(false); // New state for KYC dialog visibility
+
 const currentReceipt = ref<any>(null)
 const isLoadingReceipt = ref(false)
 const receiptError = ref<string | null>(null)
 
 const searchQuery = ref('');
 const statusFilter = ref('all');
+
+// New state for post-upload dialog
+const isPostUploadDetailsDialogOpen = ref(false);
+const uploadedInvoiceDetails = ref<any>(null); // To store details of the recently uploaded invoice
+const financialProviders = ref([
+  { id: 'bank-a', name: 'ABC Bank', description: 'Fast approvals, low rates.', logo: 'https://placehold.co/40x40/FF5733/FFFFFF?text=AB' },
+  { id: 'fintech-x', name: 'SwiftCash Finance', description: 'Digital-first, instant funding.', logo: 'https://placehold.co/40x40/33FF57/FFFFFF?text=SC' },
+  { id: 'credit-union-y', name: 'Community Credit Union', description: 'Personalized service, fair terms.', logo: 'https://placehold.co/40x40/3357FF/FFFFFF?text=CCU' },
+]); // Mock financial providers
+const selectedProvider = ref<any>(null);
+const isFundingInvoice = ref(false);
+const providerSelectionError = ref<string | null>(null);
+
 
 const statusOptions = [
   { value: 'all', label: 'All Statuses' },
@@ -637,9 +715,48 @@ const submitInvoice = async () => {
 
     console.log('Invoice uploaded:', response.data);
     toast.success('Invoice uploaded successfully!');
-    await fetchInvoices();
-    selectedFile.value = null;
-    isUploadDialogOpen.value = false;
+    // Parse the response data to fit the expected invoice structure
+    let newInvoiceData = response.data;
+    if (newInvoiceData && typeof newInvoiceData.jsonData === 'string') {
+      try {
+        const parsedJson = JSON.parse(newInvoiceData.jsonData);
+        newInvoiceData = {
+          ...newInvoiceData,
+          customerName: parsedJson.billedTo || newInvoiceData.customerName,
+          invoiceNumber: parsedJson.extractedInvoiceNumber || newInvoiceData.invoiceNumber,
+          totalAmount: parseFloat(parsedJson.total || parsedJson.grandTotal || 0),
+          subTotalAmount: parseFloat(parsedJson.subtotal || 0),
+          taxAmount: parseFloat(parsedJson.tax || parsedJson.taxAmount || 0),
+          balanceDue: parseFloat(parsedJson.balanceDue || parsedJson.total || parsedJson.grandTotal || 0),
+          currency: parsedJson.extractedCurrency || newInvoiceData.currency,
+          invoiceDate: parsedJson.invoiceDate || newInvoiceData.invoiceDate,
+          dueDate: parsedJson.dueDate || newInvoiceData.dueDate,
+          paymentTerms: parsedJson.paymentTerms || newInvoiceData.paymentTerms,
+          items: parsedJson.lineItems || [],
+        };
+      } catch (e) {
+        console.error("Failed to parse jsonData from uploaded invoice response:", e);
+      }
+    } else {
+      // Fallback for when jsonData isn't a string or not present
+      newInvoiceData = {
+        ...newInvoiceData,
+        customerName: newInvoiceData.customer?.name || newInvoiceData.companyName || 'Unknown Customer',
+        invoiceNumber: newInvoiceData.invoiceNumber || String(newInvoiceData.id),
+        totalAmount: parseFloat(newInvoiceData.totalAmount || 0),
+        subTotalAmount: parseFloat(newInvoiceData.subTotal || newInvoiceData.subTotalAmount || 0),
+        taxAmount: parseFloat(newInvoiceData.tax || newInvoiceData.taxAmount || 0),
+        balanceDue: parseFloat(newInvoiceData.balanceDue || newInvoiceData.totalAmount || 0),
+        currency: newInvoiceData.currency || 'GHS',
+        items: newInvoiceData.items || [],
+      };
+    }
+
+    uploadedInvoiceDetails.value = newInvoiceData;
+    isUploadDialogOpen.value = false; // Close upload dialog
+    isPostUploadDetailsDialogOpen.value = true; // Open new dialog
+    await fetchInvoices(); // Refresh the list
+    selectedFile.value = null; // Clear selected file
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       console.error('API Error (Upload):', err.response.status, err.response.data);
@@ -659,6 +776,67 @@ const submitInvoice = async () => {
     }
   } finally {
     isUploadingInvoice.value = false;
+  }
+};
+
+// --- KYC Upload Logic ---
+const handleKycFileSelect = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  if (target.files && target.files[0]) {
+    selectedKycFile.value = target.files[0];
+    console.log('KYC file selected:', selectedKycFile.value);
+    kycFileUploadError.value = null;
+  } else {
+    selectedKycFile.value = null;
+  }
+};
+
+const submitKycFile = async () => {
+  if (!authToken) {
+    toast.error("Authentication token not found. Please log in.");
+    isUploadingKyc.value = false;
+    return;
+  }
+  if (!selectedKycFile.value) {
+    kycFileUploadError.value = "Please select a KYC file to upload.";
+    return;
+  }
+
+  isUploadingKyc.value = true;
+  kycFileUploadError.value = null;
+  const formData = new FormData();
+  formData.append('kycFile', selectedKycFile.value); // Assuming 'kycFile' as the field name for the backend
+
+  try {
+    const uploadApiClient = axios.create({
+      baseURL: API_BASE_URL,
+      headers: {
+        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
+      }
+    });
+    // This endpoint should be adjusted based on actual API for KYC
+    const response = await uploadApiClient.post('/user/kyc-upload', formData);
+
+    console.log('KYC file uploaded:', response.data);
+    toast.success('KYC file uploaded successfully! Your status will be updated after review.');
+    await fetchUser(); // Refresh user status
+    selectedKycFile.value = null;
+    isKycDialogOpen.value = false;
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response) {
+      console.error('API Error (KYC Upload):', err.response.status, err.response.data);
+      const errorMessage = err.response.data?.message || err.response.data?.error || 'Failed to upload KYC file';
+      if (err.response.status === 401 || err.response.status === 403) {
+        toast.error(`Authentication error: ${errorMessage}`);
+      } else {
+        kycFileUploadError.value = `Upload Error ${err.response.status}: ${errorMessage}`;
+      }
+    } else {
+      console.error('Failed to upload KYC file:', err);
+      toast.error('An unexpected error occurred during KYC upload.');
+    }
+  } finally {
+    isUploadingKyc.value = false;
   }
 };
 
@@ -742,6 +920,45 @@ const triggerDownloadReceipt = async (invoiceId: string | number) => {
     }
   }
 }
+
+// --- Fund Invoice (Mock) ---
+const fundInvoice = async () => {
+  if (!selectedProvider.value) {
+    providerSelectionError.value = "Please select a financial provider.";
+    return;
+  }
+  if (!uploadedInvoiceDetails.value || !uploadedInvoiceDetails.value.id) {
+    toast.error("No invoice selected for funding. Please re-upload your invoice.");
+    isPostUploadDetailsDialogOpen.value = false;
+    return;
+  }
+
+  isFundingInvoice.value = true;
+  providerSelectionError.value = null;
+  toast.info(`Requesting funding from ${selectedProvider.value.name}...`);
+
+  try {
+    // Simulate API call for funding
+    const response = await new Promise((resolve) => setTimeout(() => {
+      resolve({
+        success: true,
+        message: `Funding request for Invoice #${uploadedInvoiceDetails.value.invoiceNumber} submitted to ${selectedProvider.value.name}.`
+      });
+    }, 2000)); // Simulate 2-second API call
+
+    console.log('Funding response:', response);
+    toast.success(`Funding request successful! Check your invoice status later.`);
+    isPostUploadDetailsDialogOpen.value = false; // Close the dialog
+    selectedProvider.value = null; // Clear selected provider
+    await fetchInvoices(); // Refresh invoices to show potential status change
+  } catch (error) {
+    console.error('Error funding invoice:', error);
+    toast.error('Failed to submit funding request. Please try again.');
+    providerSelectionError.value = 'Failed to submit funding request.';
+  } finally {
+    isFundingInvoice.value = false;
+  }
+};
 
 
 // --- UI Helpers & Computed Properties ---
@@ -899,5 +1116,4 @@ body {
   border-radius: 8px;
   color: #a0a0a0;
 }
-
 </style>
