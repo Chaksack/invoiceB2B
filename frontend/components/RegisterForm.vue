@@ -10,7 +10,7 @@ import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "~/compo
     <Card>
       <CardHeader class="text-center">
         <CardTitle class="text-xl">
-          Welcome to Invoicing Financing
+          Welcome to Profundr Invoicing Financing
         </CardTitle>
         <CardDescription>
           Enter your details to create your account

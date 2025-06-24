@@ -42,10 +42,12 @@ import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "~/compo
                 </div>
                 <Input id="password" type="password" required />
               </div>
+<NuxtLink to="/home">
+  <Button type="submit" class="w-full">
+    Login
+  </Button>
+</NuxtLink>
 
-              <Button type="submit" class="w-full">
-                Login
-              </Button>
             </div>
             <div class="text-center text-sm">
               Don't have an account?
