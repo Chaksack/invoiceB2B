@@ -2,28 +2,376 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Profundr API",
+    "description": "A comprehensive API for the Invoice B2B Financing Platform.",
     "version": "1.0.0"
   },
-  "paths": {
-    "/api/hello": {
-      "get": {
-        "summary": "Hello World Test",
-        "responses": {
-          "200": {
-            "description": "Success response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Development server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string", "format": "email" },
+          "role": { "type": "string", "enum": ["business", "admin"] },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Business": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "company_name": { "type": "string" },
+          "industry": { "type": "string" },
+          "annual_revenue": { "type": "number" },
+          "employee_count": { "type": "integer" },
+          "status": { "type": "string", "enum": ["pending", "approved", "rejected", "suspended"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Invoice": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "invoice_number": { "type": "string" },
+          "amount": { "type": "number" },
+          "due_date": { "type": "string", "format": "date" },
+          "customer_name": { "type": "string" },
+          "customer_email": { "type": "string", "format": "email" },
+          "description": { "type": "string" },
+          "terms": { "type": "string" },
+          "status": { "type": "string", "enum": ["pending", "funded", "overdue"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "FinancialInstitution": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "is_active": { "type": "boolean" },
+          "funding_capacity": { "type": "number" },
+          "interest_rate_range": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "data": { "type": "object" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "HealthCheck": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["healthy", "unhealthy", "degraded"] },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "uptime": { "type": "number" },
+          "environment": { "type": "string" },
+          "version": { "type": "string" },
+          "database": {
+            "type": "object",
+            "properties": {
+              "status": { "type": "string" },
+              "currentTime": { "type": "string", "format": "date-time" }
             }
-          }
+          },
+          "memory": {
+            "type": "object",
+            "properties": {
+              "rss": { "type": "string" },
+              "heapTotal": { "type": "string" },
+              "heapUsed": { "type": "string" },
+              "external": { "type": "string" }
+            }
+          },
+          "responseTime": { "type": "string" }
+        }
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "tags": [
+    { "name": "Auth" },
+    { "name": "Business" },
+    { "name": "Admin" },
+    { "name": "System" },
+    { "name": "Invoice" },
+    { "name": "Analytics" }
+  ],
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register a new business user",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } }
+        },
+        "responses": {
+          "201": { "description": "User registered successfully", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "400": { "description": "Validation error" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login user",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } }
+        },
+        "responses": {
+          "200": { "description": "Login successful", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/auth/profile": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Get user profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Profile retrieved", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } } },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Refresh JWT token",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "refreshToken": { "type": "string" } }, "required": ["refreshToken"] } } }
+        },
+        "responses": {
+          "200": { "description": "Token refreshed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/business/profile": {
+      "get": {
+        "tags": ["Business"],
+        "summary": "Get business profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Profile retrieved", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Business" } } } },
+          "401": { "description": "Unauthorized" }
+        }
+      },
+      "put": {
+        "tags": ["Business"],
+        "summary": "Update business profile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Business" } } }
+        },
+        "responses": {
+          "200": { "description": "Profile updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Business" } } } },
+          "400": { "description": "Validation error" }
+        }
+      }
+    },
+    "/api/business/invoices": {
+      "get": {
+        "tags": ["Invoice"],
+        "summary": "List business invoices",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": {
+          "200": { "description": "Invoices listed", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Invoice" } } } } }
+        }
+      },
+      "post": {
+        "tags": ["Invoice"],
+        "summary": "Create invoice",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Invoice" } } }
+        },
+        "responses": {
+          "201": { "description": "Invoice created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Invoice" } } } },
+          "400": { "description": "Validation error" }
+        }
+      }
+    },
+    "/api/business/invoices/{id}": {
+      "get": {
+        "tags": ["Invoice"],
+        "summary": "Get invoice details",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Invoice details", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Invoice" } } } },
+          "404": { "description": "Invoice not found" }
+        }
+      },
+      "put": {
+        "tags": ["Invoice"],
+        "summary": "Update invoice",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Invoice" } } }
+        },
+        "responses": {
+          "200": { "description": "Invoice updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Invoice" } } } },
+          "400": { "description": "Validation error" },
+          "404": { "description": "Invoice not found" }
+        }
+      },
+      "delete": {
+        "tags": ["Invoice"],
+        "summary": "Delete invoice",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Invoice deleted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "404": { "description": "Invoice not found" }
+        }
+      }
+    },
+    "/api/business/analytics": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "Get business analytics",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "period", "in": "query", "schema": { "type": "string", "enum": ["7d", "30d", "90d", "1y"], "default": "30d" } }
+        ],
+        "responses": {
+          "200": { "description": "Analytics data", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/admin/dashboard-summary": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get admin dashboard summary",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Dashboard summary", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/admin/businesses": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "List all businesses",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 10 } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["pending", "approved", "rejected", "suspended"] } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Businesses listed", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Business" } } } } }
+        }
+      }
+    },
+    "/api/admin/businesses/{id}/status": {
+      "put": {
+        "tags": ["Admin"],
+        "summary": "Update business status",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "type": "string", "enum": ["approved", "rejected", "suspended"] }, "reason": { "type": "string" } }, "required": ["status"] } } }
+        },
+        "responses": {
+          "200": { "description": "Status updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Business" } } } },
+          "400": { "description": "Validation error" },
+          "404": { "description": "Business not found" }
+        }
+      }
+    },
+    "/api/admin/financial-institutions": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "List financial institutions",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 10 } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["active", "inactive"] } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Institutions listed", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/FinancialInstitution" } } } } }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Health check",
+        "responses": {
+          "200": { "description": "Health check completed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HealthCheck" } } } }
+        }
+      }
+    },
+    "/api/health/detailed": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Detailed health check",
+        "responses": {
+          "200": { "description": "Detailed health check", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HealthCheck" } } } }
+        }
+      }
+    },
+    "/api/health/ready": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Readiness probe",
+        "responses": {
+          "200": { "description": "Service is ready", "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "type": "string" }, "timestamp": { "type": "string", "format": "date-time" } } } } } }
+        }
+      }
+    },
+    "/api/health/live": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Liveness probe",
+        "responses": {
+          "200": { "description": "Service is alive", "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "type": "string" }, "timestamp": { "type": "string", "format": "date-time" } } } } } }
         }
       }
     }
