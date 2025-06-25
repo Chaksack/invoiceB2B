@@ -1,5 +1,5 @@
 export default defineEventHandler(() => {
     return {
-        message: 'Hello from Invoice API!'
+        message: 'Hello from Profundr Invoicing API!'
     }
 })

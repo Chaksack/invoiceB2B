@@ -12,6 +12,7 @@
   "dependencies": {
     "@headlessui/vue": "^1.7.23",
     "@heroicons/vue": "^2.2.0",
+    "@scalar/nuxt": "^0.4.24",
     "@tailwindcss/vite": "^4.1.8",
     "@tanstack/vue-table": "^8.21.3",
     "@vueuse/core": "^13.4.0",
@@ -31,6 +32,8 @@
   },
   "devDependencies": {
     "@inspira-ui/plugins": "^0.0.1",
+    "@scalar/api-reference": "^1.28.34",
+    "@scalar/hono-api-reference": "^0.8.10",
     "@types/swagger-ui-express": "^4.1.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

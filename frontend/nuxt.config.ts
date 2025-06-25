@@ -10,10 +10,15 @@ export default defineNuxtConfig({
     ],
   },
 
-  modules: [    '@nuxtjs/color-mode',
+  modules: [    '@nuxtjs/color-mode', '@scalar/nuxt',
     'shadcn-nuxt'],
   colorMode: {
     classSuffix: ''
+  },
+  nitro: {
+    experimental: {
+      openAPI: true,
+    },
   },
   shadcn: {
     /**
