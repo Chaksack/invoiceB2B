@@ -13,7 +13,7 @@ import { GalleryVerticalEnd } from 'lucide-vue-next'
         <div class="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
           <GalleryVerticalEnd class="size-4" />
         </div>
-        InvoiceFnd Inc.
+        Profundr Inc.
       </a>
       <NewpasswordForm />
     </div>

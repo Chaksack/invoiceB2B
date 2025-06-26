@@ -26,16 +26,26 @@ export default defineNuxtConfig({
   },
 
   modules: [
-    ['@nuxtjs/color-mode', { classSuffix: '' }], 
-    '@scalar/nuxt',
+    ['@nuxtjs/color-mode', { classSuffix: '' }],
+    // Configure Scalar to serve its UI at /docs
+    ['@scalar/nuxt', { route: '/docs' }],
     'shadcn-nuxt'
   ],
-  
+
   nitro: {
-    experimental: {
-      openAPI: true,
+    routeRules: {
+      '/docs/**': { ssr: false },
     },
   },
+  
+  scalar: {
+    url: '/openapi.json',
+    route: '/docs',
+    darkMode: true,
+    showSidebar: true,
+  },
+  
+  
   shadcn: {
     /**
      * Prefix for all the imported component
@@ -47,12 +57,12 @@ export default defineNuxtConfig({
      */
     componentDir: './components/ui'
   },
-  
+
   runtimeConfig: {
     // Private keys (only available on server-side)
     jwtSecret: process.env.JWT_SECRET || 'your_jwt_secret_key_please_change_this',
     databaseUrl: process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/invoice_financing_db',
-    
+
     // Public keys (exposed to client-side)
     public: {
       apiBase: process.env.BASE_URL || 'http://localhost:3000',

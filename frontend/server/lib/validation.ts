@@ -127,7 +127,7 @@ export function validateBody(schema: Joi.ObjectSchema) {
 
       // Replace the body with validated data
       event.context.validatedBody = value
-    } catch (error) {
+    } catch (error: any) {
       if (error.statusCode === 400) {
         throw error
       }
@@ -165,7 +165,7 @@ export function validateQuery(schema: Joi.ObjectSchema) {
 
       // Replace the query with validated data
       event.context.validatedQuery = value
-    } catch (error) {
+    } catch (error: any) {
       if (error.statusCode === 400) {
         throw error
       }
@@ -203,7 +203,7 @@ export function validateParams(schema: Joi.ObjectSchema) {
 
       // Replace the params with validated data
       event.context.validatedParams = value
-    } catch (error) {
+    } catch (error: any) {
       if (error.statusCode === 400) {
         throw error
       }

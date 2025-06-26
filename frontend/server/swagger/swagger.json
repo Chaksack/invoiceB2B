@@ -67,7 +67,31 @@
           "is_active": { "type": "boolean" },
           "funding_capacity": { "type": "number" },
           "interest_rate_range": { "type": "string" },
-          "created_at": { "type": "string", "format": "date-time" }
+          "contact_email": { "type": "string", "format": "email" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "FinancialInstitutionProduct": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "financial_institution_id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "FinancialInstitutionTerm": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "financial_institution_id": { "type": "string", "format": "uuid" },
+          "product_id": { "type": "string", "format": "uuid" },
+          "terms": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
         }
       },
       "ApiResponse": {
@@ -336,6 +360,211 @@
         ],
         "responses": {
           "200": { "description": "Institutions listed", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/FinancialInstitution" } } } } }
+        }
+      },
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Create a financial institution",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialInstitution" } } }
+        },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialInstitution" } } } },
+          "400": { "description": "Validation error" }
+        }
+      }
+    },
+    "/api/admin/financial-institutions/{id}": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get a financial institution",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialInstitution" } } } },
+          "404": { "description": "Not found" }
+        }
+      },
+      "put": {
+        "tags": ["Admin"],
+        "summary": "Update a financial institution",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialInstitution" } } }
+        },
+        "responses": {
+          "200": { "description": "Updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialInstitution" } } } },
+          "400": { "description": "Validation error" },
+          "404": { "description": "Not found" }
+        }
+      },
+      "delete": {
+        "tags": ["Admin"],
+        "summary": "Delete a financial institution",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Deleted" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/api/admin/financial-institutions/{id}/products": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "List products for a financial institution",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Products listed", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/FinancialInstitutionProduct" } } } } }
+        }
+      },
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Create a product for a financial institution",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialInstitutionProduct" } } }
+        },
+        "responses": {
+          "201": { "description": "Product created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialInstitutionProduct" } } } },
+          "400": { "description": "Validation error" }
+        }
+      }
+    },
+    "/api/admin/financial-institutions/{id}/products/{productId}": {
+      "put": {
+        "tags": ["Admin"],
+        "summary": "Update a product for a financial institution",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "productId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialInstitutionProduct" } } }
+        },
+        "responses": {
+          "200": { "description": "Product updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialInstitutionProduct" } } } },
+          "400": { "description": "Validation error" },
+          "404": { "description": "Product not found" }
+        }
+      },
+      "delete": {
+        "tags": ["Admin"],
+        "summary": "Delete a product for a financial institution",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "productId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Product deleted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "404": { "description": "Product not found" }
+        }
+      }
+    },
+    "/api/admin/financial-institutions/{id}/terms": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "List terms for a financial institution",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Terms listed", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/FinancialInstitutionTerm" } } } } }
+        }
+      },
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Create a term for a financial institution",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialInstitutionTerm" } } }
+        },
+        "responses": {
+          "201": { "description": "Term created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialInstitutionTerm" } } } },
+          "400": { "description": "Validation error" }
+        }
+      }
+    },
+    "/api/admin/financial-institutions/{id}/terms/{termId}": {
+      "put": {
+        "tags": ["Admin"],
+        "summary": "Update a term for a financial institution",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "termId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialInstitutionTerm" } } }
+        },
+        "responses": {
+          "200": { "description": "Term updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialInstitutionTerm" } } } },
+          "400": { "description": "Validation error" },
+          "404": { "description": "Term not found" }
+        }
+      },
+      "delete": {
+        "tags": ["Admin"],
+        "summary": "Delete a term for a financial institution",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "termId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Term deleted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "404": { "description": "Term not found" }
+        }
+      }
+    },
+    "/api/business/financial-institutions/{id}/request": {
+      "post": {
+        "tags": ["Business"],
+        "summary": "Send a request to a financial institution (with optional file upload)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fields": { "type": "object" },
+                  "files": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Request sent" },
+          "404": { "description": "Financial institution not found" }
         }
       }
     },
