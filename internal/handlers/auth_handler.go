@@ -24,6 +24,17 @@ func NewAuthHandler(authService services.AuthService, validate *validator.Valida
 	}
 }
 
+// Register godoc
+// @Summary Register a new user
+// @Description Register a new user with email, name, company, and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dtos.RegisterUserRequest true "User registration details"
+// @Success 201 {object} dtos.RegisterUserResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Router /auth/register [post]
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	var req dtos.RegisterUserRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -61,6 +72,17 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	})
 }
 
+// Login godoc
+// @Summary Login user
+// @Description Authenticate a user with email and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dtos.LoginUserRequest true "User login credentials"
+// @Success 200 {object} dtos.LoginUserResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var req dtos.LoginUserRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -79,6 +101,17 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	// loginResponse already contains all necessary fields including Role and RedirectPath
 	return c.Status(fiber.StatusOK).JSON(loginResponse)
 }
+// Verify2FA godoc
+// @Summary Verify 2FA OTP
+// @Description Verify the one-time password for two-factor authentication
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dtos.VerifyOTPRequest true "OTP verification details"
+// @Success 200 {object} dtos.VerifyOTPResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Router /auth/login/2fa/verify [post]
 func (h *AuthHandler) Verify2FA(c *fiber.Ctx) error {
 	var req dtos.VerifyOTPRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -112,6 +145,17 @@ func (h *AuthHandler) Verify2FA(c *fiber.Ctx) error {
 	})
 }
 
+// RefreshToken godoc
+// @Summary Refresh access token
+// @Description Get a new access token using a refresh token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dtos.RefreshTokenRequest true "Refresh token details"
+// @Success 200 {object} dtos.RefreshTokenResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Router /auth/refresh-token [post]
 func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	var req dtos.RefreshTokenRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -134,6 +178,19 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	})
 }
 
+// Enable2FA godoc
+// @Summary Enable or disable 2FA
+// @Description Enable or disable two-factor authentication for the authenticated user
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dtos.Enable2FARequest true "2FA toggle details"
+// @Success 200 {object} dtos.Enable2FAResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /auth/2fa/toggle [post]
 func (h *AuthHandler) Enable2FA(c *fiber.Ctx) error {
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	userIDStr := claims["user_id"].(string)
@@ -159,6 +216,16 @@ func (h *AuthHandler) Enable2FA(c *fiber.Ctx) error {
 	})
 }
 
+// Logout godoc
+// @Summary Logout user
+// @Description Logout the authenticated user and invalidate their token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /auth/logout [post]
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	claims, ok := c.Locals("user").(*jwt.Token)
 	if !ok {

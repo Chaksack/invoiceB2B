@@ -9,7 +9,9 @@ import (
 	"invoiceB2B/internal/models"
 	"invoiceB2B/internal/repositories"
 	"log"
+	"math"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -30,23 +32,27 @@ type InvoiceService interface {
 	GetUserInvoices(ctx context.Context, userID uint, page, pageSize int) ([]dtos.InvoiceResponse, int64, error)
 	GetInvoiceByIDForUser(ctx context.Context, invoiceID, userID uint) (*dtos.InvoiceResponse, error)
 	GetReceiptPathForUser(ctx context.Context, invoiceID, userID uint) (string, string, error)
+	SelectFinancialInstitution(ctx context.Context, invoiceID, userID uint, req dtos.SelectFinancialInstitutionRequest) (*dtos.InvoiceResponse, error)
+	GetSuggestedFinancialInstitutions(ctx context.Context, invoiceID, userID uint) (*dtos.SuggestedFinancialInstitutionsResponse, error)
 }
 
 type invoiceService struct {
-	invoiceRepo     repositories.InvoiceRepository
-	userRepo        repositories.UserRepository
-	transactionRepo repositories.TransactionRepository
-	fileService     FileService
-	notificationSvc NotificationService
-	activityLogSvc  ActivityLogService
-	emailService    EmailService
-	cfg             *config.Config
+	invoiceRepo              repositories.InvoiceRepository
+	userRepo                 repositories.UserRepository
+	transactionRepo          repositories.TransactionRepository
+	financialInstitutionRepo repositories.FinancialInstitutionRepository
+	fileService              FileService
+	notificationSvc          NotificationService
+	activityLogSvc           ActivityLogService
+	emailService             EmailService
+	cfg                      *config.Config
 }
 
 func NewInvoiceService(
 	invoiceRepo repositories.InvoiceRepository,
 	userRepo repositories.UserRepository,
 	transactionRepo repositories.TransactionRepository,
+	financialInstitutionRepo repositories.FinancialInstitutionRepository,
 	fileService FileService,
 	notificationSvc NotificationService,
 	activityLogSvc ActivityLogService,
@@ -54,14 +60,15 @@ func NewInvoiceService(
 	cfg *config.Config,
 ) InvoiceService {
 	return &invoiceService{
-		invoiceRepo:     invoiceRepo,
-		userRepo:        userRepo,
-		transactionRepo: transactionRepo,
-		fileService:     fileService,
-		notificationSvc: notificationSvc,
-		activityLogSvc:  activityLogSvc,
-		emailService:    emailService,
-		cfg:             cfg,
+		invoiceRepo:              invoiceRepo,
+		userRepo:                 userRepo,
+		transactionRepo:          transactionRepo,
+		financialInstitutionRepo: financialInstitutionRepo,
+		fileService:              fileService,
+		notificationSvc:          notificationSvc,
+		activityLogSvc:           activityLogSvc,
+		emailService:             emailService,
+		cfg:                      cfg,
 	}
 }
 
@@ -251,4 +258,244 @@ func (s *invoiceService) GetReceiptPathForUser(ctx context.Context, invoiceID, u
 	}
 	fileName := filepath.Base(*invoice.DisbursementReceiptPath)
 	return absPath, fileName, nil
+}
+
+func (s *invoiceService) SelectFinancialInstitution(ctx context.Context, invoiceID, userID uint, req dtos.SelectFinancialInstitutionRequest) (*dtos.InvoiceResponse, error) {
+	// Get the invoice
+	invoice, err := s.invoiceRepo.FindByID(ctx, invoiceID)
+	if err != nil {
+		log.Printf("Error finding invoice %d: %v", invoiceID, err)
+		return nil, ErrInvoiceNotFound
+	}
+
+	// Verify that the invoice belongs to the user
+	if invoice.UserID != userID {
+		log.Printf("User %d attempted to access invoice %d which belongs to user %d", userID, invoiceID, invoice.UserID)
+		return nil, ErrInvoiceAccessDenied
+	}
+
+	// Get the user for email notification
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		log.Printf("Error finding user %d: %v", userID, err)
+		return nil, ErrUserNotFound
+	}
+
+	// Get the absolute path of the original invoice file
+	originalFilePath, err := s.fileService.GetAbsPath(invoice.OriginalFilePath)
+	if err != nil {
+		log.Printf("Error getting absolute path for invoice file %s: %v", invoice.OriginalFilePath, err)
+		return nil, fmt.Errorf("invoice file path error: %w", err)
+	}
+
+	// Prepare email subject and body
+	subject := fmt.Sprintf("New Invoice Financing Request from %s", user.CompanyName)
+	body := fmt.Sprintf(`
+		<html>
+		<body>
+			<h2>New Invoice Financing Request</h2>
+			<p>A new invoice financing request has been submitted by %s.</p>
+			<h3>Invoice Details:</h3>
+			<ul>
+				<li><strong>Invoice Number:</strong> %s</li>
+				<li><strong>Amount:</strong> %s %.2f</li>
+				<li><strong>Issuer:</strong> %s</li>
+				<li><strong>Issuer Bank Account:</strong> %s</li>
+				<li><strong>Issuer Bank Name:</strong> %s</li>
+				<li><strong>Debtor:</strong> %s</li>
+				<li><strong>Due Date:</strong> %s</li>
+			</ul>
+			<h3>Additional Extracted Data:</h3>
+			<pre>%s</pre>
+			<p>The original invoice file and extracted data are attached to this email.</p>
+			<p>Please review the request and respond accordingly.</p>
+			<p>Thank you,<br>Invoice B2B Platform</p>
+		</body>
+		</html>
+	`, 
+	user.CompanyName, 
+	invoice.InvoiceNumber, 
+	invoice.Currency, 
+	invoice.Amount, 
+	invoice.IssuerName, 
+	invoice.IssuerBankAccount,
+	invoice.IssuerBankName,
+	invoice.DebtorName, 
+	func() string {
+		if invoice.DueDate != nil {
+			return invoice.DueDate.Format("2006-01-02")
+		}
+		return "N/A"
+	}(),
+	invoice.JSONData)
+
+	// Send email with invoice data and raw invoice to the financial institution
+	fileName := filepath.Base(invoice.OriginalFilePath)
+	err = s.emailService.SendEmailWithAttachment(
+		req.FinancialInstitutionEmail,
+		subject,
+		body,
+		originalFilePath,
+		fileName,
+	)
+	if err != nil {
+		log.Printf("Error sending email to financial institution %s: %v", req.FinancialInstitutionName, err)
+		return nil, fmt.Errorf("failed to send email to financial institution: %w", err)
+	}
+
+	// Log the activity
+	logDetails := map[string]interface{}{
+		"invoice_id":                 invoiceID,
+		"financial_institution_id":   req.FinancialInstitutionID,
+		"financial_institution_name": req.FinancialInstitutionName,
+	}
+	_ = s.activityLogSvc.LogActivity(ctx, nil, &userID, "INVOICE_SENT_TO_FINANCIAL_INSTITUTION", logDetails, "")
+
+	// Return the invoice response
+	resp := mapInvoiceToResponse(invoice)
+	return &resp, nil
+}
+
+// GetSuggestedFinancialInstitutions returns a list of suggested financial institutions for an invoice
+// based on the invoice details and financial institution products.
+func (s *invoiceService) GetSuggestedFinancialInstitutions(ctx context.Context, invoiceID, userID uint) (*dtos.SuggestedFinancialInstitutionsResponse, error) {
+	// Get the invoice
+	invoice, err := s.invoiceRepo.FindByID(ctx, invoiceID)
+	if err != nil {
+		log.Printf("Error finding invoice %d: %v", invoiceID, err)
+		return nil, ErrInvoiceNotFound
+	}
+
+	// Verify that the invoice belongs to the user
+	if invoice.UserID != userID {
+		log.Printf("User %d attempted to access invoice %d which belongs to user %d", userID, invoiceID, invoice.UserID)
+		return nil, ErrInvoiceAccessDenied
+	}
+
+	// Get all active financial institutions
+	filters := map[string]string{"is_active": "true"}
+	financialInstitutions, _, err := s.financialInstitutionRepo.FindAllFinancialInstitutions(ctx, 1, 100, filters)
+	if err != nil {
+		log.Printf("Error finding financial institutions: %v", err)
+		return nil, fmt.Errorf("failed to retrieve financial institutions: %w", err)
+	}
+
+	// Calculate compatibility scores for each financial institution
+	var suggestions []dtos.SuggestedFinancialInstitution
+	for _, fi := range financialInstitutions {
+		// Skip if the financial institution doesn't have min/max invoice amount set
+		if fi.MinInvoiceAmount > 0 && invoice.Amount < fi.MinInvoiceAmount {
+			continue
+		}
+		if fi.MaxInvoiceAmount > 0 && invoice.Amount > fi.MaxInvoiceAmount {
+			continue
+		}
+
+		// Calculate base compatibility score
+		score := 0.0
+
+		// Higher score if the invoice amount is within the financial institution's preferred range
+		if fi.MinInvoiceAmount > 0 && fi.MaxInvoiceAmount > 0 {
+			// If the amount is in the middle of the range, give a higher score
+			rangeSize := fi.MaxInvoiceAmount - fi.MinInvoiceAmount
+			if rangeSize > 0 {
+				position := (invoice.Amount - fi.MinInvoiceAmount) / rangeSize
+				// Score is highest (1.0) when position is 0.5 (middle of range)
+				score += 1.0 - math.Abs(position - 0.5) * 2.0
+			}
+		}
+
+		// Check if the financial institution has products that match the invoice
+		products, _, err := s.financialInstitutionRepo.FindFinancialInstitutionProductsByFinancialInstitutionID(ctx, fi.ID, 1, 100)
+		if err != nil {
+			log.Printf("Error finding products for financial institution %d: %v", fi.ID, err)
+			continue
+		}
+
+		// Find the best matching product
+		bestProductScore := 0.0
+		for _, product := range products {
+			if !product.IsActive {
+				continue
+			}
+
+			// Skip if the product doesn't have min/max invoice amount set
+			if product.MinInvoiceAmount > 0 && invoice.Amount < product.MinInvoiceAmount {
+				continue
+			}
+			if product.MaxInvoiceAmount > 0 && invoice.Amount > product.MaxInvoiceAmount {
+				continue
+			}
+
+			// Calculate product compatibility score
+			productScore := 0.0
+
+			// Higher score if the invoice amount is within the product's preferred range
+			if product.MinInvoiceAmount > 0 && product.MaxInvoiceAmount > 0 {
+				rangeSize := product.MaxInvoiceAmount - product.MinInvoiceAmount
+				if rangeSize > 0 {
+					position := (invoice.Amount - product.MinInvoiceAmount) / rangeSize
+					productScore += 1.0 - math.Abs(position - 0.5) * 2.0
+				}
+			}
+
+			// Check if the invoice has a due date and the product has terms days
+			if invoice.DueDate != nil && product.TermsDays > 0 {
+				daysUntilDue := int(invoice.DueDate.Sub(time.Now()).Hours() / 24)
+				// Higher score if the days until due is close to the product's terms days
+				if daysUntilDue > 0 {
+					termRatio := float64(daysUntilDue) / float64(product.TermsDays)
+					if termRatio <= 1.0 {
+						// Score is highest (1.0) when termRatio is 1.0 (exact match)
+						productScore += termRatio
+					} else {
+						// Score decreases as termRatio increases beyond 1.0
+						productScore += 1.0 / termRatio
+					}
+				}
+			}
+
+			// Update best product score
+			if productScore > bestProductScore {
+				bestProductScore = productScore
+			}
+		}
+
+		// Add product score to overall score
+		score += bestProductScore
+
+		// Normalize score to be between 0 and 1
+		score = math.Min(1.0, score / 2.0)
+
+		// Add to suggestions if score is above threshold
+		if score > 0.3 {
+			suggestions = append(suggestions, dtos.SuggestedFinancialInstitution{
+				ID:                fi.ID,
+				Name:              fi.Name,
+				Code:              fi.Code,
+				Description:       fi.Description,
+				InterestRateMin:   fi.InterestRateMin,
+				InterestRateMax:   fi.InterestRateMax,
+				ProcessingFee:     fi.ProcessingFee,
+				TermsDays:         fi.TermsDays,
+				CompatibilityScore: score,
+				// Email field would need to be populated from a separate source
+				// For now, we'll leave it empty and let the frontend handle it
+			})
+		}
+	}
+
+	// Sort suggestions by compatibility score (highest first)
+	sort.Slice(suggestions, func(i, j int) bool {
+		return suggestions[i].CompatibilityScore > suggestions[j].CompatibilityScore
+	})
+
+	// Limit to top 5 suggestions
+	if len(suggestions) > 5 {
+		suggestions = suggestions[:5]
+	}
+
+	return &dtos.SuggestedFinancialInstitutionsResponse{
+		Suggestions: suggestions,
+	}, nil
 }

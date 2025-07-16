@@ -22,7 +22,19 @@ func NewInternalHandler(internalService services.InternalService, validate *vali
 	}
 }
 
-// UpdateInvoiceWithProcessedData is called by n8n (or other internal services)
+// UpdateInvoiceWithProcessedData godoc
+// @Summary Update invoice with processed data
+// @Description Update an invoice with data processed by n8n or other internal services
+// @Tags internal
+// @Accept json
+// @Produce json
+// @Param id path int true "Invoice ID"
+// @Param request body dtos.UpdateInvoiceProcessedDataRequest true "Processed invoice data"
+// @Success 200 {object} dtos.InvoiceResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /internal/invoices/{id}/processed-data [put]
 func (h *InternalHandler) UpdateInvoiceWithProcessedData(c *fiber.Ctx) error {
 	invoiceIDStr := c.Params("id")
 	invoiceID, err := strconv.ParseUint(invoiceIDStr, 10, 64)

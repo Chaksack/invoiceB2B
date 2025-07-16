@@ -1,0 +1,2774 @@
+basePath: /api/v1
+definitions:
+  dtos.ActivityLogListResponse:
+    properties:
+      logs:
+        items:
+          $ref: '#/definitions/dtos.ActivityLogResponse'
+        type: array
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      total:
+        type: integer
+    type: object
+  dtos.ActivityLogResponse:
+    properties:
+      action:
+        type: string
+      details:
+        description: JSON string
+        type: string
+      id:
+        type: integer
+      ipAddress:
+        type: string
+      staffEmail:
+        description: Email of staff who performed action
+        type: string
+      timestamp:
+        type: string
+      userEmail:
+        description: Email of user related to action
+        type: string
+    type: object
+  dtos.AdminInvoiceUpdateRequest:
+    properties:
+      financedAmount:
+        type: number
+      financingFeePercentage:
+        maximum: 100
+        type: number
+      rejectionReason:
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/models.InvoiceStatus'
+        enum:
+        - approved
+        - rejected
+        - disbursed
+        - repaid
+    required:
+    - status
+    type: object
+  dtos.AdminKYCDetailResponse:
+    properties:
+      createdAt:
+        type: string
+      documentsInfo:
+        description: JSON string or parsed
+        type: string
+      id:
+        type: integer
+      rejectionReason:
+        type: string
+      reviewedAt:
+        type: string
+      reviewedByEmail:
+        description: Staff email
+        type: string
+      status:
+        $ref: '#/definitions/models.KYCStatus'
+      submittedAt:
+        type: string
+      updatedAt:
+        type: string
+      userEmail:
+        description: For context
+        type: string
+      userId:
+        type: integer
+    type: object
+  dtos.AdminKYCReviewRequest:
+    properties:
+      rejectionReason:
+        description: Required if status is 'rejected'
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/models.KYCStatus'
+        enum:
+        - approved
+        - rejected
+    required:
+    - status
+    type: object
+  dtos.CreateFinancialInstitutionProductRequest:
+    properties:
+      description:
+        type: string
+      financialInstitutionId:
+        type: integer
+      interestRateMax:
+        maximum: 1
+        minimum: 0
+        type: number
+      interestRateMin:
+        maximum: 1
+        minimum: 0
+        type: number
+      isActive:
+        type: boolean
+      maxInvoiceAmount:
+        minimum: 0
+        type: number
+      minInvoiceAmount:
+        minimum: 0
+        type: number
+      name:
+        minLength: 2
+        type: string
+      processingFee:
+        minimum: 0
+        type: number
+      termsDays:
+        minimum: 0
+        type: integer
+    required:
+    - financialInstitutionId
+    - name
+    type: object
+  dtos.CreateFinancialInstitutionRequest:
+    properties:
+      code:
+        minLength: 2
+        type: string
+      description:
+        type: string
+      interestRateMax:
+        maximum: 1
+        minimum: 0
+        type: number
+      interestRateMin:
+        maximum: 1
+        minimum: 0
+        type: number
+      isActive:
+        type: boolean
+      maxInvoiceAmount:
+        minimum: 0
+        type: number
+      minInvoiceAmount:
+        minimum: 0
+        type: number
+      name:
+        minLength: 2
+        type: string
+      processingFee:
+        minimum: 0
+        type: number
+      termsDays:
+        minimum: 0
+        type: integer
+    required:
+    - code
+    - name
+    type: object
+  dtos.CreateStaffRequest:
+    properties:
+      email:
+        type: string
+      firstName:
+        minLength: 2
+        type: string
+      lastName:
+        minLength: 2
+        type: string
+      password:
+        minLength: 8
+        type: string
+      role:
+        description: Example roles
+        enum:
+        - admin
+        - kyc_reviewer
+        - finance_manager
+        type: string
+    required:
+    - email
+    - firstName
+    - lastName
+    - password
+    - role
+    type: object
+  dtos.Enable2FARequest:
+    properties:
+      enable:
+        type: boolean
+    type: object
+  dtos.Enable2FAResponse:
+    properties:
+      message:
+        type: string
+      twoFaEnabled:
+        type: boolean
+    type: object
+  dtos.FinancialInstitutionListResponse:
+    properties:
+      financialInstitutions:
+        items:
+          $ref: '#/definitions/dtos.FinancialInstitutionResponse'
+        type: array
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      total:
+        type: integer
+    type: object
+  dtos.FinancialInstitutionProductListResponse:
+    properties:
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      products:
+        items:
+          $ref: '#/definitions/dtos.FinancialInstitutionProductResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  dtos.FinancialInstitutionProductResponse:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      financialInstitutionId:
+        type: integer
+      id:
+        type: integer
+      interestRateMax:
+        type: number
+      interestRateMin:
+        type: number
+      isActive:
+        type: boolean
+      maxInvoiceAmount:
+        type: number
+      minInvoiceAmount:
+        type: number
+      name:
+        type: string
+      processingFee:
+        type: number
+      termsDays:
+        type: integer
+      updatedAt:
+        type: string
+    type: object
+  dtos.FinancialInstitutionResponse:
+    properties:
+      code:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      interestRateMax:
+        type: number
+      interestRateMin:
+        type: number
+      isActive:
+        type: boolean
+      maxInvoiceAmount:
+        type: number
+      minInvoiceAmount:
+        type: number
+      name:
+        type: string
+      processingFee:
+        type: number
+      termsDays:
+        type: integer
+      updatedAt:
+        type: string
+    type: object
+  dtos.FinancialInstitutionTermListResponse:
+    properties:
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      terms:
+        items:
+          $ref: '#/definitions/dtos.FinancialInstitutionTermResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  dtos.FinancialInstitutionTermResponse:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      financialInstitutionId:
+        type: integer
+      financialInstitutionProductId:
+        type: integer
+      id:
+        type: integer
+      interestRate:
+        type: number
+      isActive:
+        type: boolean
+      maxInvoiceAmount:
+        type: number
+      minInvoiceAmount:
+        type: number
+      name:
+        type: string
+      processingFee:
+        type: number
+      termDays:
+        type: integer
+      updatedAt:
+        type: string
+      validFrom:
+        type: string
+      validUntil:
+        type: string
+    type: object
+  dtos.InvoiceListResponse:
+    properties:
+      invoices:
+        items:
+          $ref: '#/definitions/dtos.InvoiceResponse'
+        type: array
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      total:
+        type: integer
+    type: object
+  dtos.InvoiceResponse:
+    properties:
+      amount:
+        description: omitempty if null
+        type: number
+      approvedAt:
+        type: string
+      createdAt:
+        type: string
+      currency:
+        description: omitempty if null
+        type: string
+      debtorName:
+        type: string
+      disbursedAt:
+        type: string
+      disbursementReceiptPath:
+        type: string
+      dueDate:
+        type: string
+      financedAmount:
+        type: number
+      financingFeePercentage:
+        type: number
+      id:
+        type: integer
+      invoiceNumber:
+        description: omitempty if null
+        type: string
+      issuerBankAccount:
+        type: string
+      issuerBankName:
+        type: string
+      issuerName:
+        type: string
+      jsonData:
+        type: string
+      originalFilePath:
+        type: string
+      processingError:
+        type: string
+      status:
+        $ref: '#/definitions/models.InvoiceStatus'
+      updatedAt:
+        type: string
+      uploadedAt:
+        type: string
+      userId:
+        type: integer
+    type: object
+  dtos.KYCStatusResponse:
+    properties:
+      message:
+        type: string
+      rejectionReason:
+        type: string
+      reviewedAt:
+        type: string
+      status:
+        type: string
+      submittedAt:
+        type: string
+      userId:
+        type: integer
+    type: object
+  dtos.LoginUserRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  dtos.LoginUserResponse:
+    properties:
+      accessToken:
+        type: string
+      accessTokenExpiresAt:
+        type: integer
+      message:
+        type: string
+      redirectPath:
+        description: Suggested frontend redirect path, e.g., "/home", "/2fa", "/admin"
+        type: string
+      refreshToken:
+        type: string
+      role:
+        description: e.g., "user", "admin", "super_admin"
+        type: string
+      twoFARequired:
+        description: True if user 2FA (not staff 2FA) is triggered
+        type: boolean
+      user:
+        allOf:
+        - $ref: '#/definitions/dtos.UserResponse'
+        description: Basic info for the logged-in entity
+    type: object
+  dtos.RefreshTokenRequest:
+    properties:
+      refreshToken:
+        type: string
+    required:
+    - refreshToken
+    type: object
+  dtos.RefreshTokenResponse:
+    properties:
+      accessToken:
+        type: string
+      accessTokenExpiresAt:
+        type: integer
+      message:
+        type: string
+      refreshToken:
+        type: string
+    type: object
+  dtos.RegisterUserRequest:
+    properties:
+      companyName:
+        maxLength: 100
+        minLength: 2
+        type: string
+      email:
+        type: string
+      firstName:
+        maxLength: 50
+        minLength: 2
+        type: string
+      lastName:
+        maxLength: 50
+        minLength: 2
+        type: string
+      password:
+        maxLength: 72
+        minLength: 8
+        type: string
+    required:
+    - companyName
+    - email
+    - firstName
+    - lastName
+    - password
+    type: object
+  dtos.RegisterUserResponse:
+    properties:
+      message:
+        type: string
+      user:
+        $ref: '#/definitions/dtos.UserResponse'
+    type: object
+  dtos.SelectFinancialInstitutionRequest:
+    properties:
+      financialInstitutionEmail:
+        type: string
+      financialInstitutionId:
+        type: string
+      financialInstitutionName:
+        type: string
+    required:
+    - financialInstitutionEmail
+    - financialInstitutionId
+    - financialInstitutionName
+    type: object
+  dtos.StaffResponse:
+    properties:
+      createdAt:
+        type: string
+      email:
+        type: string
+      firstName:
+        type: string
+      id:
+        type: integer
+      isActive:
+        type: boolean
+      lastLoginAt:
+        type: string
+      lastName:
+        type: string
+      role:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  dtos.SubmitKYCRequest:
+    properties:
+      addressLine1:
+        type: string
+      businessRegistrationNumber:
+        type: string
+      city:
+        type: string
+      country:
+        type: string
+      documentsInfo:
+        type: string
+    required:
+    - addressLine1
+    - businessRegistrationNumber
+    - city
+    - country
+    type: object
+  dtos.SuggestedFinancialInstitution:
+    properties:
+      code:
+        type: string
+      compatibilityScore:
+        type: number
+      description:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      interestRateMax:
+        type: number
+      interestRateMin:
+        type: number
+      name:
+        type: string
+      processingFee:
+        type: number
+      termsDays:
+        type: integer
+    type: object
+  dtos.SuggestedFinancialInstitutionsResponse:
+    properties:
+      suggestions:
+        items:
+          $ref: '#/definitions/dtos.SuggestedFinancialInstitution'
+        type: array
+    type: object
+  dtos.UpdateFinancialInstitutionProductRequest:
+    properties:
+      description:
+        type: string
+      interestRateMax:
+        maximum: 1
+        minimum: 0
+        type: number
+      interestRateMin:
+        maximum: 1
+        minimum: 0
+        type: number
+      isActive:
+        type: boolean
+      maxInvoiceAmount:
+        minimum: 0
+        type: number
+      minInvoiceAmount:
+        minimum: 0
+        type: number
+      name:
+        minLength: 2
+        type: string
+      processingFee:
+        minimum: 0
+        type: number
+      termsDays:
+        minimum: 0
+        type: integer
+    type: object
+  dtos.UpdateFinancialInstitutionRequest:
+    properties:
+      code:
+        minLength: 2
+        type: string
+      description:
+        type: string
+      interestRateMax:
+        maximum: 1
+        minimum: 0
+        type: number
+      interestRateMin:
+        maximum: 1
+        minimum: 0
+        type: number
+      isActive:
+        type: boolean
+      maxInvoiceAmount:
+        minimum: 0
+        type: number
+      minInvoiceAmount:
+        minimum: 0
+        type: number
+      name:
+        minLength: 2
+        type: string
+      processingFee:
+        minimum: 0
+        type: number
+      termsDays:
+        minimum: 0
+        type: integer
+    type: object
+  dtos.UpdateFinancialInstitutionTermRequest:
+    properties:
+      description:
+        type: string
+      interestRate:
+        maximum: 1
+        minimum: 0
+        type: number
+      isActive:
+        type: boolean
+      maxInvoiceAmount:
+        minimum: 0
+        type: number
+      minInvoiceAmount:
+        minimum: 0
+        type: number
+      name:
+        minLength: 2
+        type: string
+      processingFee:
+        minimum: 0
+        type: number
+      termDays:
+        minimum: 0
+        type: integer
+      validFrom:
+        type: string
+      validUntil:
+        type: string
+    type: object
+  dtos.UpdateInvoiceProcessedDataRequest:
+    properties:
+      extractedAmount:
+        type: number
+      extractedCurrency:
+        type: string
+      extractedDebtorName:
+        type: string
+      extractedDueDate:
+        description: Expect YYYY-MM-DD
+        type: string
+      extractedInvoiceNumber:
+        type: string
+      extractedIssuerBankAccount:
+        type: string
+      extractedIssuerBankName:
+        type: string
+      extractedIssuerName:
+        type: string
+      jsonData:
+        type: string
+      newStatus:
+        allOf:
+        - $ref: '#/definitions/models.InvoiceStatus'
+        description: 'Optional: n8n can suggest a new status'
+      processingError:
+        description: For n8n to report errors
+        type: string
+    required:
+    - jsonData
+    type: object
+  dtos.UpdateStaffRequest:
+    properties:
+      firstName:
+        minLength: 2
+        type: string
+      isActive:
+        type: boolean
+      lastName:
+        minLength: 2
+        type: string
+      role:
+        enum:
+        - admin
+        - kyc_reviewer
+        - finance_manager
+        type: string
+    type: object
+  dtos.UpdateUserProfileRequest:
+    properties:
+      companyName:
+        maxLength: 100
+        minLength: 2
+        type: string
+      firstName:
+        maxLength: 50
+        minLength: 2
+        type: string
+      lastName:
+        maxLength: 50
+        minLength: 2
+        type: string
+    type: object
+  dtos.UserProfileResponse:
+    properties:
+      companyName:
+        type: string
+      createdAt:
+        type: string
+      email:
+        type: string
+      firstName:
+        type: string
+      id:
+        type: integer
+      isActive:
+        type: boolean
+      kycStatus:
+        type: string
+      lastName:
+        type: string
+      twoFaEnabled:
+        type: boolean
+      updatedAt:
+        type: string
+    type: object
+  dtos.UserResponse:
+    properties:
+      companyName:
+        type: string
+      email:
+        type: string
+      firstName:
+        type: string
+      id:
+        type: integer
+      isActive:
+        type: boolean
+      lastName:
+        type: string
+      twoFAEnabled:
+        type: boolean
+    type: object
+  dtos.VerifyOTPRequest:
+    properties:
+      email:
+        type: string
+      otp:
+        type: string
+    required:
+    - email
+    - otp
+    type: object
+  dtos.VerifyOTPResponse:
+    properties:
+      accessToken:
+        type: string
+      accessTokenExpiresAt:
+        type: integer
+      message:
+        type: string
+      refreshToken:
+        type: string
+      user:
+        $ref: '#/definitions/dtos.UserResponse'
+    type: object
+  models.InvoiceStatus:
+    enum:
+    - pending_review
+    - approved
+    - rejected
+    - disbursed
+    - repayment_pending
+    - repaid
+    - processing_failed
+    - pending_admin_review
+    type: string
+    x-enum-varnames:
+    - InvoicePendingReview
+    - InvoiceApproved
+    - InvoiceRejected
+    - InvoiceDisbursed
+    - InvoiceRepaymentPending
+    - InvoiceRepaid
+    - InvoiceProcessingFailed
+    - InvoicePendingApproval
+  models.KYCStatus:
+    enum:
+    - pending
+    - approved
+    - rejected
+    - resubmit_required
+    type: string
+    x-enum-varnames:
+    - KYCPending
+    - KYCApproved
+    - KYCRejected
+    - KYCResubmitRequired
+  services.AdminDashboardAnalytics:
+    properties:
+      invoiceStats:
+        $ref: '#/definitions/services.InvoiceAnalytics'
+      kycStats:
+        $ref: '#/definitions/services.KYCAnalytics'
+      totalDisbursedAmount:
+        type: number
+      totalFinancedAmount:
+        type: number
+      totalUsers:
+        type: integer
+    type: object
+  services.InvoiceAnalytics:
+    properties:
+      approved:
+        description: Status = APPROVED
+        type: integer
+      disbursed:
+        description: Status = DISBURSED
+        type: integer
+      overdue:
+        description: Status = DISBURSED and DueDate < Now
+        type: integer
+      pendingApproval:
+        description: Status = PENDING_APPROVAL (or PENDING_REVIEW)
+        type: integer
+      rejected:
+        description: Status = REJECTED
+        type: integer
+      repaid:
+        description: Status = REPAID
+        type: integer
+      repaymentPending:
+        description: Status = REPAYMENT_PENDING
+        type: integer
+      totalInvoices:
+        type: integer
+    type: object
+  services.InvoicePDFResponse:
+    properties:
+      downloadUrl:
+        type: string
+      fileName:
+        type: string
+      filePath:
+        type: string
+    type: object
+  services.KYCAnalytics:
+    properties:
+      pendingReview:
+        type: integer
+      totalApproved:
+        type: integer
+      totalRejected:
+        type: integer
+      totalSubmitted:
+        type: integer
+    type: object
+  utils.ErrorResponse:
+    properties:
+      details: {}
+      message:
+        example: An error message explaining what went wrong
+        type: string
+      status:
+        example: error
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@invoiceb2b.com
+    name: API Support
+  description: This is the API documentation for the Invoice B2B platform
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Invoice B2B API
+  version: "1.0"
+paths:
+  /admin/activity-logs:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of all activity logs with optional filters
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Page size (default: 20)'
+        in: query
+        name: pageSize
+        type: integer
+      - description: Filter by user ID
+        in: query
+        name: user_id
+        type: string
+      - description: Filter by staff ID
+        in: query
+        name: staff_id
+        type: string
+      - description: Filter by action type
+        in: query
+        name: action
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.ActivityLogListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get activity logs
+      tags:
+      - admin-logs
+  /admin/dashboard/analytics:
+    get:
+      consumes:
+      - application/json
+      description: Get aggregated data for the admin dashboard (users, invoices, transactions)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.AdminDashboardAnalytics'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get dashboard analytics
+      tags:
+      - admin-analytics
+  /admin/financial-institutions:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of all financial institutions with optional
+        filters
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Page size (default: 10)'
+        in: query
+        name: pageSize
+        type: integer
+      - description: Filter by name
+        in: query
+        name: name
+        type: string
+      - description: Filter by code
+        in: query
+        name: code
+        type: string
+      - description: Filter by active status (true/false)
+        in: query
+        name: is_active
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.FinancialInstitutionListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get all financial institutions
+      tags:
+      - admin-financial-institutions
+    post:
+      consumes:
+      - application/json
+      description: Create a new financial institution
+      parameters:
+      - description: Financial institution creation details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.CreateFinancialInstitutionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dtos.FinancialInstitutionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Financial institution with this code already exists
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Create financial institution
+      tags:
+      - admin-financial-institutions
+  /admin/financial-institutions/{fiId}/products:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of products for a specific financial institution
+      parameters:
+      - description: Financial Institution ID
+        in: path
+        name: fiId
+        required: true
+        type: integer
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Page size (default: 10)'
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.FinancialInstitutionProductListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get financial institution products
+      tags:
+      - admin-financial-institutions
+  /admin/financial-institutions/{fiId}/terms:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of terms for a specific financial institution
+      parameters:
+      - description: Financial Institution ID
+        in: path
+        name: fiId
+        required: true
+        type: integer
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Page size (default: 10)'
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.FinancialInstitutionTermListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get financial institution terms
+      tags:
+      - admin-financial-institutions
+  /admin/financial-institutions/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an existing financial institution
+      parameters:
+      - description: Financial Institution ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Delete financial institution
+      tags:
+      - admin-financial-institutions
+    get:
+      consumes:
+      - application/json
+      description: Get details of a specific financial institution by its ID
+      parameters:
+      - description: Financial Institution ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.FinancialInstitutionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get financial institution by ID
+      tags:
+      - admin-financial-institutions
+    put:
+      consumes:
+      - application/json
+      description: Update an existing financial institution
+      parameters:
+      - description: Financial Institution ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Financial institution update details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.UpdateFinancialInstitutionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.FinancialInstitutionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Financial institution with this code already exists
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Update financial institution
+      tags:
+      - admin-financial-institutions
+  /admin/financial-institutions/products:
+    post:
+      consumes:
+      - application/json
+      description: Create a new product for a financial institution
+      parameters:
+      - description: Financial institution product creation details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.CreateFinancialInstitutionProductRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dtos.FinancialInstitutionProductResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Financial institution not found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Create financial institution product
+      tags:
+      - admin-financial-institutions
+  /admin/financial-institutions/products/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a financial institution product
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Delete financial institution product
+      tags:
+      - admin-financial-institutions
+    get:
+      consumes:
+      - application/json
+      description: Get details of a specific financial institution product by its
+        ID
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.FinancialInstitutionProductResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get financial institution product by ID
+      tags:
+      - admin-financial-institutions
+    put:
+      consumes:
+      - application/json
+      description: Update an existing financial institution product
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Product update details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.UpdateFinancialInstitutionProductRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.FinancialInstitutionProductResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Update financial institution product
+      tags:
+      - admin-financial-institutions
+  /admin/financial-institutions/products/{productId}/terms:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of terms for a specific financial institution
+        product
+      parameters:
+      - description: Product ID
+        in: path
+        name: productId
+        required: true
+        type: integer
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Page size (default: 10)'
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.FinancialInstitutionTermListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get terms by product
+      tags:
+      - admin-financial-institutions
+  /admin/financial-institutions/terms/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a financial institution term
+      parameters:
+      - description: Term ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Delete financial institution term
+      tags:
+      - admin-financial-institutions
+    put:
+      consumes:
+      - application/json
+      description: Update an existing financial institution term
+      parameters:
+      - description: Term ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Term update details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.UpdateFinancialInstitutionTermRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.FinancialInstitutionTermResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Update financial institution term
+      tags:
+      - admin-financial-institutions
+  /admin/invoices:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of all invoices with optional status filter
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Page size (default: 10)'
+        in: query
+        name: pageSize
+        type: integer
+      - description: Filter by invoice status
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.InvoiceListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get all invoices
+      tags:
+      - admin-invoices
+  /admin/invoices/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed information for a specific invoice
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.InvoiceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get invoice details
+      tags:
+      - admin-invoices
+  /admin/invoices/{id}/download-pdf:
+    get:
+      consumes:
+      - application/json
+      description: Download an invoice as a PDF document
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.InvoicePDFResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Download invoice PDF
+      tags:
+      - admin-invoices
+  /admin/invoices/{id}/receipt:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a disbursement receipt for an invoice
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Receipt file to upload (PDF, PNG, JPG, JPEG)
+        in: formData
+        name: receiptFile
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.InvoiceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Upload disbursement receipt
+      tags:
+      - admin-invoices
+  /admin/invoices/{id}/status:
+    put:
+      consumes:
+      - application/json
+      description: Update the status of an invoice (approve, reject, disburse, etc.)
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Invoice status update details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.AdminInvoiceUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.InvoiceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Update invoice status
+      tags:
+      - admin-invoices
+  /admin/profile/me:
+    get:
+      consumes:
+      - application/json
+      description: Get the profile of the currently logged-in admin/staff member
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.StaffResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get admin profile
+      tags:
+      - admin
+  /admin/staff:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of all staff members
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Page size (default: 10)'
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns staff, total, page, pageSize
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get all staff members
+      tags:
+      - admin-staff
+    post:
+      consumes:
+      - application/json
+      description: Create a new staff member (admin, reviewer, etc.)
+      parameters:
+      - description: Staff creation details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.CreateStaffRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dtos.StaffResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Staff with this email already exists
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Create staff member
+      tags:
+      - admin-staff
+  /admin/staff/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an existing staff member
+      parameters:
+      - description: Staff ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Delete staff member
+      tags:
+      - admin-staff
+    put:
+      consumes:
+      - application/json
+      description: Update details of an existing staff member
+      parameters:
+      - description: Staff ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Staff update details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.UpdateStaffRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.StaffResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Update staff member
+      tags:
+      - admin-staff
+  /admin/users:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of all users
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Page size (default: 10)'
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns users, total, page, pageSize
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get all users
+      tags:
+      - admin-users
+  /admin/users/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get details of a specific user by their ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get user by ID
+      tags:
+      - admin-users
+  /admin/users/{id}/activity-logs:
+    get:
+      consumes:
+      - application/json
+      description: Get activity logs specific to a user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Page size (default: 20)'
+        in: query
+        name: pageSize
+        type: integer
+      - description: Filter logs by action type
+        in: query
+        name: action
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.ActivityLogListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get user activity logs
+      tags:
+      - admin-users
+  /admin/users/{id}/kyc:
+    get:
+      consumes:
+      - application/json
+      description: Get KYC (Know Your Customer) details for a specific user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.AdminKYCDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get user KYC details
+      tags:
+      - admin-users
+  /admin/users/{id}/kyc/review:
+    put:
+      consumes:
+      - application/json
+      description: Approve or reject a user's KYC (Know Your Customer) application
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: KYC review details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.AdminKYCReviewRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.AdminKYCDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Review user KYC application
+      tags:
+      - admin-users
+  /auth/2fa/toggle:
+    post:
+      consumes:
+      - application/json
+      description: Enable or disable two-factor authentication for the authenticated
+        user
+      parameters:
+      - description: 2FA toggle details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.Enable2FARequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.Enable2FAResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Enable or disable 2FA
+      tags:
+      - auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate a user with email and password
+      parameters:
+      - description: User login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.LoginUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.LoginUserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      summary: Login user
+      tags:
+      - auth
+  /auth/login/2fa/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verify the one-time password for two-factor authentication
+      parameters:
+      - description: OTP verification details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.VerifyOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.VerifyOTPResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      summary: Verify 2FA OTP
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Logout the authenticated user and invalidate their token
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Logout user
+      tags:
+      - auth
+  /auth/refresh-token:
+    post:
+      consumes:
+      - application/json
+      description: Get a new access token using a refresh token
+      parameters:
+      - description: Refresh token details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.RefreshTokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      summary: Refresh access token
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user with email, name, company, and password
+      parameters:
+      - description: User registration details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.RegisterUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dtos.RegisterUserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      summary: Register a new user
+      tags:
+      - auth
+  /internal/invoices/{id}/processed-data:
+    put:
+      consumes:
+      - application/json
+      description: Update an invoice with data processed by n8n or other internal
+        services
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Processed invoice data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.UpdateInvoiceProcessedDataRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.InvoiceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Update invoice with processed data
+      tags:
+      - internal
+  /invoices:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of invoices for the authenticated user
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Page size (default: 10)'
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.InvoiceListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get user invoices
+      tags:
+      - invoices
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a new invoice file for processing
+      parameters:
+      - description: Invoice file to upload (PDF, CSV, JPEG, JPG, PNG)
+        in: formData
+        name: invoiceFile
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dtos.InvoiceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Upload a new invoice
+      tags:
+      - invoices
+  /invoices/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get details of a specific invoice by its ID
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.InvoiceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get invoice by ID
+      tags:
+      - invoices
+  /invoices/{id}/receipt:
+    get:
+      consumes:
+      - application/json
+      description: Download the receipt for a specific invoice
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Receipt file
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Download invoice receipt
+      tags:
+      - invoices
+  /invoices/{id}/select-financial-institution:
+    post:
+      consumes:
+      - application/json
+      description: Select a financial institution to finance a specific invoice
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Financial institution selection details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.SelectFinancialInstitutionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.InvoiceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Select financial institution for invoice
+      tags:
+      - invoices
+  /invoices/{id}/suggested-financial-institutions:
+    get:
+      consumes:
+      - application/json
+      description: Get a list of suggested financial institutions for a specific invoice
+        based on compatibility
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.SuggestedFinancialInstitutionsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get suggested financial institutions for invoice
+      tags:
+      - invoices
+  /invoices/{id}/viewreceipt:
+    get:
+      consumes:
+      - application/json
+      description: View the receipt for a specific invoice
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - image/jpeg
+      - image/png
+      - application/pdf
+      responses:
+        "200":
+          description: Receipt file
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: View invoice receipt
+      tags:
+      - invoices
+  /user/kyc:
+    get:
+      consumes:
+      - application/json
+      description: Get the current KYC (Know Your Customer) status for the authenticated
+        user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.KYCStatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get KYC status
+      tags:
+      - user
+    post:
+      consumes:
+      - application/json
+      description: Submit or update KYC (Know Your Customer) information for the authenticated
+        user
+      parameters:
+      - description: KYC submission details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.SubmitKYCRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.KYCStatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Submit KYC information
+      tags:
+      - user
+  /user/profile:
+    get:
+      consumes:
+      - application/json
+      description: Get the profile of the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.UserProfileResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get user profile
+      tags:
+      - user
+    put:
+      consumes:
+      - application/json
+      description: Update the profile of the authenticated user
+      parameters:
+      - description: User profile update details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.UpdateUserProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.UserProfileResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Update user profile
+      tags:
+      - user
+swagger: "2.0"
