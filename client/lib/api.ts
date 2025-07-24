@@ -1,7 +1,11 @@
 import axios from 'axios';
 
 // Get the API base URL from environment variables or use a default
-const API_BASE_URL = process.env.NUXT_PUBLIC_API_BASE_URL || 'http://localhost:8080/api/v1';
+// Using window.location.origin to dynamically determine the base URL in production
+const API_BASE_URL = process.env.NUXT_PUBLIC_API_BASE_URL || 
+  (typeof window !== 'undefined' 
+    ? `${window.location.origin}/api/v1` 
+    : 'http://localhost:8080/api/v1');
 
 /**
  * Create an axios instance with default configuration

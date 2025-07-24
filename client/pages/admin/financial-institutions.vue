@@ -14,8 +14,8 @@
       </div>
 
       <!-- Stats Cards -->
-      <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
+      <div class="grid gap-4 grid-cols-1 xs:grid-cols-2 md:grid-cols-4">
+        <Card class="shadow-sm hover:shadow transition-shadow">
           <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle class="text-sm font-medium">
               Total Institutions
@@ -30,7 +30,7 @@
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card class="shadow-sm hover:shadow transition-shadow">
           <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle class="text-sm font-medium">
               Active Institutions
@@ -45,7 +45,7 @@
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card class="shadow-sm hover:shadow transition-shadow">
           <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle class="text-sm font-medium">Total Products</CardTitle>
             <Package class="h-4 w-4 text-muted-foreground" />
@@ -58,7 +58,7 @@
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card class="shadow-sm hover:shadow transition-shadow">
           <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle class="text-sm font-medium">Total Terms</CardTitle>
             <FileText class="h-4 w-4 text-muted-foreground" />
@@ -74,19 +74,19 @@
       </div>
 
       <!-- Search and Filter -->
-      <div class="flex flex-col sm:flex-row gap-4 items-center justify-between">
-        <div class="relative w-full sm:w-64">
+      <div class="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between">
+        <div class="relative w-full sm:w-64 flex-grow sm:flex-grow-0">
           <Search class="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
           <Input
             v-model="searchQuery"
             placeholder="Search institutions..."
-            class="pl-8 w-full"
+            class="pl-8 w-full h-full"
             @input="handleSearch"
           />
         </div>
         <div class="flex gap-2 w-full sm:w-auto">
-          <Select v-model="statusFilter" @update:modelValue="fetchInstitutions">
-            <SelectTrigger class="w-full sm:w-[180px]">
+          <Select v-model="statusFilter" @update:modelValue="fetchInstitutions" class="w-full">
+            <SelectTrigger class="w-full sm:w-[180px] h-full">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -99,7 +99,7 @@
       </div>
 
       <!-- Institutions Table -->
-      <Card>
+      <Card class="shadow-sm">
         <CardHeader>
           <CardTitle>Financial Institutions</CardTitle>
           <CardDescription>Manage your financial institution partners.</CardDescription>
@@ -111,64 +111,82 @@
           <div v-else-if="institutions.length === 0" class="text-center py-8 text-gray-500">
             No financial institutions found.
           </div>
-          <div v-else class="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead class="hidden sm:table-cell">Code</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead class="hidden md:table-cell">Products</TableHead>
-                  <TableHead class="hidden lg:table-cell">Created</TableHead>
-                  <TableHead class="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow v-for="institution in institutions" :key="institution.id">
-                  <TableCell class="font-medium">{{ institution.name }}</TableCell>
-                  <TableCell class="hidden sm:table-cell">{{ institution.code }}</TableCell>
-                  <TableCell>
-                    <Badge :variant="institution.isActive ? 'default' : 'secondary'">
-                      {{ institution.isActive ? 'Active' : 'Inactive' }}
-                    </Badge>
-                  </TableCell>
-                  <TableCell class="hidden md:table-cell">{{ institution.productCount || 0 }}</TableCell>
-                  <TableCell class="hidden lg:table-cell">{{ formatDate(institution.createdAt) }}</TableCell>
-                  <TableCell class="text-right">
-                    <div class="flex justify-end space-x-1">
-                      <Button variant="ghost" size="icon" @click="viewInstitution(institution)" class="h-8 w-8">
-                        <Eye class="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" @click="editInstitution(institution)" class="h-8 w-8">
-                        <Edit class="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" @click="confirmDelete(institution)" class="h-8 w-8">
-                        <Trash2 class="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+          <div v-else>
+            <div class="rounded-md border overflow-hidden">
+              <div class="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead class="hidden sm:table-cell">Code</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead class="hidden md:table-cell">Products</TableHead>
+                      <TableHead class="hidden lg:table-cell">Created</TableHead>
+                      <TableHead class="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow v-for="institution in institutions" :key="institution.id">
+                      <TableCell class="font-medium">
+                        <div class="flex items-center">
+                          <span class="truncate max-w-[150px] sm:max-w-none">{{ institution.name }}</span>
+                          <Badge v-if="!institution.isActive" variant="secondary" class="ml-2 sm:hidden">
+                            Inactive
+                          </Badge>
+                        </div>
+                        <span class="text-xs text-gray-500 block sm:hidden">{{ institution.code }}</span>
+                        <span class="text-xs text-gray-500 block md:hidden">Products: {{ institution.productCount || 0 }}</span>
+                      </TableCell>
+                      <TableCell class="hidden sm:table-cell">{{ institution.code }}</TableCell>
+                      <TableCell class="hidden xs:table-cell">
+                        <Badge :variant="institution.isActive ? 'default' : 'secondary'">
+                          {{ institution.isActive ? 'Active' : 'Inactive' }}
+                        </Badge>
+                      </TableCell>
+                      <TableCell class="hidden md:table-cell">{{ institution.productCount || 0 }}</TableCell>
+                      <TableCell class="hidden lg:table-cell">{{ formatDate(institution.createdAt) }}</TableCell>
+                      <TableCell class="text-right">
+                        <div class="flex justify-end space-x-1">
+                          <Button variant="ghost" size="icon" @click="viewInstitution(institution)" class="h-8 w-8">
+                            <Eye class="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" @click="editInstitution(institution)" class="h-8 w-8">
+                            <Edit class="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" @click="confirmDelete(institution)" class="h-8 w-8">
+                            <Trash2 class="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
 
             <!-- Pagination -->
-            <div class="flex items-center justify-end space-x-2 py-4">
-              <Button
-                variant="outline"
-                size="sm"
-                :disabled="currentPage <= 1"
-                @click="changePage(currentPage - 1)"
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                :disabled="currentPage >= totalPages"
-                @click="changePage(currentPage + 1)"
-              >
-                Next
-              </Button>
+            <div class="flex flex-col xs:flex-row items-center justify-between gap-4 py-4">
+              <div class="text-sm text-gray-500">
+                Showing {{ institutions.length }} of {{ totalInstitutions }} institutions
+              </div>
+              <div class="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :disabled="currentPage <= 1"
+                  @click="changePage(currentPage - 1)"
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :disabled="currentPage >= totalPages"
+                  @click="changePage(currentPage + 1)"
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -176,7 +194,7 @@
 
       <!-- Create/Edit Institution Modal -->
       <Dialog v-model:open="showModal">
-        <DialogContent class="w-[90vw] max-w-[425px]">
+        <DialogContent class="w-[95vw] max-w-[500px] p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{{ isEditing ? 'Edit Institution' : 'Create Institution' }}</DialogTitle>
             <DialogDescription>
@@ -184,19 +202,19 @@
             </DialogDescription>
           </DialogHeader>
           <div class="grid gap-4 py-4">
-            <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
               <Label for="name" class="sm:text-right">Name</Label>
               <Input id="name" v-model="formData.name" class="sm:col-span-3" />
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
               <Label for="code" class="sm:text-right">Code</Label>
               <Input id="code" v-model="formData.code" class="sm:col-span-3" />
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
               <Label for="description" class="sm:text-right">Description</Label>
               <Input id="description" v-model="formData.description" class="sm:col-span-3" />
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-2 sm:gap-4">
               <Label for="status" class="sm:text-right">Status</Label>
               <Select v-model="formData.isActive" class="sm:col-span-3">
                 <SelectTrigger>
@@ -209,7 +227,7 @@
               </Select>
             </div>
           </div>
-          <DialogFooter class="flex-col sm:flex-row gap-2">
+          <DialogFooter class="flex-col sm:flex-row gap-2 mt-2">
             <Button variant="outline" @click="showModal = false" class="w-full sm:w-auto">Cancel</Button>
             <Button @click="saveInstitution" class="w-full sm:w-auto">Save</Button>
           </DialogFooter>
@@ -218,16 +236,16 @@
 
       <!-- Delete Confirmation Dialog -->
       <Dialog v-model:open="showDeleteDialog">
-        <DialogContent>
+        <DialogContent class="w-[95vw] max-w-[450px] p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {{ selectedInstitution?.name }}? This action cannot be undone.
+              Are you sure you want to delete <span class="font-medium">{{ selectedInstitution?.name }}</span>? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" @click="showDeleteDialog = false">Cancel</Button>
-            <Button variant="destructive" @click="deleteInstitution">Delete</Button>
+          <DialogFooter class="flex-col xs:flex-row gap-2 mt-4">
+            <Button variant="outline" @click="showDeleteDialog = false" class="w-full xs:w-auto">Cancel</Button>
+            <Button variant="destructive" @click="deleteInstitution" class="w-full xs:w-auto">Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

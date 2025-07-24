@@ -67,6 +67,12 @@ variable "sonarqube_db_name" {
   default     = "sonarqube_db"
 }
 
+variable "n8n_db_name" {
+  description = "Name for the n8n database in RDS"
+  type        = string
+  default     = "n8n_db"
+}
+
 // Add more variables as needed for N8N, SonarQube, other secrets, etc.
 
 

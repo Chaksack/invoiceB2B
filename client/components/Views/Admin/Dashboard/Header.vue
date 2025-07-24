@@ -10,26 +10,26 @@
     </div>
 
     <!-- Desktop Navigation -->
-    <NavigationMenu class="hidden md:block">
-      <NavigationMenuList>
+    <NavigationMenu class="hidden md:flex">
+      <NavigationMenuList class="flex space-x-1">
         <LazyNuxtLink to="/admin/home">
-        <NavigationMenuItem class="px-2 text-sm" >Dashboard
+        <NavigationMenuItem class="px-2 text-sm hover:bg-indigo-600 rounded-md py-1" >Dashboard
         </NavigationMenuItem>
         </LazyNuxtLink>
         <LazyNuxtLink to="/admin/invoices">
-          <NavigationMenuItem class="px-2 text-sm" >Invoices
+          <NavigationMenuItem class="px-2 text-sm hover:bg-indigo-600 rounded-md py-1" >Invoices
           </NavigationMenuItem>
         </LazyNuxtLink>
         <LazyNuxtLink to="/admin/customers">
-          <NavigationMenuItem class="px-2 text-sm" >Customers
+          <NavigationMenuItem class="px-2 text-sm hover:bg-indigo-600 rounded-md py-1" >Customers
           </NavigationMenuItem>
         </LazyNuxtLink>
         <LazyNuxtLink to="/admin/financial-institutions">
-          <NavigationMenuItem class="px-2 text-sm" >Financial Institutions
+          <NavigationMenuItem class="px-2 text-sm hover:bg-indigo-600 rounded-md py-1" >Financial Institutions
           </NavigationMenuItem>
         </LazyNuxtLink>
         <LazyNuxtLink to="">
-        <NavigationMenuItem class="px-2 text-sm">Profile
+        <NavigationMenuItem class="px-2 text-sm hover:bg-indigo-600 rounded-md py-1">Profile
         </NavigationMenuItem>
         </LazyNuxtLink>
       </NavigationMenuList>
@@ -69,14 +69,14 @@
           </span>
         </Button>
 
-        <div v-if="showNotifications" class="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg overflow-hidden z-50">
+        <div v-if="showNotifications" class="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 bg-white rounded-md shadow-lg overflow-hidden z-50">
           <div class="p-2 bg-indigo-500 text-white flex justify-between items-center">
             <h3 class="text-sm font-medium">Notifications</h3>
             <Button variant="ghost" size="sm" class="text-white h-6 px-2" @click="markAllAsRead">
               Mark all as read
             </Button>
           </div>
-          <div class="max-h-96 overflow-y-auto">
+          <div class="max-h-[50vh] sm:max-h-96 overflow-y-auto">
             <div v-if="notifications.length === 0" class="p-4 text-center text-gray-500">
               No notifications
             </div>
@@ -90,12 +90,12 @@
                       <component :is="getNotificationIcon(notification.type)" class="h-4 w-4 text-white" />
                     </div>
                   </div>
-                  <div class="flex-1">
-                    <p class="text-sm font-medium text-gray-900">{{ notification.title }}</p>
-                    <p class="text-xs text-gray-500">{{ notification.message }}</p>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-900 truncate">{{ notification.title }}</p>
+                    <p class="text-xs text-gray-500 line-clamp-2">{{ notification.message }}</p>
                     <p class="text-xs text-gray-400 mt-1">{{ formatRelativeTime(notification.timestamp) }}</p>
                   </div>
-                  <Button v-if="!notification.read" variant="ghost" size="sm" class="ml-2 h-6 w-6 p-0" 
+                  <Button v-if="!notification.read" variant="ghost" size="sm" class="ml-2 h-6 w-6 p-0 flex-shrink-0" 
                           @click.stop="markAsRead(index)">
                     <Check class="h-4 w-4" />
                   </Button>
@@ -111,7 +111,7 @@
         </div>
       </div>
 
-      <p class="pr-2">{{ user.fullName || 'User' }}</p>
+      <p class="hidden sm:block pr-2">{{ user.fullName || 'User' }}</p>
       <Avatar class="relative overflow-visible">
         <AvatarFallback class="text-black"> {{ user.initials || 'U' }} </AvatarFallback>
       </Avatar>

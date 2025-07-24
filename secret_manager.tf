@@ -15,7 +15,9 @@ resource "aws_secretsmanager_secret_version" "db_credentials_version" {
     # For SonarQube, it might use the same user or a different one.
     # If different, create another secret or add to this JSON.
     # For simplicity, assuming SonarQube uses the main db user for now.
-    sonardbname = var.sonarqube_db_name
+    sonardbname = var.sonarqube_db_name,
+    # For n8n, using the same user but a different database
+    n8ndbname = var.n8n_db_name
   })
 }
 
