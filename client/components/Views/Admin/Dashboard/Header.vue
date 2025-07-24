@@ -1,58 +1,65 @@
 <template>
-  <header class="sticky top-0 flex h-12 items-center justify-between text-white bg-indigo-500 px-6">
-    <h1 class="text-xl font-semibold font-mono">
-      InvoiceB2B
-    </h1>
-    <NavigationMenu>
+  <header class="sticky top-0 flex h-12 items-center justify-between text-white bg-indigo-500 px-4 md:px-6">
+    <div class="flex items-center">
+      <Button variant="ghost" size="icon" class="mr-2 md:hidden text-white" @click="toggleMobileMenu">
+        <Menu class="h-5 w-5" />
+      </Button>
+      <h1 class="text-xl font-semibold font-mono">
+        InvoiceB2B
+      </h1>
+    </div>
+
+    <!-- Desktop Navigation -->
+    <NavigationMenu class="hidden md:block">
       <NavigationMenuList>
         <LazyNuxtLink to="/admin/home">
-        <NavigationMenuItem class="px-2 text-xs" >Dashboard
+        <NavigationMenuItem class="px-2 text-sm" >Dashboard
         </NavigationMenuItem>
         </LazyNuxtLink>
         <LazyNuxtLink to="/admin/invoices">
-          <NavigationMenuItem class="px-2 text-xs" >Invoices
+          <NavigationMenuItem class="px-2 text-sm" >Invoices
           </NavigationMenuItem>
         </LazyNuxtLink>
         <LazyNuxtLink to="/admin/customers">
-          <NavigationMenuItem class="px-2 text-xs" >Customers
+          <NavigationMenuItem class="px-2 text-sm" >Customers
           </NavigationMenuItem>
         </LazyNuxtLink>
         <LazyNuxtLink to="/admin/financial-institutions">
-          <NavigationMenuItem class="px-2 text-xs" >Financial Institutions
+          <NavigationMenuItem class="px-2 text-sm" >Financial Institutions
           </NavigationMenuItem>
         </LazyNuxtLink>
-<!--        <NavigationMenuItem>-->
-<!--          <NavigationMenuTrigger class="bg-transparent text-xs">Invoices</NavigationMenuTrigger>-->
-<!--          <NavigationMenuContent class="bg-gray-900 text-white md:w-[400px] lg:w-[500px] ">-->
-<!--            <LazyNuxtLink to="/admin/invoices/pending">-->
-<!--            <NavigationMenuLink>Pending</NavigationMenuLink>-->
-<!--            </LazyNuxtLink>-->
-<!--            <LazyNuxtLink to="">-->
-<!--            <NavigationMenuLink>Approved</NavigationMenuLink>-->
-<!--            </LazyNuxtLink>-->
-<!--            <LazyNuxtLink to="">-->
-<!--            <NavigationMenuLink>Disbursed</NavigationMenuLink>-->
-<!--            </LazyNuxtLink>-->
-<!--          </NavigationMenuContent>-->
-<!--        </NavigationMenuItem>-->
-<!--<NavigationMenuItem>-->
-<!--        <NavigationMenuTrigger class="bg-transparent text-xs">Loans</NavigationMenuTrigger>-->
-<!--          <NavigationMenuContent class="bg-gray-900 text-white md:w-[400px] lg:w-[500px] ">-->
-<!--            <LazyNuxtLink to="">-->
-<!--            <NavigationMenuLink>Active</NavigationMenuLink>-->
-<!--            </LazyNuxtLink>-->
-<!--            <LazyNuxtLink to="">-->
-<!--            <NavigationMenuLink>Paid</NavigationMenuLink>-->
-<!--            </LazyNuxtLink>-->
-<!--          </NavigationMenuContent>-->
-<!--        </NavigationMenuItem>-->
-
         <LazyNuxtLink to="">
-        <NavigationMenuItem class="px-2 text-xs">Profile
+        <NavigationMenuItem class="px-2 text-sm">Profile
         </NavigationMenuItem>
         </LazyNuxtLink>
       </NavigationMenuList>
     </NavigationMenu>
+
+    <!-- Mobile Menu -->
+    <Sheet v-model:open="mobileMenuOpen">
+      <SheetContent side="left" class="w-[250px] sm:w-[300px] bg-indigo-500 text-white">
+        <SheetHeader>
+          <SheetTitle class="text-white">Menu</SheetTitle>
+        </SheetHeader>
+        <div class="flex flex-col space-y-4 mt-6">
+          <NuxtLink to="/admin/home" class="px-2 py-2 hover:bg-indigo-600 rounded-md" @click="mobileMenuOpen = false">
+            Dashboard
+          </NuxtLink>
+          <NuxtLink to="/admin/invoices" class="px-2 py-2 hover:bg-indigo-600 rounded-md" @click="mobileMenuOpen = false">
+            Invoices
+          </NuxtLink>
+          <NuxtLink to="/admin/customers" class="px-2 py-2 hover:bg-indigo-600 rounded-md" @click="mobileMenuOpen = false">
+            Customers
+          </NuxtLink>
+          <NuxtLink to="/admin/financial-institutions" class="px-2 py-2 hover:bg-indigo-600 rounded-md" @click="mobileMenuOpen = false">
+            Financial Institutions
+          </NuxtLink>
+          <NuxtLink to="" class="px-2 py-2 hover:bg-indigo-600 rounded-md" @click="mobileMenuOpen = false">
+            Profile
+          </NuxtLink>
+        </div>
+      </SheetContent>
+    </Sheet>
     <div class="flex items-center">
       <div class="relative mr-4">
         <Button variant="ghost" size="icon" class="relative text-white" @click="toggleNotifications">
@@ -104,9 +111,9 @@
         </div>
       </div>
 
-      <p class="pr-2">Andrew Chakdahah</p>
+      <p class="pr-2">{{ user.fullName || 'User' }}</p>
       <Avatar class="relative overflow-visible">
-        <AvatarFallback class="text-black"> AC </AvatarFallback>
+        <AvatarFallback class="text-black"> {{ user.initials || 'U' }} </AvatarFallback>
       </Avatar>
     </div>
     <Toaster richColors position="top-right" />
@@ -116,7 +123,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Avatar, AvatarFallback } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
-import { Bell, Check, UserPlus, FilePlus, CheckCircle2, XCircle, AlertCircle } from 'lucide-vue-next';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "~/components/ui/sheet";
+import { Bell, Check, UserPlus, FilePlus, CheckCircle2, XCircle, AlertCircle, Menu } from 'lucide-vue-next';
 import { Toaster, toast } from 'vue-sonner';
 import {
   NavigationMenu,
@@ -130,20 +138,57 @@ import {
 } from '~/components/ui/navigation-menu';
 import axios from 'axios';
 import { useCookie } from '#app';
+import { createApiClient, userApi } from '~/lib/api';
 
-const API_BASE_URL = 'http://localhost:3000/api/v1';
 const tokenCookie = useCookie('token');
 const authToken = tokenCookie.value || null;
+const apiClient = createApiClient(authToken);
 
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-    'Content-Type': 'application/json',
-  },
+// User state
+const user = ref({
+  fullName: '',
+  email: '',
+  initials: ''
 });
 
+// Fetch user profile
+const fetchUserProfile = async () => {
+  if (!authToken) return;
+
+  try {
+    const response = await userApi.getProfile(apiClient);
+    const profile = response.data;
+
+    if (profile) {
+      // Set user data
+      user.value.fullName = profile.fullName || profile.name || '';
+      user.value.email = profile.email || '';
+
+      // Generate initials from full name
+      if (user.value.fullName) {
+        const nameParts = user.value.fullName.split(' ');
+        user.value.initials = nameParts.length > 1 
+          ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
+          : nameParts[0][0].toUpperCase();
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch user profile:', error);
+    // Set fallback data
+    user.value = {
+      fullName: 'Andrew Chakdahah',
+      email: 'andrew@example.com',
+      initials: 'AC'
+    };
+  }
+};
+
+const mobileMenuOpen = ref(false);
 const showNotifications = ref(false);
+
+const toggleMobileMenu = () => {
+  mobileMenuOpen.value = !mobileMenuOpen.value;
+};
 const notifications = ref([
   {
     id: 1,
@@ -293,6 +338,7 @@ const setupWebSocket = () => {
 let wsConnection;
 
 onMounted(() => {
+  fetchUserProfile();
   fetchNotifications();
   wsConnection = setupWebSocket();
 

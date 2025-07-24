@@ -7,10 +7,8 @@ import (
 	"log"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -41,8 +39,8 @@ const (
 	ErrCodeTokenBlacklisted    ErrorCode = "TOKEN_BLACKLISTED"
 )
 
-// ErrorResponse represents a standardized error response
-type ErrorResponse struct {
+// EnhancedErrorResponse represents a standardized error response with additional fields
+type EnhancedErrorResponse struct {
 	Status    string      `json:"status"`
 	Code      ErrorCode   `json:"code"`
 	Message   string      `json:"message"`
@@ -119,17 +117,17 @@ func getErrorCode(err error) (ErrorCode, int) {
 	return code, statusCode
 }
 
-// GlobalErrorHandler provides a centralized way to handle errors.
-func GlobalErrorHandler(c *fiber.Ctx, err error) error {
+// EnhancedGlobalErrorHandler provides a centralized way to handle errors with more details.
+func EnhancedGlobalErrorHandler(c *fiber.Ctx, err error) error {
 	// Generate a request ID for tracking
 	requestID := uuid.New().String()
-
+	
 	// Get error code and status code
 	errorCode, statusCode := getErrorCode(err)
-
+	
 	// Default message
 	message := "An unexpected error occurred. Please try again later."
-
+	
 	// Check for specific error messages
 	var fiberError *fiber.Error
 	if errors.As(err, &fiberError) {
@@ -157,7 +155,7 @@ func GlobalErrorHandler(c *fiber.Ctx, err error) error {
 	}
 
 	// Create the error response
-	response := ErrorResponse{
+	response := EnhancedErrorResponse{
 		Status:    "error",
 		Code:      errorCode,
 		Message:   message,
@@ -173,8 +171,8 @@ func GlobalErrorHandler(c *fiber.Ctx, err error) error {
 	return c.Status(statusCode).JSON(response)
 }
 
-// HandleError is a utility for handlers to return structured errors.
-func HandleError(c *fiber.Ctx, statusCode int, msg string, originalError error) error {
+// EnhancedHandleError is an improved utility for handlers to return structured errors.
+func EnhancedHandleError(c *fiber.Ctx, statusCode int, msg string, originalError error) error {
 	// If originalError is a known service error, return it directly
 	// This allows the GlobalErrorHandler to properly identify the error type
 	if originalError != nil {
@@ -203,18 +201,21 @@ func HandleError(c *fiber.Ctx, statusCode int, msg string, originalError error) 
 	return fiber.NewError(statusCode, msg)
 }
 
-// HandleValidationError is a utility for handling validation errors
-func HandleValidationError(c *fiber.Ctx, err error) error {
+// EnhancedHandleValidationError is an improved utility for handling validation errors
+func EnhancedHandleValidationError(c *fiber.Ctx, err error) error {
 	// Extract validation errors and format them
-	validationErrors := extractValidationErrors(err)
-
+	validationErrors := FormatValidationError(err)
+	
+	// Generate a request ID for tracking
+	requestID := uuid.New().String()
+	
 	// Create a detailed error response
-	return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{
+	return c.Status(fiber.StatusBadRequest).JSON(EnhancedErrorResponse{
 		Status:    "error",
 		Code:      ErrCodeValidationFailed,
 		Message:   "Validation failed. Please check your input.",
 		Details:   validationErrors,
-		RequestID: uuid.New().String(),
+		RequestID: requestID,
 		Timestamp: time.Now(),
 	})
 }
@@ -247,41 +248,14 @@ func logErrorWithContext(c *fiber.Ctx, err error, statusCode int, requestID, mes
 		c.Method(),
 		c.IP(),
 	)
-
+	
 	if err != nil {
 		logEntry += fmt.Sprintf(" - Original Error: %v", err)
 	}
-
+	
 	if statusCode >= 500 {
 		log.Printf("SERVER ERROR: %s", logEntry)
 	} else {
 		log.Printf("CLIENT ERROR: %s", logEntry)
 	}
-}
-
-// extractValidationErrors extracts validation errors from the validator
-func extractValidationErrors(err error) map[string]string {
-	errors := make(map[string]string)
-
-	// Check if it's a validator.ValidationErrors type
-	if validationErrors, ok := err.(validator.ValidationErrors); ok {
-		for _, e := range validationErrors {
-			// Get a user-friendly error message based on the validation tag
-			fieldName := e.Field()
-			// Convert first letter to lowercase for JSON field name convention
-			if len(fieldName) > 0 {
-				fieldName = strings.ToLower(fieldName[:1]) + fieldName[1:]
-			}
-
-			// Add the formatted error message
-			errors[fieldName] = formatErrorMessage(e)
-		}
-		return errors
-	}
-
-	// If it's not a validation error or we can't extract details,
-	// just add the generic error message
-	errors["_error"] = err.Error()
-
-	return errors
 }

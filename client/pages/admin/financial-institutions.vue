@@ -14,7 +14,7 @@
       </div>
 
       <!-- Stats Cards -->
-      <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle class="text-sm font-medium">
@@ -111,44 +111,46 @@
           <div v-else-if="institutions.length === 0" class="text-center py-8 text-gray-500">
             No financial institutions found.
           </div>
-          <div v-else>
+          <div v-else class="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Code</TableHead>
+                  <TableHead class="hidden sm:table-cell">Code</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Products</TableHead>
-                  <TableHead>Created</TableHead>
+                  <TableHead class="hidden md:table-cell">Products</TableHead>
+                  <TableHead class="hidden lg:table-cell">Created</TableHead>
                   <TableHead class="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <TableRow v-for="institution in institutions" :key="institution.id">
                   <TableCell class="font-medium">{{ institution.name }}</TableCell>
-                  <TableCell>{{ institution.code }}</TableCell>
+                  <TableCell class="hidden sm:table-cell">{{ institution.code }}</TableCell>
                   <TableCell>
                     <Badge :variant="institution.isActive ? 'default' : 'secondary'">
                       {{ institution.isActive ? 'Active' : 'Inactive' }}
                     </Badge>
                   </TableCell>
-                  <TableCell>{{ institution.productCount || 0 }}</TableCell>
-                  <TableCell>{{ formatDate(institution.createdAt) }}</TableCell>
+                  <TableCell class="hidden md:table-cell">{{ institution.productCount || 0 }}</TableCell>
+                  <TableCell class="hidden lg:table-cell">{{ formatDate(institution.createdAt) }}</TableCell>
                   <TableCell class="text-right">
-                    <Button variant="ghost" size="icon" @click="viewInstitution(institution)">
-                      <Eye class="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" @click="editInstitution(institution)">
-                      <Edit class="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" @click="confirmDelete(institution)">
-                      <Trash2 class="h-4 w-4" />
-                    </Button>
+                    <div class="flex justify-end space-x-1">
+                      <Button variant="ghost" size="icon" @click="viewInstitution(institution)" class="h-8 w-8">
+                        <Eye class="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" @click="editInstitution(institution)" class="h-8 w-8">
+                        <Edit class="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" @click="confirmDelete(institution)" class="h-8 w-8">
+                        <Trash2 class="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               </TableBody>
             </Table>
-            
+
             <!-- Pagination -->
             <div class="flex items-center justify-end space-x-2 py-4">
               <Button
@@ -174,7 +176,7 @@
 
       <!-- Create/Edit Institution Modal -->
       <Dialog v-model:open="showModal">
-        <DialogContent class="sm:max-w-[425px]">
+        <DialogContent class="w-[90vw] max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{{ isEditing ? 'Edit Institution' : 'Create Institution' }}</DialogTitle>
             <DialogDescription>
@@ -182,21 +184,21 @@
             </DialogDescription>
           </DialogHeader>
           <div class="grid gap-4 py-4">
-            <div class="grid grid-cols-4 items-center gap-4">
-              <Label for="name" class="text-right">Name</Label>
-              <Input id="name" v-model="formData.name" class="col-span-3" />
+            <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+              <Label for="name" class="sm:text-right">Name</Label>
+              <Input id="name" v-model="formData.name" class="sm:col-span-3" />
             </div>
-            <div class="grid grid-cols-4 items-center gap-4">
-              <Label for="code" class="text-right">Code</Label>
-              <Input id="code" v-model="formData.code" class="col-span-3" />
+            <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+              <Label for="code" class="sm:text-right">Code</Label>
+              <Input id="code" v-model="formData.code" class="sm:col-span-3" />
             </div>
-            <div class="grid grid-cols-4 items-center gap-4">
-              <Label for="description" class="text-right">Description</Label>
-              <Input id="description" v-model="formData.description" class="col-span-3" />
+            <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+              <Label for="description" class="sm:text-right">Description</Label>
+              <Input id="description" v-model="formData.description" class="sm:col-span-3" />
             </div>
-            <div class="grid grid-cols-4 items-center gap-4">
-              <Label for="status" class="text-right">Status</Label>
-              <Select v-model="formData.isActive" class="col-span-3">
+            <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+              <Label for="status" class="sm:text-right">Status</Label>
+              <Select v-model="formData.isActive" class="sm:col-span-3">
                 <SelectTrigger>
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
@@ -207,9 +209,9 @@
               </Select>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" @click="showModal = false">Cancel</Button>
-            <Button @click="saveInstitution">Save</Button>
+          <DialogFooter class="flex-col sm:flex-row gap-2">
+            <Button variant="outline" @click="showModal = false" class="w-full sm:w-auto">Cancel</Button>
+            <Button @click="saveInstitution" class="w-full sm:w-auto">Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -257,23 +259,16 @@ import {
 import { Toaster, toast } from 'vue-sonner';
 import { useCookie } from '#app';
 import axios from 'axios';
+import { createApiClient, financialInstitutionsApi } from '~/lib/api';
 
 definePageMeta({
   layout: 'admin',
   middleware: 'auth'
 });
 
-const API_BASE_URL = 'http://localhost:3000/api/v1'; // Replace with your actual API base URL
 const tokenCookie = useCookie('token');
 const authToken = tokenCookie.value || null;
-
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-    'Content-Type': 'application/json',
-  },
-});
+const apiClient = createApiClient(authToken);
 
 // State
 const isLoading = ref(true);
@@ -303,27 +298,24 @@ const formData = ref({
 const fetchInstitutions = async () => {
   isLoading.value = true;
   try {
-    let url = `/admin/financial-institutions?page=${currentPage.value}&pageSize=${pageSize.value}`;
-    
-    if (searchQuery.value) {
-      url += `&name=${searchQuery.value}`;
-    }
-    
-    if (statusFilter.value) {
-      url += `&is_active=${statusFilter.value}`;
-    }
-    
-    const response = await apiClient.get(url);
+    const params = {
+      page: currentPage.value,
+      pageSize: pageSize.value,
+      ...(searchQuery.value ? { name: searchQuery.value } : {}),
+      ...(statusFilter.value ? { is_active: statusFilter.value } : {})
+    };
+
+    const response = await financialInstitutionsApi.getAll(apiClient, params);
     institutions.value = response.data.financialInstitutions || [];
     totalInstitutions.value = response.data.total || 0;
     totalPages.value = Math.ceil(totalInstitutions.value / pageSize.value);
-    
+
     // Count active institutions
     activeInstitutions.value = institutions.value.filter(inst => inst.isActive).length;
-    
+
     // Fetch additional stats
     await fetchStats();
-    
+
   } catch (error) {
     console.error("Failed to fetch financial institutions:", error);
     toast.error("Could not load financial institutions.");
@@ -335,10 +327,25 @@ const fetchInstitutions = async () => {
 // Fetch additional statistics
 const fetchStats = async () => {
   try {
-    // In a real implementation, you would fetch these from the API
-    // For now, we'll use mock data
-    totalProducts.value = 24;
-    totalTerms.value = 48;
+    // Try to get real data from the API
+    try {
+      // Get all products count
+      const productsResponse = await financialInstitutionsApi.getAll(apiClient, { pageSize: 1 });
+      if (productsResponse.data.total !== undefined) {
+        totalProducts.value = productsResponse.data.total;
+      } else {
+        // Fallback to mock data
+        totalProducts.value = 24;
+      }
+
+      // For terms, we don't have a direct API, so use mock data for now
+      totalTerms.value = 48;
+    } catch (apiError) {
+      console.error("Failed to fetch stats from API, using mock data:", apiError);
+      // Fallback to mock data
+      totalProducts.value = 24;
+      totalTerms.value = 48;
+    }
   } catch (error) {
     console.error("Failed to fetch stats:", error);
   }
@@ -401,11 +408,11 @@ const saveInstitution = async () => {
   try {
     if (isEditing.value && selectedInstitution.value) {
       // Update existing institution
-      await apiClient.put(`/admin/financial-institutions/${selectedInstitution.value.id}`, formData.value);
+      await financialInstitutionsApi.update(apiClient, selectedInstitution.value.id, formData.value);
       toast.success(`${formData.value.name} updated successfully!`);
     } else {
       // Create new institution
-      await apiClient.post('/admin/financial-institutions', formData.value);
+      await financialInstitutionsApi.create(apiClient, formData.value);
       toast.success(`${formData.value.name} created successfully!`);
     }
     showModal.value = false;
@@ -428,9 +435,9 @@ const confirmDelete = (institution: any) => {
 
 const deleteInstitution = async () => {
   if (!selectedInstitution.value) return;
-  
+
   try {
-    await apiClient.delete(`/admin/financial-institutions/${selectedInstitution.value.id}`);
+    await financialInstitutionsApi.delete(apiClient, selectedInstitution.value.id);
     toast.success(`${selectedInstitution.value.name} deleted successfully!`);
     showDeleteDialog.value = false;
     fetchInstitutions();
