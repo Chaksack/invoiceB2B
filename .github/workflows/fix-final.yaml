@@ -61,7 +61,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Cache Terraform to speed up workflow
       - name: Cache Terraform
         uses: actions/cache@v4
         with:
@@ -70,14 +69,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-terraform-
 
-      # Setup Terraform with latest stable version
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
-      # Initialize Terraform with proper backend configuration
       - name: Terraform Init
         id: terraform_init
         run: |
@@ -545,10 +542,163 @@ jobs:
         run: |
           rm -rf /tmp/.buildx-cache || true
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
+          
+  build-and-push-monitoring:
+    name: 'Build and Push Monitoring Images'
+    needs: terraform
+    runs-on: ubuntu-latest
+    # Only run on main branch and not in pull requests, and only if terraform was successful
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') && github.event_name != 'pull_request' && needs.terraform.outputs.terraform_success == 'true'
+    environment:
+      name: ${{ github.event.inputs.environment || 'staging' }}
+    
+    env:
+      SONARQUBE_VERSION: "9.9-community"
+      PROMETHEUS_VERSION: "v2.45.0"
+      GRAFANA_VERSION: "10.0.3"
+      ALERTMANAGER_VERSION: "v0.25.0"
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Configure AWS credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Login to Amazon ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Cache Docker layers
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-monitoring-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-monitoring-
+
+      - name: Build and push SonarQube image
+        id: build-sonarqube
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-sonarqube:latest
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-sonarqube:${{ env.SONARQUBE_VERSION }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-sonarqube:${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          # Use the official SonarQube image
+          pull: true
+          build-args: |
+            BASE_IMAGE=sonarqube:${{ env.SONARQUBE_VERSION }}
+          # Create a simple Dockerfile on-the-fly
+          dockerfile: |
+            FROM sonarqube:${{ env.SONARQUBE_VERSION }}
+            # Add any customizations here if needed
+            USER sonarqube
+
+      - name: Build and push Prometheus image
+        id: build-prometheus
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-prometheus:latest
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-prometheus:${{ env.PROMETHEUS_VERSION }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-prometheus:${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          # Use the official Prometheus image
+          pull: true
+          build-args: |
+            BASE_IMAGE=prom/prometheus:${{ env.PROMETHEUS_VERSION }}
+          # Create a simple Dockerfile on-the-fly
+          dockerfile: |
+            FROM prom/prometheus:${{ env.PROMETHEUS_VERSION }}
+            # Add any customizations here if needed
+            # Copy a default prometheus.yml if needed
+            # COPY prometheus.yml /etc/prometheus/prometheus.yml
+            USER nobody
+
+      - name: Build and push Grafana image
+        id: build-grafana
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-grafana:latest
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-grafana:${{ env.GRAFANA_VERSION }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-grafana:${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          # Use the official Grafana image
+          pull: true
+          build-args: |
+            BASE_IMAGE=grafana/grafana:${{ env.GRAFANA_VERSION }}
+          # Create a simple Dockerfile on-the-fly
+          dockerfile: |
+            FROM grafana/grafana:${{ env.GRAFANA_VERSION }}
+            # Add any customizations here if needed
+            USER grafana
+
+      - name: Build and push Alertmanager image
+        id: build-alertmanager
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-alertmanager:latest
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-alertmanager:${{ env.ALERTMANAGER_VERSION }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-alertmanager:${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          # Use the official Alertmanager image
+          pull: true
+          build-args: |
+            BASE_IMAGE=prom/alertmanager:${{ env.ALERTMANAGER_VERSION }}
+          # Create a simple Dockerfile on-the-fly
+          dockerfile: |
+            FROM prom/alertmanager:${{ env.ALERTMANAGER_VERSION }}
+            # Add any customizations here if needed
+            # COPY alertmanager.yml /etc/alertmanager/alertmanager.yml
+            USER nobody
+
+      # Move cache to prevent it from growing indefinitely
+      - name: Move Docker Cache
+        run: |
+          rm -rf /tmp/.buildx-cache || true
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
+          
+      # Generate deployment summary
+      - name: Create Monitoring Deployment Summary
+        run: |
+          echo "## Monitoring Services Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Image | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "| --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
+          echo "| SonarQube | ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-sonarqube:${{ github.sha }} | ✅ Pushed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Prometheus | ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-prometheus:${{ github.sha }} | ✅ Pushed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Grafana | ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-grafana:${{ github.sha }} | ✅ Pushed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Alertmanager | ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPOSE_PROJECT_NAME }}-alertmanager:${{ github.sha }} | ✅ Pushed |" >> $GITHUB_STEP_SUMMARY
 
   docker-image-scan:
     name: 'Scan Docker Images for Vulnerabilities'
-    needs: build-and-push
+    needs: [build-and-push, build-and-push-monitoring]
     runs-on: ubuntu-latest
     # Run even if build-and-push job didn't push to ECR (we can still scan local images)
     if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') && github.event_name != 'pull_request'
@@ -642,7 +792,7 @@ jobs:
 
   deploy-to-ecs:
     name: 'Deploy to ECS'
-    needs: [build-and-push, docker-image-scan]
+    needs: [build-and-push, build-and-push-monitoring, docker-image-scan]
     runs-on: ubuntu-latest
     # Only run on main branch and not in pull requests, and only if ECR repositories were found
     if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') && github.event_name != 'pull_request'
@@ -797,6 +947,42 @@ jobs:
           echo "Starting deployment to ECS..."
           aws ecs update-service --cluster ${{ steps.get-ecs-services.outputs.cluster_name }} --service ${{ steps.get-ecs-services.outputs.api_service }} --force-new-deployment
           echo "Deployment completed successfully!"
+        continue-on-error: true
+        
+      # Deploy monitoring services to ECS
+      - name: Deploy Monitoring Services to ECS
+        id: deploy-monitoring
+        if: steps.check-ecr-repos.outputs.ecr_repos_found == 'true'
+        run: |
+          echo "Updating monitoring ECS services with new images..."
+          
+          # Get cluster name
+          CLUSTER_NAME="${{ steps.get-ecs-services.outputs.cluster_name }}"
+          if [ -z "$CLUSTER_NAME" ]; then
+            CLUSTER_NAME="${{ env.COMPOSE_PROJECT_NAME }}-b2b-cluster"
+          fi
+          
+          # Update SonarQube service
+          aws ecs update-service --cluster $CLUSTER_NAME \
+            --service ${{ env.COMPOSE_PROJECT_NAME }}-sonarqube \
+            --force-new-deployment
+          
+          # Update Prometheus service
+          aws ecs update-service --cluster $CLUSTER_NAME \
+            --service ${{ env.COMPOSE_PROJECT_NAME }}-prometheus \
+            --force-new-deployment
+          
+          # Update Grafana service
+          aws ecs update-service --cluster $CLUSTER_NAME \
+            --service ${{ env.COMPOSE_PROJECT_NAME }}-grafana \
+            --force-new-deployment
+          
+          # Update Alertmanager service
+          aws ecs update-service --cluster $CLUSTER_NAME \
+            --service ${{ env.COMPOSE_PROJECT_NAME }}-alertmanager \
+            --force-new-deployment
+          
+          echo "Monitoring ECS services updated successfully!"
         continue-on-error: true
 
       # Skip deployment message
@@ -965,7 +1151,7 @@ jobs:
   # Summary job to report overall workflow status
   deployment-summary:
     name: 'Deployment Summary'
-    needs: [terraform-destroy, terraform, build-and-push, docker-image-scan, deploy-to-ecs, rollback, vulnerability-scan]
+    needs: [terraform-destroy, terraform, build-and-push, build-and-push-monitoring, docker-image-scan, deploy-to-ecs, rollback, vulnerability-scan]
     runs-on: ubuntu-latest
     if: always()
     environment:
@@ -1030,6 +1216,7 @@ jobs:
           else
             echo "| Infrastructure Deployment | ${{ needs.terraform.result }} |" >> $GITHUB_STEP_SUMMARY
             echo "| Docker Image Build & Push | ${{ needs.build-and-push.result }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Monitoring Services Build & Push | ${{ needs.build-and-push-monitoring.result }} |" >> $GITHUB_STEP_SUMMARY
             echo "| Docker Image Scanning | ${{ needs.docker-image-scan.result }} |" >> $GITHUB_STEP_SUMMARY
             echo "| ECS Deployment | ${{ needs.deploy-to-ecs.result }} |" >> $GITHUB_STEP_SUMMARY
 
@@ -1111,7 +1298,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Deployment Summary - ${{ env.ENVIRONMENT }} Environment*\n\n*Environment*: ${{ env.ENVIRONMENT }}\n${{ contains(needs.*.result, needs.vulnerability-scan.result) && format('*Vulnerability Scanning*: {0}', needs.vulnerability-scan.result) || '' }}\n*Infrastructure*: ${{ needs.terraform.result }}\n*Docker Images*: ${{ needs.build-and-push.result }}\n*Docker Image Scanning*: ${{ needs.docker-image-scan.result }}\n*ECS Deployment*: ${{ needs.deploy-to-ecs.result }}\n${{ contains(needs.*.result, needs.rollback.result) && format('*Rollback*: {0}', needs.rollback.result) || '' }}\n\n${{ contains(needs.*.result, needs.rollback.result) && '⚠️ *A rollback was performed due to deployment failure*' || '' }}\n${{ contains(needs.*.result, needs.vulnerability-scan.result) && needs.vulnerability-scan.result != 'success' && '⚠️ *Vulnerabilities were found during dependency scanning*' || '' }}\n${{ contains(needs.*.result, needs.docker-image-scan.result) && needs.docker-image-scan.outputs.scan_status == 'warning' && '⚠️ *Vulnerabilities were found in Docker images, but deployment continued*' || '' }}"
+                    "text": "*Deployment Summary - ${{ env.ENVIRONMENT }} Environment*\n\n*Environment*: ${{ env.ENVIRONMENT }}\n${{ contains(needs.*.result, needs.vulnerability-scan.result) && format('*Vulnerability Scanning*: {0}', needs.vulnerability-scan.result) || '' }}\n*Infrastructure*: ${{ needs.terraform.result }}\n*Docker Images*: ${{ needs.build-and-push.result }}\n*Monitoring Services*: ${{ needs.build-and-push-monitoring.result }}\n*Docker Image Scanning*: ${{ needs.docker-image-scan.result }}\n*ECS Deployment*: ${{ needs.deploy-to-ecs.result }}\n${{ contains(needs.*.result, needs.rollback.result) && format('*Rollback*: {0}', needs.rollback.result) || '' }}\n\n${{ contains(needs.*.result, needs.rollback.result) && '⚠️ *A rollback was performed due to deployment failure*' || '' }}\n${{ contains(needs.*.result, needs.vulnerability-scan.result) && needs.vulnerability-scan.result != 'success' && '⚠️ *Vulnerabilities were found during dependency scanning*' || '' }}\n${{ contains(needs.*.result, needs.docker-image-scan.result) && needs.docker-image-scan.outputs.scan_status == 'warning' && '⚠️ *Vulnerabilities were found in Docker images, but deployment continued*' || '' }}"
                   }
                 },
                 {
@@ -1144,6 +1331,7 @@ jobs:
             ${{ contains(needs.*.result, needs.vulnerability-scan.result) && format('Vulnerability Scanning: {0}', needs.vulnerability-scan.result) || '' }}
             Infrastructure: ${{ needs.terraform.result }}
             Docker Images: ${{ needs.build-and-push.result }}
+            Monitoring Services: ${{ needs.build-and-push-monitoring.result }}
             Docker Image Scanning: ${{ needs.docker-image-scan.result }}
             ECS Deployment: ${{ needs.deploy-to-ecs.result }}
             ${{ contains(needs.*.result, needs.rollback.result) && format('Rollback: {0}', needs.rollback.result) || '' }}
