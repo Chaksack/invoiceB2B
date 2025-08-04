@@ -58,7 +58,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Set up Docker Buildx for multi-platform builds and caching
+      # Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -67,7 +67,7 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Cache Docker layers to speed up builds
+      # Cache Docker layers
       - name: Cache Docker layers
         uses: actions/cache@v4
         with:
@@ -172,13 +172,13 @@ jobs:
             USER nobody
 
       # Move cache to prevent it from growing indefinitely
-      - name: Move cache
+      - name: Move Docker Cache
         run: |
           rm -rf /tmp/.buildx-cache || true
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
 
       # Force new deployment of ECS services
-      - name: Force new ECS deployment
+      - name: Deploy to ECS Services
         run: |
           echo "Updating ECS services with new images..."
           
@@ -204,8 +204,8 @@ jobs:
           
           echo "ECS services updated successfully!"
 
-      # Generate summary
-      - name: Generate Deployment Summary
+      # Generate deployment summary
+      - name: Create Deployment Summary
         run: |
           echo "## Monitoring Services Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "| Service | Image | Status |" >> $GITHUB_STEP_SUMMARY
