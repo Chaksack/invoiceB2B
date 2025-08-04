@@ -118,13 +118,131 @@ jobs:
         run: |
           echo "Error: You must type 'destroy' to confirm infrastructure destruction."
           exit 1
+          
+  # Pull request review and approval job
+  pull-request-approval:
+    name: 'Pull Request Review and Approval'
+    runs-on: ubuntu-latest
+    # Only run on pull requests to main and staging branches
+    if: github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'staging')
+    permissions:
+      pull-requests: write
+      issues: write
+      contents: read
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      # Check if the pull request has the required number of approvals
+      - name: Check Required Reviewers
+        id: check-reviewers
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            // Count approved reviews from unique reviewers
+            const approvedReviewers = new Set();
+            reviews.forEach(review => {
+              if (review.state === 'APPROVED') {
+                approvedReviewers.add(review.user.login);
+              }
+            });
+            
+            const requiredApprovals = 2; // Set the required number of approvals
+            const currentApprovals = approvedReviewers.size;
+            
+            console.log(`Pull request has ${currentApprovals} approval(s) out of ${requiredApprovals} required`);
+            
+            // Set output for use in later steps
+            core.setOutput('has_required_approvals', currentApprovals >= requiredApprovals);
+            core.setOutput('current_approvals', currentApprovals);
+            core.setOutput('required_approvals', requiredApprovals);
+      
+      # Add a comment to the pull request with the approval status
+      - name: Comment on Pull Request
+        if: steps.check-reviewers.outputs.has_required_approvals != 'true'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const currentApprovals = ${{ steps.check-reviewers.outputs.current_approvals }};
+            const requiredApprovals = ${{ steps.check-reviewers.outputs.required_approvals }};
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `⚠️ This pull request requires ${requiredApprovals} approvals before it can be merged. Currently has ${currentApprovals} approval(s).`
+            });
+      
+      # Add a manual approval step
+      - name: Manual Approval
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: ${{ github.repository_owner }} # Repository owner as approver, can be comma-separated list
+          minimum-approvals: 1
+          issue-title: "Approve Pull Request #${{ github.event.pull_request.number }}"
+          issue-body: "Please approve this pull request by adding a comment with 'approve'. This approval is in addition to the GitHub review approvals."
+          exclude-workflow-initiator-as-approver: false
+          timeout-minutes: 60 # 1 hour timeout
+
+  # CodeQL Analysis job for code scanning
+  codeql-analysis:
+    name: 'CodeQL Analysis'
+    runs-on: ubuntu-latest
+    # Add dependency on pull-request-approval job
+    needs: [pull-request-approval]
+    # Skip CodeQL analysis when destroying infrastructure or when it's a pull request but the pull-request-approval job was skipped
+    if: (github.event_name != 'workflow_dispatch' || github.event.inputs.destroy_infrastructure != 'true') && (github.event_name != 'pull_request' || success())
+    permissions:
+      security-events: write  # Required for uploading CodeQL results
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full git history for accurate analysis
+
+      # Initialize CodeQL
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: go, javascript, typescript
+          queries: security-extended,security-and-quality
+
+      # Autobuild attempts to build any compiled languages
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      # Analyze the code
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:go,javascript,typescript"
+
+      # Generate CodeQL summary
+      - name: Generate CodeQL Summary
+        run: |
+          echo "## CodeQL Analysis Results" >> $GITHUB_STEP_SUMMARY
+          echo "CodeQL analysis completed. Check the Security tab for detailed results." >> $GITHUB_STEP_SUMMARY
 
   # Vulnerability scanning job that runs before infrastructure deployment
   vulnerability-scan:
     name: 'Scan for Vulnerabilities'
     runs-on: ubuntu-latest
-    # Skip vulnerability scanning when destroying infrastructure
-    if: github.event_name != 'workflow_dispatch' || github.event.inputs.destroy_infrastructure != 'true'
+    # Add dependency on pull-request-approval job
+    needs: [pull-request-approval]
+    # Skip vulnerability scanning when destroying infrastructure or when it's a pull request but the pull-request-approval job was skipped
+    if: (github.event_name != 'workflow_dispatch' || github.event.inputs.destroy_infrastructure != 'true') && (github.event_name != 'pull_request' || success())
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
