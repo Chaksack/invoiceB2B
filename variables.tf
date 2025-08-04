@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "A short name for the project, used for naming resources"
   type        = string
-  default     = "invoice"
+  default     = "profundrdev"
 }
 
 variable "vpc_cidr" {
@@ -39,13 +39,13 @@ variable "availability_zones" {
 variable "ecr_repository_api_name" {
   description = "Name for the ECR repository for the API service"
   type        = string
-  default     = "invoice-api" # Corresponds to secrets.ECR_REPOSITORY_API
+  default     = "profundrdev-api"
 }
 
 variable "ecs_cluster_name" {
   description = "Name for the ECS cluster"
   type        = string
-  default     = "invoice-b2b-cluster" # Corresponds to secrets.ECS_CLUSTER_NAME
+  default     = "profundrdev-cluster" # Corresponds to secrets.ECS_CLUSTER_NAME, uses project_name prefix
 }
 
 variable "app_port" {
@@ -76,22 +76,51 @@ variable "n8n_db_name" {
 // Add more variables as needed for N8N, SonarQube, other secrets, etc.
 
 
-variable "rabbitmq_user" {
-  description = "RabbitMQ default username"
-  type        = string
-  default     = "invoicefnd"
-  sensitive   = true
-}
-
-variable "rabbitmq_password" {
-  description = "RabbitMQ default password"
-  type        = string
-  default     = "guestpassword123456"
-  sensitive   = true
-}
 
 variable "environment" {
   description = "Environment name (dev, staging, prod)"
   type        = string
   default     = "staging"
+}
+
+variable "create_bootstrap_resources" {
+  description = "Whether to create the bootstrap resources (S3 bucket and DynamoDB table)"
+  type        = bool
+  default     = false
+}
+
+variable "bucket_prefix_override" {
+  description = "Override for the bucket prefix used for S3 and DynamoDB resources (useful for migration or special environments)"
+  type        = string
+  default     = null
+}
+
+variable "bastion_public_key" {
+  description = "Public SSH key for accessing the bastion host. If not provided, a new key pair will be generated."
+  type        = string
+  default     = ""
+}
+
+variable "bastion_ami" {
+  description = "AMI ID for the bastion host"
+  type        = string
+  default     = "ami-02457590d33d576c3"
+}
+
+variable "n8n_generic_timezone" {
+  description = "Timezone for the N8N container"
+  type        = string
+  default     = "UTC"
+}
+
+variable "n8n_webhook_url" {
+  description = "The public-facing base URL for N8N webhooks. Should include http/https."
+  type        = string
+  default     = "http://localhost:5678/"
+}
+
+variable "api_service_discovery_name" {
+  description = "The service discovery name for the API service (e.g., used for internal communication from N8N)."
+  type        = string
+  default     = "api"
 }

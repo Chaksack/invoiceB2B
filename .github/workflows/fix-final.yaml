@@ -326,7 +326,7 @@ jobs:
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          
+
       # Send email notification for destruction status
       - name: Send Email Notification for Destruction Status
         if: always()
@@ -1025,7 +1025,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         continue-on-error: true
-        
+
       # Send email notification for deployment status
       - name: Send Email Notification for Deployment Status
         if: always()
@@ -1126,7 +1126,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         continue-on-error: true
-        
+
       # Send email notification for rollback status
       - name: Send Email Notification for Rollback Status
         if: always()
@@ -1313,7 +1313,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         continue-on-error: true
-        
+
       # Send email notification for deployment summary
       - name: Send Email Deployment Summary Notification
         if: always() && steps.check-destroy.outputs.destroy_run == 'false'
@@ -1374,7 +1374,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         continue-on-error: true
-        
+
       # Send email notification for destruction summary
       - name: Send Email Destruction Summary Notification
         if: always() && steps.check-destroy.outputs.destroy_run == 'true'

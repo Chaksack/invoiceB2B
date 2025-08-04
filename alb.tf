@@ -5,7 +5,7 @@ resource "aws_lb" "main" {
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id # ALB in public subnets
 
-  enable_deletion_protection = true # Enabled for production
+  enable_deletion_protection = false # Enabled for production
 
   tags = {
     Name        = "${var.project_name}-alb"
@@ -127,8 +127,8 @@ resource "tls_self_signed_cert" "self_signed" {
   private_key_pem = tls_private_key.self_signed.private_key_pem
 
   subject {
-    common_name  = "example.com"
-    organization = "Example Organization"
+    common_name  = "syentia.io"
+    organization = "Syentia"
   }
 
   validity_period_hours = 8760 # 1 year
