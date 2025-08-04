@@ -36,8 +36,8 @@ permissions:
 env:
   AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
   TERRAFORM_VERSION: 1.7.0
-  # Default environment is staging, can be overridden by workflow_dispatch input
-  ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
+  # Set environment based on branch or workflow_dispatch input
+  ENVIRONMENT: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod') || (github.ref == 'refs/heads/staging' && 'dev') || 'staging' }}
   COMPOSE_PROJECT_NAME: ${{ secrets.ECS_PROJECT_NAME || 'invoiceb2b' }}
   TERRAFORM_STATE_BUCKET: "invoiceb2b-terraform-state"
   TERRAFORM_LOCK_TABLE: "invoiceb2b-terraform-locks"
@@ -253,8 +253,8 @@ jobs:
           # Create destroy plan excluding the S3 bucket that has prevent_destroy=true
           terraform state list | grep -q "aws_s3_bucket.terraform_state" && \
             echo "Excluding S3 bucket with prevent_destroy=true from destroy plan" && \
-            terraform plan -destroy -var="environment=${{ env.ENVIRONMENT }}" -out=tfdestroyplan -target=$(terraform state list | grep -v "aws_s3_bucket.terraform_state") || \
-            terraform plan -destroy -var="environment=${{ env.ENVIRONMENT }}" -out=tfdestroyplan
+            terraform plan -destroy -var-file=environments/${{ env.ENVIRONMENT }}/terraform.tfvars -out=tfdestroyplan -target=$(terraform state list | grep -v "aws_s3_bucket.terraform_state") || \
+            terraform plan -destroy -var-file=environments/${{ env.ENVIRONMENT }}/terraform.tfvars -out=tfdestroyplan
 
       # Add a manual approval step
       - name: Manual Approval
@@ -292,7 +292,7 @@ jobs:
               for resource in $REMAINING_RESOURCES; do
                 if [[ "$resource" != "aws_s3_bucket.terraform_state" ]]; then
                   echo "Attempting to destroy: $resource"
-                  terraform destroy -auto-approve -target=$resource -var="environment=${{ env.ENVIRONMENT }}" || echo "Could not destroy $resource, continuing..."
+                  terraform destroy -auto-approve -target=$resource -var-file=environments/${{ env.ENVIRONMENT }}/terraform.tfvars || echo "Could not destroy $resource, continuing..."
                 else
                   echo "Skipping S3 bucket with prevent_destroy=true: $resource"
                 fi
@@ -401,7 +401,7 @@ jobs:
 
       # Create execution plan
       - name: Terraform Plan
-        run: terraform plan -var="environment=${{ env.ENVIRONMENT }}" -out=tfplan
+        run: terraform plan -var-file=environments/${{ env.ENVIRONMENT }}/terraform.tfvars -out=tfplan
 
       # Add a manual approval step for production deployments
       - name: Manual Approval for Production
@@ -909,7 +909,7 @@ jobs:
         run: |
           echo "Restoring previous state from backup..."
           terraform state push terraform.tfstate
-          terraform apply -auto-approve -var="environment=${{ github.event.inputs.environment || 'staging' }}"
+          terraform apply -auto-approve -var-file=environments/${{ env.ENVIRONMENT }}/terraform.tfvars
           echo "Rollback completed successfully!"
 
       # Notify rollback status
