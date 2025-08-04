@@ -126,11 +126,11 @@ Create an Alertmanager configuration file:
 # alertmanager.yml
 global:
   resolve_timeout: 5m
-  smtp_from: '${SMTP_FROM}'
-  smtp_smarthost: '${SMTP_SMARTHOST}'
-  smtp_auth_username: '${SMTP_AUTH_USERNAME}'
-  smtp_auth_password: '${SMTP_AUTH_PASSWORD}'
-  slack_api_url: '${SLACK_WEBHOOK_URL}'
+  smtp_from: 'alertmanager@example.com'
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_auth_username: 'alertmanager'
+  smtp_auth_password: 'password'
+  slack_api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'
 
 route:
   group_by: ['alertname']
@@ -204,18 +204,6 @@ After deployment, the services will be available at:
   - Consider using AWS Cognito or another identity provider for authentication
 - The ALB is publicly accessible. Consider implementing IP restrictions or VPN access for production environments
 - Implement proper backup strategies for the EFS volumes
-
-### GitHub Secrets for Alertmanager
-
-The Alertmanager configuration uses environment variables that should be set using GitHub secrets. Add the following secrets to your GitHub repository:
-
-- `SMTP_FROM`: The email address to send alerts from (e.g., 'alertmanager@yourdomain.com')
-- `SMTP_SMARTHOST`: The SMTP server address and port (e.g., 'smtp.gmail.com:587')
-- `SMTP_AUTH_USERNAME`: The SMTP username for authentication
-- `SMTP_AUTH_PASSWORD`: The SMTP password for authentication
-- `SLACK_WEBHOOK_URL`: The Slack Incoming Webhook URL for sending alerts to Slack
-
-These secrets will be used in the GitHub workflow and passed to the Alertmanager container as environment variables.
 
 ## Maintenance
 
