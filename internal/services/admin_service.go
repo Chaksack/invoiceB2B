@@ -90,6 +90,28 @@ type AdminService interface {
 	UpdateStaff(ctx context.Context, staffID uint, req dtos.UpdateStaffRequest) (*dtos.StaffResponse, error)
 	DeleteStaff(ctx context.Context, staffID uint) error
 
+	// Financial Institution Management
+	CreateFinancialInstitution(ctx context.Context, adminStaffID uint, req dtos.CreateFinancialInstitutionRequest) (*dtos.FinancialInstitutionResponse, error)
+	GetFinancialInstitutionByID(ctx context.Context, id uint) (*dtos.FinancialInstitutionResponse, error)
+	GetAllFinancialInstitutions(ctx context.Context, page, pageSize int, filters map[string]string) ([]dtos.FinancialInstitutionResponse, int64, error)
+	UpdateFinancialInstitution(ctx context.Context, id, adminStaffID uint, req dtos.UpdateFinancialInstitutionRequest) (*dtos.FinancialInstitutionResponse, error)
+	DeleteFinancialInstitution(ctx context.Context, id, adminStaffID uint) error
+
+	// Financial Institution Product Management
+	CreateFinancialInstitutionProduct(ctx context.Context, adminStaffID uint, req dtos.CreateFinancialInstitutionProductRequest) (*dtos.FinancialInstitutionProductResponse, error)
+	GetFinancialInstitutionProductByID(ctx context.Context, id uint) (*dtos.FinancialInstitutionProductResponse, error)
+	GetFinancialInstitutionProducts(ctx context.Context, fiID uint, page, pageSize int) ([]dtos.FinancialInstitutionProductResponse, int64, error)
+	UpdateFinancialInstitutionProduct(ctx context.Context, id, adminStaffID uint, req dtos.UpdateFinancialInstitutionProductRequest) (*dtos.FinancialInstitutionProductResponse, error)
+	DeleteFinancialInstitutionProduct(ctx context.Context, id, adminStaffID uint) error
+
+	// Financial Institution Term Management
+	CreateFinancialInstitutionTerm(ctx context.Context, adminStaffID uint, req dtos.CreateFinancialInstitutionTermRequest) (*dtos.FinancialInstitutionTermResponse, error)
+	GetFinancialInstitutionTermByID(ctx context.Context, id uint) (*dtos.FinancialInstitutionTermResponse, error)
+	GetFinancialInstitutionTerms(ctx context.Context, fiID uint, page, pageSize int) ([]dtos.FinancialInstitutionTermResponse, int64, error)
+	GetFinancialInstitutionTermsByProduct(ctx context.Context, productID uint, page, pageSize int) ([]dtos.FinancialInstitutionTermResponse, int64, error)
+	UpdateFinancialInstitutionTerm(ctx context.Context, id, adminStaffID uint, req dtos.UpdateFinancialInstitutionTermRequest) (*dtos.FinancialInstitutionTermResponse, error)
+	DeleteFinancialInstitutionTerm(ctx context.Context, id, adminStaffID uint) error
+
 	// Activity Logs & Analytics
 	GetActivityLogs(ctx context.Context, page, pageSize int, filters map[string]string) ([]dtos.ActivityLogResponse, int64, error)
 	GetUserActivityLogs(ctx context.Context, userID uint, page, pageSize int, filters map[string]string) ([]dtos.ActivityLogResponse, int64, error)
@@ -97,17 +119,18 @@ type AdminService interface {
 }
 
 type adminService struct {
-	userRepo        repositories.UserRepository
-	kycRepo         repositories.KYCRepository
-	staffRepo       repositories.StaffRepository
-	invoiceRepo     repositories.InvoiceRepository
-	transactionRepo repositories.TransactionRepository
-	activityLogSvc  ActivityLogService
-	emailService    EmailService
-	notificationSvc NotificationService
-	fileService     FileService
-	pdfService      PDFService
-	cfg             *config.Config
+	userRepo                 repositories.UserRepository
+	kycRepo                  repositories.KYCRepository
+	staffRepo                repositories.StaffRepository
+	invoiceRepo              repositories.InvoiceRepository
+	transactionRepo          repositories.TransactionRepository
+	financialInstitutionRepo repositories.FinancialInstitutionRepository
+	activityLogSvc           ActivityLogService
+	emailService             EmailService
+	notificationSvc          NotificationService
+	fileService              FileService
+	pdfService               PDFService
+	cfg                      *config.Config
 }
 
 func NewAdminService(
@@ -116,6 +139,7 @@ func NewAdminService(
 	staffRepo repositories.StaffRepository,
 	invoiceRepo repositories.InvoiceRepository,
 	transactionRepo repositories.TransactionRepository,
+	financialInstitutionRepo repositories.FinancialInstitutionRepository,
 	activityLogSvc ActivityLogService,
 	emailService EmailService,
 	notificationSvc NotificationService,
@@ -124,17 +148,18 @@ func NewAdminService(
 	cfg *config.Config,
 ) AdminService {
 	return &adminService{
-		userRepo:        userRepo,
-		kycRepo:         kycRepo,
-		staffRepo:       staffRepo,
-		invoiceRepo:     invoiceRepo,
-		transactionRepo: transactionRepo,
-		activityLogSvc:  activityLogSvc,
-		emailService:    emailService,
-		notificationSvc: notificationSvc,
-		fileService:     fileService,
-		pdfService:      pdfService,
-		cfg:             cfg,
+		userRepo:                 userRepo,
+		kycRepo:                  kycRepo,
+		staffRepo:                staffRepo,
+		invoiceRepo:              invoiceRepo,
+		transactionRepo:          transactionRepo,
+		financialInstitutionRepo: financialInstitutionRepo,
+		activityLogSvc:           activityLogSvc,
+		emailService:             emailService,
+		notificationSvc:          notificationSvc,
+		fileService:              fileService,
+		pdfService:               pdfService,
+		cfg:                      cfg,
 	}
 }
 
@@ -841,4 +866,732 @@ func (s *adminService) GetAdminDashboardAnalytics(ctx context.Context) (*AdminDa
 	}
 
 	return &analytics, nil
+}
+
+// --- Financial Institution Management ---
+
+// Helper function to map a financial institution model to a response DTO
+func mapFinancialInstitutionToResponse(fi *models.FinancialInstitution) dtos.FinancialInstitutionResponse {
+	return dtos.FinancialInstitutionResponse{
+		ID:               fi.ID,
+		Name:             fi.Name,
+		Code:             fi.Code,
+		Description:      fi.Description,
+		InterestRateMin:  fi.InterestRateMin,
+		InterestRateMax:  fi.InterestRateMax,
+		ProcessingFee:    fi.ProcessingFee,
+		MinInvoiceAmount: fi.MinInvoiceAmount,
+		MaxInvoiceAmount: fi.MaxInvoiceAmount,
+		TermsDays:        fi.TermsDays,
+		IsActive:         fi.IsActive,
+		CreatedAt:        fi.CreatedAt,
+		UpdatedAt:        fi.UpdatedAt,
+	}
+}
+
+// Helper function to map a financial institution product model to a response DTO
+func mapFinancialInstitutionProductToResponse(product *models.FinancialInstitutionProduct) dtos.FinancialInstitutionProductResponse {
+	return dtos.FinancialInstitutionProductResponse{
+		ID:                     product.ID,
+		FinancialInstitutionID: product.FinancialInstitutionID,
+		Name:                   product.Name,
+		Description:            product.Description,
+		InterestRateMin:        product.InterestRateMin,
+		InterestRateMax:        product.InterestRateMax,
+		ProcessingFee:          product.ProcessingFee,
+		MinInvoiceAmount:       product.MinInvoiceAmount,
+		MaxInvoiceAmount:       product.MaxInvoiceAmount,
+		TermsDays:              product.TermsDays,
+		IsActive:               product.IsActive,
+		CreatedAt:              product.CreatedAt,
+		UpdatedAt:              product.UpdatedAt,
+	}
+}
+
+// Helper function to map a financial institution term model to a response DTO
+func mapFinancialInstitutionTermToResponse(term *models.FinancialInstitutionTerm) dtos.FinancialInstitutionTermResponse {
+	return dtos.FinancialInstitutionTermResponse{
+		ID:                          term.ID,
+		FinancialInstitutionID:      term.FinancialInstitutionID,
+		FinancialInstitutionProductID: term.FinancialInstitutionProductID,
+		Name:                        term.Name,
+		Description:                 term.Description,
+		InterestRate:                term.InterestRate,
+		ProcessingFee:               term.ProcessingFee,
+		TermDays:                    term.TermDays,
+		MinInvoiceAmount:            term.MinInvoiceAmount,
+		MaxInvoiceAmount:            term.MaxInvoiceAmount,
+		IsActive:                    term.IsActive,
+		ValidFrom:                   term.ValidFrom,
+		ValidUntil:                  term.ValidUntil,
+		CreatedAt:                   term.CreatedAt,
+		UpdatedAt:                   term.UpdatedAt,
+	}
+}
+
+// CreateFinancialInstitution creates a new financial institution
+func (s *adminService) CreateFinancialInstitution(ctx context.Context, adminStaffID uint, req dtos.CreateFinancialInstitutionRequest) (*dtos.FinancialInstitutionResponse, error) {
+	// Check if staff exists and has appropriate permissions
+	_, err := s.staffRepo.FindByID(ctx, adminStaffID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrStaffNotFound
+		}
+		return nil, fmt.Errorf("failed to find staff for financial institution creation: %w", err)
+	}
+
+	// Check if a financial institution with the same code already exists
+	existing, err := s.financialInstitutionRepo.FindFinancialInstitutionByCode(ctx, req.Code)
+	if err == nil && existing != nil {
+		return nil, errors.New("financial institution with this code already exists")
+	}
+
+	// Create the financial institution
+	fi := &models.FinancialInstitution{
+		Name:        req.Name,
+		Code:        req.Code,
+		Description: req.Description,
+		IsActive:    true, // Default to active
+	}
+
+	// Set optional fields if provided
+	if req.InterestRateMin != nil {
+		fi.InterestRateMin = *req.InterestRateMin
+	}
+	if req.InterestRateMax != nil {
+		fi.InterestRateMax = *req.InterestRateMax
+	}
+	if req.ProcessingFee != nil {
+		fi.ProcessingFee = *req.ProcessingFee
+	}
+	if req.MinInvoiceAmount != nil {
+		fi.MinInvoiceAmount = *req.MinInvoiceAmount
+	}
+	if req.MaxInvoiceAmount != nil {
+		fi.MaxInvoiceAmount = *req.MaxInvoiceAmount
+	}
+	if req.TermsDays != nil {
+		fi.TermsDays = *req.TermsDays
+	}
+	if req.IsActive != nil {
+		fi.IsActive = *req.IsActive
+	}
+
+	if err := s.financialInstitutionRepo.CreateFinancialInstitution(ctx, fi); err != nil {
+		return nil, fmt.Errorf("failed to create financial institution: %w", err)
+	}
+
+	// Log the activity
+	_ = s.activityLogSvc.LogActivity(ctx, &adminStaffID, nil, "ADMIN_CREATE_FINANCIAL_INSTITUTION",
+		map[string]interface{}{"financial_institution_id": fi.ID, "name": fi.Name, "code": fi.Code}, "")
+
+	resp := mapFinancialInstitutionToResponse(fi)
+	return &resp, nil
+}
+
+// GetFinancialInstitutionByID retrieves a financial institution by its ID
+func (s *adminService) GetFinancialInstitutionByID(ctx context.Context, id uint) (*dtos.FinancialInstitutionResponse, error) {
+	fi, err := s.financialInstitutionRepo.FindFinancialInstitutionByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("financial institution not found")
+		}
+		return nil, fmt.Errorf("failed to find financial institution by ID %d: %w", id, err)
+	}
+
+	resp := mapFinancialInstitutionToResponse(fi)
+	return &resp, nil
+}
+
+// GetAllFinancialInstitutions retrieves a paginated list of financial institutions
+func (s *adminService) GetAllFinancialInstitutions(ctx context.Context, page, pageSize int, filters map[string]string) ([]dtos.FinancialInstitutionResponse, int64, error) {
+	financialInstitutions, total, err := s.financialInstitutionRepo.FindAllFinancialInstitutions(ctx, page, pageSize, filters)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get all financial institutions: %w", err)
+	}
+
+	var responses []dtos.FinancialInstitutionResponse
+	for _, fi := range financialInstitutions {
+		responses = append(responses, mapFinancialInstitutionToResponse(&fi))
+	}
+
+	return responses, total, nil
+}
+
+// UpdateFinancialInstitution updates an existing financial institution
+func (s *adminService) UpdateFinancialInstitution(ctx context.Context, id, adminStaffID uint, req dtos.UpdateFinancialInstitutionRequest) (*dtos.FinancialInstitutionResponse, error) {
+	// Check if staff exists and has appropriate permissions
+	_, err := s.staffRepo.FindByID(ctx, adminStaffID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrStaffNotFound
+		}
+		return nil, fmt.Errorf("failed to find staff for financial institution update: %w", err)
+	}
+
+	// Get the existing financial institution
+	fi, err := s.financialInstitutionRepo.FindFinancialInstitutionByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("financial institution not found")
+		}
+		return nil, fmt.Errorf("failed to find financial institution for update: %w", err)
+	}
+
+	// Check if code is being changed and if the new code already exists
+	if req.Code != nil && *req.Code != fi.Code {
+		existing, err := s.financialInstitutionRepo.FindFinancialInstitutionByCode(ctx, *req.Code)
+		if err == nil && existing != nil && existing.ID != id {
+			return nil, errors.New("financial institution with this code already exists")
+		}
+	}
+
+	// Update fields if provided
+	if req.Name != nil {
+		fi.Name = *req.Name
+	}
+	if req.Code != nil {
+		fi.Code = *req.Code
+	}
+	if req.Description != nil {
+		fi.Description = *req.Description
+	}
+	if req.InterestRateMin != nil {
+		fi.InterestRateMin = *req.InterestRateMin
+	}
+	if req.InterestRateMax != nil {
+		fi.InterestRateMax = *req.InterestRateMax
+	}
+	if req.ProcessingFee != nil {
+		fi.ProcessingFee = *req.ProcessingFee
+	}
+	if req.MinInvoiceAmount != nil {
+		fi.MinInvoiceAmount = *req.MinInvoiceAmount
+	}
+	if req.MaxInvoiceAmount != nil {
+		fi.MaxInvoiceAmount = *req.MaxInvoiceAmount
+	}
+	if req.TermsDays != nil {
+		fi.TermsDays = *req.TermsDays
+	}
+	if req.IsActive != nil {
+		fi.IsActive = *req.IsActive
+	}
+
+	if err := s.financialInstitutionRepo.UpdateFinancialInstitution(ctx, fi); err != nil {
+		return nil, fmt.Errorf("failed to update financial institution: %w", err)
+	}
+
+	// Log the activity
+	_ = s.activityLogSvc.LogActivity(ctx, &adminStaffID, nil, "ADMIN_UPDATE_FINANCIAL_INSTITUTION",
+		map[string]interface{}{"financial_institution_id": fi.ID, "name": fi.Name, "code": fi.Code}, "")
+
+	resp := mapFinancialInstitutionToResponse(fi)
+	return &resp, nil
+}
+
+// DeleteFinancialInstitution deletes a financial institution
+func (s *adminService) DeleteFinancialInstitution(ctx context.Context, id, adminStaffID uint) error {
+	// Check if staff exists and has appropriate permissions
+	_, err := s.staffRepo.FindByID(ctx, adminStaffID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrStaffNotFound
+		}
+		return fmt.Errorf("failed to find staff for financial institution deletion: %w", err)
+	}
+
+	// Check if the financial institution exists
+	fi, err := s.financialInstitutionRepo.FindFinancialInstitutionByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("financial institution not found")
+		}
+		return fmt.Errorf("failed to find financial institution for deletion: %w", err)
+	}
+
+	// Delete the financial institution
+	if err := s.financialInstitutionRepo.DeleteFinancialInstitution(ctx, id); err != nil {
+		return fmt.Errorf("failed to delete financial institution: %w", err)
+	}
+
+	// Log the activity
+	_ = s.activityLogSvc.LogActivity(ctx, &adminStaffID, nil, "ADMIN_DELETE_FINANCIAL_INSTITUTION",
+		map[string]interface{}{"financial_institution_id": id, "name": fi.Name, "code": fi.Code}, "")
+
+	return nil
+}
+
+// --- Financial Institution Product Management ---
+
+// CreateFinancialInstitutionProduct creates a new financial institution product
+func (s *adminService) CreateFinancialInstitutionProduct(ctx context.Context, adminStaffID uint, req dtos.CreateFinancialInstitutionProductRequest) (*dtos.FinancialInstitutionProductResponse, error) {
+	// Check if staff exists and has appropriate permissions
+	_, err := s.staffRepo.FindByID(ctx, adminStaffID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrStaffNotFound
+		}
+		return nil, fmt.Errorf("failed to find staff for financial institution product creation: %w", err)
+	}
+
+	// Check if the financial institution exists
+	_, err = s.financialInstitutionRepo.FindFinancialInstitutionByID(ctx, req.FinancialInstitutionID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("financial institution not found")
+		}
+		return nil, fmt.Errorf("failed to find financial institution for product creation: %w", err)
+	}
+
+	// Create the financial institution product
+	product := &models.FinancialInstitutionProduct{
+		FinancialInstitutionID: req.FinancialInstitutionID,
+		Name:                   req.Name,
+		Description:            req.Description,
+		IsActive:               true, // Default to active
+	}
+
+	// Set optional fields if provided
+	if req.InterestRateMin != nil {
+		product.InterestRateMin = *req.InterestRateMin
+	}
+	if req.InterestRateMax != nil {
+		product.InterestRateMax = *req.InterestRateMax
+	}
+	if req.ProcessingFee != nil {
+		product.ProcessingFee = *req.ProcessingFee
+	}
+	if req.MinInvoiceAmount != nil {
+		product.MinInvoiceAmount = *req.MinInvoiceAmount
+	}
+	if req.MaxInvoiceAmount != nil {
+		product.MaxInvoiceAmount = *req.MaxInvoiceAmount
+	}
+	if req.TermsDays != nil {
+		product.TermsDays = *req.TermsDays
+	}
+	if req.IsActive != nil {
+		product.IsActive = *req.IsActive
+	}
+
+	if err := s.financialInstitutionRepo.CreateFinancialInstitutionProduct(ctx, product); err != nil {
+		return nil, fmt.Errorf("failed to create financial institution product: %w", err)
+	}
+
+	// Log the activity
+	_ = s.activityLogSvc.LogActivity(ctx, &adminStaffID, nil, "ADMIN_CREATE_FINANCIAL_INSTITUTION_PRODUCT",
+		map[string]interface{}{
+			"financial_institution_id": req.FinancialInstitutionID,
+			"product_id":              product.ID,
+			"product_name":            product.Name,
+		}, "")
+
+	resp := mapFinancialInstitutionProductToResponse(product)
+	return &resp, nil
+}
+
+// GetFinancialInstitutionProductByID retrieves a financial institution product by its ID
+func (s *adminService) GetFinancialInstitutionProductByID(ctx context.Context, id uint) (*dtos.FinancialInstitutionProductResponse, error) {
+	product, err := s.financialInstitutionRepo.FindFinancialInstitutionProductByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("financial institution product not found")
+		}
+		return nil, fmt.Errorf("failed to find financial institution product by ID %d: %w", id, err)
+	}
+
+	resp := mapFinancialInstitutionProductToResponse(product)
+	return &resp, nil
+}
+
+// GetFinancialInstitutionProducts retrieves a paginated list of products for a financial institution
+func (s *adminService) GetFinancialInstitutionProducts(ctx context.Context, fiID uint, page, pageSize int) ([]dtos.FinancialInstitutionProductResponse, int64, error) {
+	// Check if the financial institution exists
+	_, err := s.financialInstitutionRepo.FindFinancialInstitutionByID(ctx, fiID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, 0, errors.New("financial institution not found")
+		}
+		return nil, 0, fmt.Errorf("failed to find financial institution for product listing: %w", err)
+	}
+
+	products, total, err := s.financialInstitutionRepo.FindFinancialInstitutionProductsByFinancialInstitutionID(ctx, fiID, page, pageSize)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get financial institution products: %w", err)
+	}
+
+	var responses []dtos.FinancialInstitutionProductResponse
+	for _, product := range products {
+		responses = append(responses, mapFinancialInstitutionProductToResponse(&product))
+	}
+
+	return responses, total, nil
+}
+
+// UpdateFinancialInstitutionProduct updates an existing financial institution product
+func (s *adminService) UpdateFinancialInstitutionProduct(ctx context.Context, id, adminStaffID uint, req dtos.UpdateFinancialInstitutionProductRequest) (*dtos.FinancialInstitutionProductResponse, error) {
+	// Check if staff exists and has appropriate permissions
+	_, err := s.staffRepo.FindByID(ctx, adminStaffID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrStaffNotFound
+		}
+		return nil, fmt.Errorf("failed to find staff for financial institution product update: %w", err)
+	}
+
+	// Get the existing financial institution product
+	product, err := s.financialInstitutionRepo.FindFinancialInstitutionProductByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("financial institution product not found")
+		}
+		return nil, fmt.Errorf("failed to find financial institution product for update: %w", err)
+	}
+
+	// Update fields if provided
+	if req.Name != nil {
+		product.Name = *req.Name
+	}
+	if req.Description != nil {
+		product.Description = *req.Description
+	}
+	if req.InterestRateMin != nil {
+		product.InterestRateMin = *req.InterestRateMin
+	}
+	if req.InterestRateMax != nil {
+		product.InterestRateMax = *req.InterestRateMax
+	}
+	if req.ProcessingFee != nil {
+		product.ProcessingFee = *req.ProcessingFee
+	}
+	if req.MinInvoiceAmount != nil {
+		product.MinInvoiceAmount = *req.MinInvoiceAmount
+	}
+	if req.MaxInvoiceAmount != nil {
+		product.MaxInvoiceAmount = *req.MaxInvoiceAmount
+	}
+	if req.TermsDays != nil {
+		product.TermsDays = *req.TermsDays
+	}
+	if req.IsActive != nil {
+		product.IsActive = *req.IsActive
+	}
+
+	if err := s.financialInstitutionRepo.UpdateFinancialInstitutionProduct(ctx, product); err != nil {
+		return nil, fmt.Errorf("failed to update financial institution product: %w", err)
+	}
+
+	// Log the activity
+	_ = s.activityLogSvc.LogActivity(ctx, &adminStaffID, nil, "ADMIN_UPDATE_FINANCIAL_INSTITUTION_PRODUCT",
+		map[string]interface{}{
+			"financial_institution_id": product.FinancialInstitutionID,
+			"product_id":              product.ID,
+			"product_name":            product.Name,
+		}, "")
+
+	resp := mapFinancialInstitutionProductToResponse(product)
+	return &resp, nil
+}
+
+// DeleteFinancialInstitutionProduct deletes a financial institution product
+func (s *adminService) DeleteFinancialInstitutionProduct(ctx context.Context, id, adminStaffID uint) error {
+	// Check if staff exists and has appropriate permissions
+	_, err := s.staffRepo.FindByID(ctx, adminStaffID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrStaffNotFound
+		}
+		return fmt.Errorf("failed to find staff for financial institution product deletion: %w", err)
+	}
+
+	// Check if the financial institution product exists
+	product, err := s.financialInstitutionRepo.FindFinancialInstitutionProductByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("financial institution product not found")
+		}
+		return fmt.Errorf("failed to find financial institution product for deletion: %w", err)
+	}
+
+	// Delete the financial institution product
+	if err := s.financialInstitutionRepo.DeleteFinancialInstitutionProduct(ctx, id); err != nil {
+		return fmt.Errorf("failed to delete financial institution product: %w", err)
+	}
+
+	// Log the activity
+	_ = s.activityLogSvc.LogActivity(ctx, &adminStaffID, nil, "ADMIN_DELETE_FINANCIAL_INSTITUTION_PRODUCT",
+		map[string]interface{}{
+			"financial_institution_id": product.FinancialInstitutionID,
+			"product_id":              id,
+			"product_name":            product.Name,
+		}, "")
+
+	return nil
+}
+
+// --- Financial Institution Term Management ---
+
+// CreateFinancialInstitutionTerm creates a new financial institution term
+func (s *adminService) CreateFinancialInstitutionTerm(ctx context.Context, adminStaffID uint, req dtos.CreateFinancialInstitutionTermRequest) (*dtos.FinancialInstitutionTermResponse, error) {
+	// Check if staff exists and has appropriate permissions
+	_, err := s.staffRepo.FindByID(ctx, adminStaffID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrStaffNotFound
+		}
+		return nil, fmt.Errorf("failed to find staff for financial institution term creation: %w", err)
+	}
+
+	// Check if the financial institution exists
+	_, err = s.financialInstitutionRepo.FindFinancialInstitutionByID(ctx, req.FinancialInstitutionID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("financial institution not found")
+		}
+		return nil, fmt.Errorf("failed to find financial institution for term creation: %w", err)
+	}
+
+	// Check if the product exists if provided
+	if req.FinancialInstitutionProductID != nil {
+		_, err = s.financialInstitutionRepo.FindFinancialInstitutionProductByID(ctx, *req.FinancialInstitutionProductID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errors.New("financial institution product not found")
+			}
+			return nil, fmt.Errorf("failed to find financial institution product for term creation: %w", err)
+		}
+	}
+
+	// Create the financial institution term
+	term := &models.FinancialInstitutionTerm{
+		FinancialInstitutionID:      req.FinancialInstitutionID,
+		FinancialInstitutionProductID: req.FinancialInstitutionProductID,
+		Name:                        req.Name,
+		Description:                 req.Description,
+		InterestRate:                req.InterestRate,
+		TermDays:                    req.TermDays,
+		IsActive:                    true, // Default to active
+	}
+
+	// Set optional fields if provided
+	if req.ProcessingFee != nil {
+		term.ProcessingFee = *req.ProcessingFee
+	}
+	if req.MinInvoiceAmount != nil {
+		term.MinInvoiceAmount = *req.MinInvoiceAmount
+	}
+	if req.MaxInvoiceAmount != nil {
+		term.MaxInvoiceAmount = *req.MaxInvoiceAmount
+	}
+	if req.IsActive != nil {
+		term.IsActive = *req.IsActive
+	}
+
+	// Parse and set date fields if provided
+	if req.ValidFrom != nil && *req.ValidFrom != "" {
+		validFrom, err := time.Parse("2006-01-02", *req.ValidFrom)
+		if err != nil {
+			return nil, fmt.Errorf("invalid valid_from date format: %w", err)
+		}
+		term.ValidFrom = &validFrom
+	}
+	if req.ValidUntil != nil && *req.ValidUntil != "" {
+		validUntil, err := time.Parse("2006-01-02", *req.ValidUntil)
+		if err != nil {
+			return nil, fmt.Errorf("invalid valid_until date format: %w", err)
+		}
+		term.ValidUntil = &validUntil
+	}
+
+	if err := s.financialInstitutionRepo.CreateFinancialInstitutionTerm(ctx, term); err != nil {
+		return nil, fmt.Errorf("failed to create financial institution term: %w", err)
+	}
+
+	// Log the activity
+	_ = s.activityLogSvc.LogActivity(ctx, &adminStaffID, nil, "ADMIN_CREATE_FINANCIAL_INSTITUTION_TERM",
+		map[string]interface{}{
+			"financial_institution_id": req.FinancialInstitutionID,
+			"term_id":                 term.ID,
+			"term_name":               term.Name,
+		}, "")
+
+	resp := mapFinancialInstitutionTermToResponse(term)
+	return &resp, nil
+}
+
+// GetFinancialInstitutionTermByID retrieves a financial institution term by its ID
+func (s *adminService) GetFinancialInstitutionTermByID(ctx context.Context, id uint) (*dtos.FinancialInstitutionTermResponse, error) {
+	term, err := s.financialInstitutionRepo.FindFinancialInstitutionTermByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("financial institution term not found")
+		}
+		return nil, fmt.Errorf("failed to find financial institution term by ID %d: %w", id, err)
+	}
+
+	resp := mapFinancialInstitutionTermToResponse(term)
+	return &resp, nil
+}
+
+// GetFinancialInstitutionTerms retrieves a paginated list of terms for a financial institution
+func (s *adminService) GetFinancialInstitutionTerms(ctx context.Context, fiID uint, page, pageSize int) ([]dtos.FinancialInstitutionTermResponse, int64, error) {
+	// Check if the financial institution exists
+	_, err := s.financialInstitutionRepo.FindFinancialInstitutionByID(ctx, fiID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, 0, errors.New("financial institution not found")
+		}
+		return nil, 0, fmt.Errorf("failed to find financial institution for term listing: %w", err)
+	}
+
+	terms, total, err := s.financialInstitutionRepo.FindFinancialInstitutionTermsByFinancialInstitutionID(ctx, fiID, page, pageSize)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get financial institution terms: %w", err)
+	}
+
+	var responses []dtos.FinancialInstitutionTermResponse
+	for _, term := range terms {
+		responses = append(responses, mapFinancialInstitutionTermToResponse(&term))
+	}
+
+	return responses, total, nil
+}
+
+// GetFinancialInstitutionTermsByProduct retrieves a paginated list of terms for a financial institution product
+func (s *adminService) GetFinancialInstitutionTermsByProduct(ctx context.Context, productID uint, page, pageSize int) ([]dtos.FinancialInstitutionTermResponse, int64, error) {
+	// Check if the financial institution product exists
+	_, err := s.financialInstitutionRepo.FindFinancialInstitutionProductByID(ctx, productID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, 0, errors.New("financial institution product not found")
+		}
+		return nil, 0, fmt.Errorf("failed to find financial institution product for term listing: %w", err)
+	}
+
+	terms, total, err := s.financialInstitutionRepo.FindFinancialInstitutionTermsByProductID(ctx, productID, page, pageSize)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get financial institution terms by product: %w", err)
+	}
+
+	var responses []dtos.FinancialInstitutionTermResponse
+	for _, term := range terms {
+		responses = append(responses, mapFinancialInstitutionTermToResponse(&term))
+	}
+
+	return responses, total, nil
+}
+
+// UpdateFinancialInstitutionTerm updates an existing financial institution term
+func (s *adminService) UpdateFinancialInstitutionTerm(ctx context.Context, id, adminStaffID uint, req dtos.UpdateFinancialInstitutionTermRequest) (*dtos.FinancialInstitutionTermResponse, error) {
+	// Check if staff exists and has appropriate permissions
+	_, err := s.staffRepo.FindByID(ctx, adminStaffID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrStaffNotFound
+		}
+		return nil, fmt.Errorf("failed to find staff for financial institution term update: %w", err)
+	}
+
+	// Get the existing financial institution term
+	term, err := s.financialInstitutionRepo.FindFinancialInstitutionTermByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("financial institution term not found")
+		}
+		return nil, fmt.Errorf("failed to find financial institution term for update: %w", err)
+	}
+
+	// Update fields if provided
+	if req.Name != nil {
+		term.Name = *req.Name
+	}
+	if req.Description != nil {
+		term.Description = *req.Description
+	}
+	if req.InterestRate != nil {
+		term.InterestRate = *req.InterestRate
+	}
+	if req.ProcessingFee != nil {
+		term.ProcessingFee = *req.ProcessingFee
+	}
+	if req.TermDays != nil {
+		term.TermDays = *req.TermDays
+	}
+	if req.MinInvoiceAmount != nil {
+		term.MinInvoiceAmount = *req.MinInvoiceAmount
+	}
+	if req.MaxInvoiceAmount != nil {
+		term.MaxInvoiceAmount = *req.MaxInvoiceAmount
+	}
+	if req.IsActive != nil {
+		term.IsActive = *req.IsActive
+	}
+
+	// Parse and set date fields if provided
+	if req.ValidFrom != nil && *req.ValidFrom != "" {
+		validFrom, err := time.Parse("2006-01-02", *req.ValidFrom)
+		if err != nil {
+			return nil, fmt.Errorf("invalid valid_from date format: %w", err)
+		}
+		term.ValidFrom = &validFrom
+	}
+	if req.ValidUntil != nil && *req.ValidUntil != "" {
+		validUntil, err := time.Parse("2006-01-02", *req.ValidUntil)
+		if err != nil {
+			return nil, fmt.Errorf("invalid valid_until date format: %w", err)
+		}
+		term.ValidUntil = &validUntil
+	}
+
+	if err := s.financialInstitutionRepo.UpdateFinancialInstitutionTerm(ctx, term); err != nil {
+		return nil, fmt.Errorf("failed to update financial institution term: %w", err)
+	}
+
+	// Log the activity
+	_ = s.activityLogSvc.LogActivity(ctx, &adminStaffID, nil, "ADMIN_UPDATE_FINANCIAL_INSTITUTION_TERM",
+		map[string]interface{}{
+			"financial_institution_id": term.FinancialInstitutionID,
+			"term_id":                 term.ID,
+			"term_name":               term.Name,
+		}, "")
+
+	resp := mapFinancialInstitutionTermToResponse(term)
+	return &resp, nil
+}
+
+// DeleteFinancialInstitutionTerm deletes a financial institution term
+func (s *adminService) DeleteFinancialInstitutionTerm(ctx context.Context, id, adminStaffID uint) error {
+	// Check if staff exists and has appropriate permissions
+	_, err := s.staffRepo.FindByID(ctx, adminStaffID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrStaffNotFound
+		}
+		return fmt.Errorf("failed to find staff for financial institution term deletion: %w", err)
+	}
+
+	// Check if the financial institution term exists
+	term, err := s.financialInstitutionRepo.FindFinancialInstitutionTermByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("financial institution term not found")
+		}
+		return fmt.Errorf("failed to find financial institution term for deletion: %w", err)
+	}
+
+	// Delete the financial institution term
+	if err := s.financialInstitutionRepo.DeleteFinancialInstitutionTerm(ctx, id); err != nil {
+		return fmt.Errorf("failed to delete financial institution term: %w", err)
+	}
+
+	// Log the activity
+	_ = s.activityLogSvc.LogActivity(ctx, &adminStaffID, nil, "ADMIN_DELETE_FINANCIAL_INSTITUTION_TERM",
+		map[string]interface{}{
+			"financial_institution_id": term.FinancialInstitutionID,
+			"term_id":                 id,
+			"term_name":               term.Name,
+		}, "")
+
+	return nil
 }

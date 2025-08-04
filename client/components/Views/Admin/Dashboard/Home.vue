@@ -264,6 +264,18 @@ const fetchChartData = async () => {
 const fetchRecentActivities = async () => {
   isLoadingActivities.value = true;
   try {
+    // In a real implementation, this would call the backend API
+    // const response = await apiClient.get('/admin/activity-logs');
+    // recentActivities.value = response.data.map(activity => ({
+    //   type: activity.type,
+    //   description: activity.description,
+    //   actorName: activity.actorName,
+    //   timestamp: new Date(activity.timestamp),
+    //   avatarUrl: activity.avatarUrl || getDefaultAvatarUrl(activity.actorName),
+    //   tag: getActivityTag(activity.type)
+    // }));
+
+    // For now, we'll use mock data
     await new Promise(resolve => setTimeout(resolve, 1200));
     recentActivities.value = [
       { type: 'new_user', description: 'New user registered: Alice Wonderland', actorName: 'System', timestamp: new Date(Date.now() - 3600000 * 2), avatarUrl: 'https://placehold.co/40x40/7c3aed/ffffff?text=AW', tag: 'User' },
@@ -272,6 +284,8 @@ const fetchRecentActivities = async () => {
       { type: 'invoice_paid', description: 'Invoice INV-2024-980 marked as paid', actorName: 'Finance Bot', timestamp: new Date(Date.now() - 3600000 * 48), avatarUrl: 'https://placehold.co/40x40/3b82f6/ffffff?text=FB', tag: 'Payment' },
       { type: 'kyc_rejected', description: 'KYC rejected for Diana Prince', actorName: 'Admin User', timestamp: new Date(Date.now() - 3600000 * 72), avatarUrl: 'https://placehold.co/40x40/ef4444/ffffff?text=DP', tag: 'KYC' },
     ];
+
+    toast.success("Activities loaded successfully!");
   } catch (error) {
     console.error("Failed to fetch recent activities:", error);
     toast.error("Could not load recent activities.");
@@ -323,17 +337,120 @@ const getActivityTagVariant = (tag: string): 'default' | 'secondary' | 'destruct
   return 'outline';
 }
 
+// Function to set up WebSocket connection for real-time activity updates
+const setupActivityWebSocket = () => {
+  // This would be implemented with a real WebSocket connection in production
+  // const ws = new WebSocket('ws://localhost:3000/ws/activities');
+
+  // ws.onmessage = (event) => {
+  //   const data = JSON.parse(event.data);
+  //   if (data.type === 'activity') {
+  //     // Add the new activity to the top of the list
+  //     recentActivities.value.unshift({
+  //       type: data.activityType,
+  //       description: data.description,
+  //       actorName: data.actorName,
+  //       timestamp: new Date(),
+  //       avatarUrl: data.avatarUrl || getDefaultAvatarUrl(data.actorName),
+  //       tag: getActivityTag(data.activityType)
+  //     });
+  //     
+  //     // Limit the list to a reasonable size
+  //     if (recentActivities.value.length > 20) {
+  //       recentActivities.value = recentActivities.value.slice(0, 20);
+  //     }
+  //     
+  //     // Show a toast notification for the new activity
+  //     toast.info(`New activity: ${data.description}`);
+  //   }
+  // };
+
+  // return ws;
+
+  // For now, we'll simulate a new activity every 45 seconds
+  const interval = setInterval(() => {
+    const types = ['new_user', 'invoice_submitted', 'kyc_approved', 'invoice_paid', 'kyc_rejected'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    const descriptions = {
+      'new_user': 'New user registered: User' + Math.floor(Math.random() * 1000),
+      'invoice_submitted': 'Invoice INV-' + Math.floor(Math.random() * 10000) + ' submitted',
+      'kyc_approved': 'KYC approved for User' + Math.floor(Math.random() * 1000),
+      'invoice_paid': 'Invoice INV-' + Math.floor(Math.random() * 10000) + ' marked as paid',
+      'kyc_rejected': 'KYC rejected for User' + Math.floor(Math.random() * 1000)
+    };
+
+    const actors = ['System', 'Admin User', 'Finance Bot'];
+    const actor = actors[Math.floor(Math.random() * actors.length)];
+
+    const newActivity = {
+      type: type,
+      description: descriptions[type],
+      actorName: actor,
+      timestamp: new Date(),
+      avatarUrl: 'https://placehold.co/40x40/' + Math.floor(Math.random() * 1000000).toString(16) + '/ffffff?text=' + actor.substring(0, 2),
+      tag: getActivityTag(type)
+    };
+
+    recentActivities.value.unshift(newActivity);
+
+    // Limit the list to a reasonable size
+    if (recentActivities.value.length > 20) {
+      recentActivities.value = recentActivities.value.slice(0, 20);
+    }
+
+    toast.info(`New activity: ${newActivity.description}`);
+  }, 45000);
+
+  return interval;
+};
+
+// Helper function to get activity tag based on type
+const getActivityTag = (type) => {
+  switch (type) {
+    case 'new_user': return 'User';
+    case 'invoice_submitted': return 'Invoice';
+    case 'kyc_approved': return 'KYC';
+    case 'invoice_paid': return 'Payment';
+    case 'kyc_rejected': return 'KYC';
+    default: return 'Other';
+  }
+};
+
+// Helper function to generate default avatar URL
+const getDefaultAvatarUrl = (name) => {
+  if (!name) return 'https://placehold.co/40x40/cccccc/ffffff?text=??';
+  const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  const color = Math.floor(Math.random() * 1000000).toString(16);
+  return `https://placehold.co/40x40/${color}/ffffff?text=${initials}`;
+};
+
+let wsActivityConnection;
+
 onMounted(() => {
   if (authToken) {
     fetchDashboardStats();
     fetchChartData();
     fetchRecentActivities();
+
+    // Set up WebSocket for real-time activity updates
+    wsActivityConnection = setupActivityWebSocket();
   } else {
     toast.error("Authentication token not found. Please log in.");
     isLoadingStats.value = false;
     isLoadingCharts.value = false;
     isLoadingActivities.value = false;
   }
+
+  onUnmounted(() => {
+    // Clean up WebSocket connection
+    if (wsActivityConnection) {
+      // If using a real WebSocket
+      // wsActivityConnection.close();
+
+      // If using the interval for simulation
+      clearInterval(wsActivityConnection);
+    }
+  });
 });
 </script>
 

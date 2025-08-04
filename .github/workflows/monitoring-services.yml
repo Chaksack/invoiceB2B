@@ -1,0 +1,271 @@
+name: Monitoring Services CI/CD Pipeline
+
+# Workflow for building and pushing monitoring service images to ECR
+on:
+  push:
+    branches: [ main, staging ]
+    paths:
+      - 'monitoring_ecs.tf'
+      - '.github/workflows/monitoring-services.yml'
+  pull_request:
+    branches: [ main, staging ]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'monitoring_ecs.tf'
+      - '.github/workflows/monitoring-services.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+        default: 'staging'
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+  ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
+  PROJECT_NAME: ${{ secrets.ECS_PROJECT_NAME || 'invoiceb2b' }}
+  SONARQUBE_VERSION: "9.9-community"
+  PROMETHEUS_VERSION: "v2.45.0"
+  GRAFANA_VERSION: "10.0.3"
+  ALERTMANAGER_VERSION: "v0.25.0"
+
+jobs:
+  build-and-push-monitoring-images:
+    name: 'Build and Push Monitoring Images'
+    runs-on: ubuntu-latest
+    # Only run on main/staging branch or when manually triggered
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch'
+    environment:
+      name: ${{ github.event.inputs.environment || 'staging' }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Configure AWS credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Set up Docker Buildx for multi-platform builds and caching
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Login to Amazon ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Cache Docker layers to speed up builds
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # Build and push SonarQube image
+      - name: Build and push SonarQube image
+        id: build-sonarqube
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-sonarqube:latest
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-sonarqube:${{ env.SONARQUBE_VERSION }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-sonarqube:${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          # Use the official SonarQube image
+          pull: true
+          build-args: |
+            BASE_IMAGE=sonarqube:${{ env.SONARQUBE_VERSION }}
+          # Create a simple Dockerfile on-the-fly
+          dockerfile: |
+            FROM sonarqube:${{ env.SONARQUBE_VERSION }}
+            # Add any customizations here if needed
+            USER sonarqube
+
+      # Build and push Prometheus image
+      - name: Build and push Prometheus image
+        id: build-prometheus
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-prometheus:latest
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-prometheus:${{ env.PROMETHEUS_VERSION }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-prometheus:${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          # Use the official Prometheus image
+          pull: true
+          build-args: |
+            BASE_IMAGE=prom/prometheus:${{ env.PROMETHEUS_VERSION }}
+          # Create a simple Dockerfile on-the-fly
+          dockerfile: |
+            FROM prom/prometheus:${{ env.PROMETHEUS_VERSION }}
+            # Add any customizations here if needed
+            # Copy a default prometheus.yml if needed
+            # COPY prometheus.yml /etc/prometheus/prometheus.yml
+            USER nobody
+
+      # Build and push Grafana image
+      - name: Build and push Grafana image
+        id: build-grafana
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-grafana:latest
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-grafana:${{ env.GRAFANA_VERSION }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-grafana:${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          # Use the official Grafana image
+          pull: true
+          build-args: |
+            BASE_IMAGE=grafana/grafana:${{ env.GRAFANA_VERSION }}
+          # Create a simple Dockerfile on-the-fly
+          dockerfile: |
+            FROM grafana/grafana:${{ env.GRAFANA_VERSION }}
+            # Add any customizations here if needed
+            USER grafana
+
+      # Build and push Alertmanager image
+      - name: Build and push Alertmanager image
+        id: build-alertmanager
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-alertmanager:latest
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-alertmanager:${{ env.ALERTMANAGER_VERSION }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-alertmanager:${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          # Use the official Alertmanager image
+          pull: true
+          build-args: |
+            BASE_IMAGE=prom/alertmanager:${{ env.ALERTMANAGER_VERSION }}
+          # Create a simple Dockerfile on-the-fly
+          dockerfile: |
+            FROM prom/alertmanager:${{ env.ALERTMANAGER_VERSION }}
+            # Add any customizations here if needed
+            # COPY alertmanager.yml /etc/alertmanager/alertmanager.yml
+            USER nobody
+
+      # Move cache to prevent it from growing indefinitely
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache || true
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
+
+      # Force new deployment of ECS services
+      - name: Force new ECS deployment
+        run: |
+          echo "Updating ECS services with new images..."
+          
+          # Update SonarQube service
+          aws ecs update-service --cluster ${{ env.PROJECT_NAME }}-b2b-cluster \
+            --service ${{ env.PROJECT_NAME }}-sonarqube \
+            --force-new-deployment
+          
+          # Update Prometheus service
+          aws ecs update-service --cluster ${{ env.PROJECT_NAME }}-b2b-cluster \
+            --service ${{ env.PROJECT_NAME }}-prometheus \
+            --force-new-deployment
+          
+          # Update Grafana service
+          aws ecs update-service --cluster ${{ env.PROJECT_NAME }}-b2b-cluster \
+            --service ${{ env.PROJECT_NAME }}-grafana \
+            --force-new-deployment
+          
+          # Update Alertmanager service
+          aws ecs update-service --cluster ${{ env.PROJECT_NAME }}-b2b-cluster \
+            --service ${{ env.PROJECT_NAME }}-alertmanager \
+            --force-new-deployment
+          
+          echo "ECS services updated successfully!"
+
+      # Generate summary
+      - name: Generate Deployment Summary
+        run: |
+          echo "## Monitoring Services Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Image | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "| --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
+          echo "| SonarQube | ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-sonarqube:${{ github.sha }} | ✅ Pushed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Prometheus | ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-prometheus:${{ github.sha }} | ✅ Pushed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Grafana | ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-grafana:${{ github.sha }} | ✅ Pushed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Alertmanager | ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-alertmanager:${{ github.sha }} | ✅ Pushed |" >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "ECS services have been updated to use the latest images." >> $GITHUB_STEP_SUMMARY
+          echo "Deployment completed at $(date)" >> $GITHUB_STEP_SUMMARY
+
+      # Send notification for deployment
+      - name: Notify Deployment Status
+        if: always()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "${{ job.status == 'success' && '✅ Monitoring Services Deployment Successful' || '❌ Monitoring Services Deployment Failed' }} for `${{ github.repository }}`",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ job.status == 'success' && '✅ *Monitoring Services Deployment Successful*' || '❌ *Monitoring Services Deployment Failed*' }}\nRepository: `${{ github.repository }}`\nBranch: `${{ github.ref_name }}`\nEnvironment: `${{ env.ENVIRONMENT }}`"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    { "type": "mrkdwn", "text": "Triggered by: `${{ github.actor }}`" },
+                    { "type": "mrkdwn", "text": "Workflow Run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>" }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+        
+      # Send email notification for deployment
+      - name: Send Email Notification for Deployment Status
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: ${{ job.status == 'success' && '✅ Monitoring Services Deployment Successful' || '❌ Monitoring Services Deployment Failed' }} - ${{ github.repository }}
+          body: |
+            ${{ job.status == 'success' && 'Monitoring Services Deployment Successful' || 'Monitoring Services Deployment Failed' }}
+            
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Environment: ${{ env.ENVIRONMENT }}
+            Triggered by: ${{ github.actor }}
+            Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: GitHub Actions <${{ secrets.SMTP_USERNAME }}>
+        continue-on-error: true

@@ -47,4 +47,27 @@ func SetupAdminRoutes(
 	adminGroup.Get("/activity-logs", adminHandler.GetActivityLogs)
 	// Dashboard analytics
 	adminGroup.Get("/dashboard/analytics", adminHandler.GetAdminDashboardAnalytics)
+
+	// --- Admin Financial Institution Management ---
+	adminFIGroup := adminGroup.Group("/financial-institutions")
+	adminFIGroup.Post("", adminHandler.CreateFinancialInstitution)
+	adminFIGroup.Get("", adminHandler.GetAllFinancialInstitutions)
+	adminFIGroup.Get("/:id", adminHandler.GetFinancialInstitutionByID)
+	adminFIGroup.Put("/:id", adminHandler.UpdateFinancialInstitution)
+	adminFIGroup.Delete("/:id", adminHandler.DeleteFinancialInstitution)
+
+	// Financial Institution Products
+	adminFIGroup.Post("/products", adminHandler.CreateFinancialInstitutionProduct)
+	adminFIGroup.Get("/products/:id", adminHandler.GetFinancialInstitutionProductByID)
+	adminFIGroup.Get("/:fiId/products", adminHandler.GetFinancialInstitutionProducts)
+	adminFIGroup.Put("/products/:id", adminHandler.UpdateFinancialInstitutionProduct)
+	adminFIGroup.Delete("/products/:id", adminHandler.DeleteFinancialInstitutionProduct)
+
+	// Financial Institution Terms
+	adminFIGroup.Post("/terms", adminHandler.CreateFinancialInstitutionTerm)
+	adminFIGroup.Get("/terms/:id", adminHandler.GetFinancialInstitutionTermByID)
+	adminFIGroup.Get("/:fiId/terms", adminHandler.GetFinancialInstitutionTerms)
+	adminFIGroup.Get("/products/:productId/terms", adminHandler.GetFinancialInstitutionTermsByProduct)
+	adminFIGroup.Put("/terms/:id", adminHandler.UpdateFinancialInstitutionTerm)
+	adminFIGroup.Delete("/terms/:id", adminHandler.DeleteFinancialInstitutionTerm)
 }

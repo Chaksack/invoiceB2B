@@ -29,7 +29,18 @@ func NewAdminHandler(adminService services.AdminService, fileService services.Fi
 	}
 }
 
-// GetAdminProfile retrieves the profile of the currently logged-in admin/staff member.
+// GetAdminProfile godoc
+// @Summary Get admin profile
+// @Description Get the profile of the currently logged-in admin/staff member
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Success 200 {object} dtos.StaffResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/profile/me [get]
 func (h *AdminHandler) GetAdminProfile(c *fiber.Ctx) error {
 	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	if !ok {
@@ -63,8 +74,19 @@ func (h *AdminHandler) GetAdminProfile(c *fiber.Ctx) error {
 
 // --- Admin User & KYC Management ---
 
-// GetAllUsers retrieves a paginated list of all users.
-// Query parameters: page, pageSize, email, companyName, kycStatus (conceptual)
+// GetAllUsers godoc
+// @Summary Get all users
+// @Description Get a paginated list of all users
+// @Tags admin-users
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Page size (default: 10)"
+// @Success 200 {object} map[string]interface{} "Returns users, total, page, pageSize"
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/users [get]
 func (h *AdminHandler) GetAllUsers(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	pageSize, _ := strconv.Atoi(c.Query("pageSize", "10"))
@@ -82,7 +104,20 @@ func (h *AdminHandler) GetAllUsers(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"users": users, "total": total, "page": page, "pageSize": pageSize})
 }
 
-// GetUserByID retrieves a specific user by their ID.
+// GetUserByID godoc
+// @Summary Get user by ID
+// @Description Get details of a specific user by their ID
+// @Tags admin-users
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} dtos.UserResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/users/{id} [get]
 func (h *AdminHandler) GetUserByID(c *fiber.Ctx) error {
 	userIDStr := c.Params("id")
 	userID, err := strconv.ParseUint(userIDStr, 10, 64)
@@ -101,7 +136,20 @@ func (h *AdminHandler) GetUserByID(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(user)
 }
 
-// GetUserKYCDetail retrieves KYC details for a specific user.
+// GetUserKYCDetail godoc
+// @Summary Get user KYC details
+// @Description Get KYC (Know Your Customer) details for a specific user
+// @Tags admin-users
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} dtos.AdminKYCDetailResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/users/{id}/kyc [get]
 func (h *AdminHandler) GetUserKYCDetail(c *fiber.Ctx) error {
 	userIDStr := c.Params("id")
 	userID, err := strconv.ParseUint(userIDStr, 10, 64)
@@ -120,7 +168,20 @@ func (h *AdminHandler) GetUserKYCDetail(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(kycDetail)
 }
 
-// ReviewKYC allows an admin to approve or reject a user's KYC application.
+// ReviewKYC godoc
+// @Summary Review user KYC application
+// @Description Approve or reject a user's KYC (Know Your Customer) application
+// @Tags admin-users
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Param request body dtos.AdminKYCReviewRequest true "KYC review details"
+// @Success 200 {object} dtos.AdminKYCDetailResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/users/{id}/kyc/review [put]
 func (h *AdminHandler) ReviewKYC(c *fiber.Ctx) error {
 	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	if !ok {
@@ -168,8 +229,20 @@ func (h *AdminHandler) ReviewKYC(c *fiber.Ctx) error {
 
 // --- Admin Invoice Management ---
 
-// GetAllInvoices retrieves a paginated list of all invoices, with optional filters.
-// Query parameters: page, pageSize, status
+// GetAllInvoices godoc
+// @Summary Get all invoices
+// @Description Get a paginated list of all invoices with optional status filter
+// @Tags admin-invoices
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Page size (default: 10)"
+// @Param status query string false "Filter by invoice status"
+// @Success 200 {object} dtos.InvoiceListResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/invoices [get]
 func (h *AdminHandler) GetAllInvoices(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	pageSize, _ := strconv.Atoi(c.Query("pageSize", "10"))
@@ -185,7 +258,20 @@ func (h *AdminHandler) GetAllInvoices(c *fiber.Ctx) error {
 	})
 }
 
-// GetInvoiceDetail retrieves details for a specific invoice.
+// GetInvoiceDetail godoc
+// @Summary Get invoice details
+// @Description Get detailed information for a specific invoice
+// @Tags admin-invoices
+// @Accept json
+// @Produce json
+// @Param id path int true "Invoice ID"
+// @Success 200 {object} dtos.InvoiceResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/invoices/{id} [get]
 func (h *AdminHandler) GetInvoiceDetail(c *fiber.Ctx) error {
 	invoiceIDStr := c.Params("id")
 	invoiceID, err := strconv.ParseUint(invoiceIDStr, 10, 64)
@@ -202,7 +288,20 @@ func (h *AdminHandler) GetInvoiceDetail(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(invoice)
 }
 
-// UpdateInvoiceStatus allows an admin to update the status of an invoice.
+// UpdateInvoiceStatus godoc
+// @Summary Update invoice status
+// @Description Update the status of an invoice (approve, reject, disburse, etc.)
+// @Tags admin-invoices
+// @Accept json
+// @Produce json
+// @Param id path int true "Invoice ID"
+// @Param request body dtos.AdminInvoiceUpdateRequest true "Invoice status update details"
+// @Success 200 {object} dtos.InvoiceResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/invoices/{id}/status [put]
 func (h *AdminHandler) UpdateInvoiceStatus(c *fiber.Ctx) error {
 	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	if !ok {
@@ -244,7 +343,20 @@ func (h *AdminHandler) UpdateInvoiceStatus(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(updatedInvoice)
 }
 
-// UploadDisbursementReceipt allows an admin to upload a disbursement receipt for an invoice.
+// UploadDisbursementReceipt godoc
+// @Summary Upload disbursement receipt
+// @Description Upload a disbursement receipt for an invoice
+// @Tags admin-invoices
+// @Accept multipart/form-data
+// @Produce json
+// @Param id path int true "Invoice ID"
+// @Param receiptFile formData file true "Receipt file to upload (PDF, PNG, JPG, JPEG)"
+// @Success 200 {object} dtos.InvoiceResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/invoices/{id}/receipt [post]
 func (h *AdminHandler) UploadDisbursementReceipt(c *fiber.Ctx) error {
 	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	if !ok {
@@ -294,7 +406,20 @@ func (h *AdminHandler) UploadDisbursementReceipt(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(updatedInvoice)
 }
 
-// DownloadInvoicePDF allows an admin to download an invoice as a PDF.
+// DownloadInvoicePDF godoc
+// @Summary Download invoice PDF
+// @Description Download an invoice as a PDF document
+// @Tags admin-invoices
+// @Accept json
+// @Produce application/json
+// @Param id path int true "Invoice ID"
+// @Success 200 {object} services.InvoicePDFResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/invoices/{id}/download-pdf [get]
 func (h *AdminHandler) DownloadInvoicePDF(c *fiber.Ctx) error {
 	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	if !ok {
@@ -345,7 +470,20 @@ func (h *AdminHandler) DownloadInvoicePDF(c *fiber.Ctx) error {
 
 // --- Admin Staff Management ---
 
-// CreateStaff allows an admin to create a new staff member.
+// CreateStaff godoc
+// @Summary Create staff member
+// @Description Create a new staff member (admin, reviewer, etc.)
+// @Tags admin-staff
+// @Accept json
+// @Produce json
+// @Param request body dtos.CreateStaffRequest true "Staff creation details"
+// @Success 201 {object} dtos.StaffResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 409 {object} utils.ErrorResponse "Staff with this email already exists"
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/staff [post]
 func (h *AdminHandler) CreateStaff(c *fiber.Ctx) error {
 	var req dtos.CreateStaffRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -364,7 +502,19 @@ func (h *AdminHandler) CreateStaff(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(staff)
 }
 
-// GetAllStaff retrieves a paginated list of all staff members.
+// GetAllStaff godoc
+// @Summary Get all staff members
+// @Description Get a paginated list of all staff members
+// @Tags admin-staff
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Page size (default: 10)"
+// @Success 200 {object} map[string]interface{} "Returns staff, total, page, pageSize"
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/staff [get]
 func (h *AdminHandler) GetAllStaff(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	pageSize, _ := strconv.Atoi(c.Query("pageSize", "10"))
@@ -376,7 +526,21 @@ func (h *AdminHandler) GetAllStaff(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"staff": staffList, "total": total, "page": page, "pageSize": pageSize})
 }
 
-// UpdateStaff allows an admin to update details of an existing staff member.
+// UpdateStaff godoc
+// @Summary Update staff member
+// @Description Update details of an existing staff member
+// @Tags admin-staff
+// @Accept json
+// @Produce json
+// @Param id path int true "Staff ID"
+// @Param request body dtos.UpdateStaffRequest true "Staff update details"
+// @Success 200 {object} dtos.StaffResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/staff/{id} [put]
 func (h *AdminHandler) UpdateStaff(c *fiber.Ctx) error {
 	staffIDStr := c.Params("id")
 	staffID, err := strconv.ParseUint(staffIDStr, 10, 64)
@@ -402,7 +566,20 @@ func (h *AdminHandler) UpdateStaff(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(updatedStaff)
 }
 
-// DeleteStaff allows an admin to delete a staff member.
+// DeleteStaff godoc
+// @Summary Delete staff member
+// @Description Delete an existing staff member
+// @Tags admin-staff
+// @Accept json
+// @Produce json
+// @Param id path int true "Staff ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/staff/{id} [delete]
 func (h *AdminHandler) DeleteStaff(c *fiber.Ctx) error {
 	staffIDStr := c.Params("id")
 	staffID, err := strconv.ParseUint(staffIDStr, 10, 64)
@@ -420,8 +597,22 @@ func (h *AdminHandler) DeleteStaff(c *fiber.Ctx) error {
 
 // --- Admin Activity Logs & Analytics ---
 
-// GetActivityLogs retrieves a paginated list of all activity logs, with optional filters.
-// Query parameters: page, pageSize, user_id, staff_id, action
+// GetActivityLogs godoc
+// @Summary Get activity logs
+// @Description Get a paginated list of all activity logs with optional filters
+// @Tags admin-logs
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Page size (default: 20)"
+// @Param user_id query string false "Filter by user ID"
+// @Param staff_id query string false "Filter by staff ID"
+// @Param action query string false "Filter by action type"
+// @Success 200 {object} dtos.ActivityLogListResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/activity-logs [get]
 func (h *AdminHandler) GetActivityLogs(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	pageSize, _ := strconv.Atoi(c.Query("pageSize", "20"))
@@ -447,9 +638,23 @@ func (h *AdminHandler) GetActivityLogs(c *fiber.Ctx) error {
 	})
 }
 
-// GetUserActivityLogs retrieves activity logs specific to a user.
-// Path parameter: id (userID)
-// Query parameters: page, pageSize, action
+// GetUserActivityLogs godoc
+// @Summary Get user activity logs
+// @Description Get activity logs specific to a user
+// @Tags admin-users
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Page size (default: 20)"
+// @Param action query string false "Filter logs by action type"
+// @Success 200 {object} dtos.ActivityLogListResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/users/{id}/activity-logs [get]
 func (h *AdminHandler) GetUserActivityLogs(c *fiber.Ctx) error {
 	userIDStr := c.Params("id")
 	userID, err := strconv.ParseUint(userIDStr, 10, 64)
@@ -481,11 +686,729 @@ func (h *AdminHandler) GetUserActivityLogs(c *fiber.Ctx) error {
 	})
 }
 
-// GetAdminDashboardAnalytics retrieves aggregated data for the admin dashboard.
+// GetAdminDashboardAnalytics godoc
+// @Summary Get dashboard analytics
+// @Description Get aggregated data for the admin dashboard (users, invoices, transactions)
+// @Tags admin-analytics
+// @Accept json
+// @Produce json
+// @Success 200 {object} services.AdminDashboardAnalytics
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/dashboard/analytics [get]
 func (h *AdminHandler) GetAdminDashboardAnalytics(c *fiber.Ctx) error {
 	analytics, err := h.adminService.GetAdminDashboardAnalytics(c.Context())
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to retrieve dashboard analytics.", err)
 	}
 	return c.Status(fiber.StatusOK).JSON(analytics)
+}
+
+// --- Financial Institution Management ---
+
+// CreateFinancialInstitution godoc
+// @Summary Create financial institution
+// @Description Create a new financial institution
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param request body dtos.CreateFinancialInstitutionRequest true "Financial institution creation details"
+// @Success 201 {object} dtos.FinancialInstitutionResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 409 {object} utils.ErrorResponse "Financial institution with this code already exists"
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions [post]
+func (h *AdminHandler) CreateFinancialInstitution(c *fiber.Ctx) error {
+	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid token claims.", nil)
+	}
+	adminStaffIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
+		adminStaffIDStr, okStr := claims["user_id"].(string)
+		if !okStr {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID type in token.", nil)
+		}
+		parsedID, err := strconv.ParseFloat(adminStaffIDStr, 64)
+		if err != nil {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID format in token string.", err)
+		}
+		adminStaffIDFloat = parsedID
+	}
+	adminStaffID := uint(adminStaffIDFloat)
+
+	var req dtos.CreateFinancialInstitutionRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid request body.", err)
+	}
+	if errs := h.validate.Struct(req); errs != nil {
+		return utils.HandleValidationError(c, errs)
+	}
+
+	fi, err := h.adminService.CreateFinancialInstitution(c.Context(), adminStaffID, req)
+	if err != nil {
+		if strings.Contains(err.Error(), "already exists") {
+			return utils.HandleError(c, fiber.StatusConflict, "Financial institution with this code already exists.", err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to create financial institution.", err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(fi)
+}
+
+// GetAllFinancialInstitutions godoc
+// @Summary Get all financial institutions
+// @Description Get a paginated list of all financial institutions with optional filters
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Page size (default: 10)"
+// @Param name query string false "Filter by name"
+// @Param code query string false "Filter by code"
+// @Param is_active query string false "Filter by active status (true/false)"
+// @Success 200 {object} dtos.FinancialInstitutionListResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions [get]
+func (h *AdminHandler) GetAllFinancialInstitutions(c *fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	pageSize, _ := strconv.Atoi(c.Query("pageSize", "10"))
+
+	filters := make(map[string]string)
+	if name := c.Query("name"); name != "" {
+		filters["name"] = name
+	}
+	if code := c.Query("code"); code != "" {
+		filters["code"] = code
+	}
+	if isActive := c.Query("is_active"); isActive != "" {
+		filters["is_active"] = isActive
+	}
+
+	financialInstitutions, total, err := h.adminService.GetAllFinancialInstitutions(c.Context(), page, pageSize, filters)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to retrieve financial institutions.", err)
+	}
+	return c.Status(fiber.StatusOK).JSON(dtos.FinancialInstitutionListResponse{
+		FinancialInstitutions: financialInstitutions, Total: total, Page: page, PageSize: pageSize,
+	})
+}
+
+// GetFinancialInstitutionByID godoc
+// @Summary Get financial institution by ID
+// @Description Get details of a specific financial institution by its ID
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param id path int true "Financial Institution ID"
+// @Success 200 {object} dtos.FinancialInstitutionResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions/{id} [get]
+func (h *AdminHandler) GetFinancialInstitutionByID(c *fiber.Ctx) error {
+	fiIDStr := c.Params("id")
+	fiID, err := strconv.ParseUint(fiIDStr, 10, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid financial institution ID format.", err)
+	}
+
+	fi, err := h.adminService.GetFinancialInstitutionByID(c.Context(), uint(fiID))
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution not found.", err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to retrieve financial institution.", err)
+	}
+	return c.Status(fiber.StatusOK).JSON(fi)
+}
+
+// UpdateFinancialInstitution godoc
+// @Summary Update financial institution
+// @Description Update an existing financial institution
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param id path int true "Financial Institution ID"
+// @Param request body dtos.UpdateFinancialInstitutionRequest true "Financial institution update details"
+// @Success 200 {object} dtos.FinancialInstitutionResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 409 {object} utils.ErrorResponse "Financial institution with this code already exists"
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions/{id} [put]
+func (h *AdminHandler) UpdateFinancialInstitution(c *fiber.Ctx) error {
+	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid token claims.", nil)
+	}
+	adminStaffIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
+		adminStaffIDStr, okStr := claims["user_id"].(string)
+		if !okStr {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID type in token.", nil)
+		}
+		parsedID, err := strconv.ParseFloat(adminStaffIDStr, 64)
+		if err != nil {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID format in token string.", err)
+		}
+		adminStaffIDFloat = parsedID
+	}
+	adminStaffID := uint(adminStaffIDFloat)
+
+	fiIDStr := c.Params("id")
+	fiID, err := strconv.ParseUint(fiIDStr, 10, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid financial institution ID format.", err)
+	}
+
+	var req dtos.UpdateFinancialInstitutionRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid request body.", err)
+	}
+	if errs := h.validate.Struct(req); errs != nil {
+		return utils.HandleValidationError(c, errs)
+	}
+
+	fi, err := h.adminService.UpdateFinancialInstitution(c.Context(), uint(fiID), adminStaffID, req)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution not found.", err)
+		}
+		if strings.Contains(err.Error(), "already exists") {
+			return utils.HandleError(c, fiber.StatusConflict, "Financial institution with this code already exists.", err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to update financial institution.", err)
+	}
+	return c.Status(fiber.StatusOK).JSON(fi)
+}
+
+// DeleteFinancialInstitution godoc
+// @Summary Delete financial institution
+// @Description Delete an existing financial institution
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param id path int true "Financial Institution ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions/{id} [delete]
+func (h *AdminHandler) DeleteFinancialInstitution(c *fiber.Ctx) error {
+	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid token claims.", nil)
+	}
+	adminStaffIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
+		adminStaffIDStr, okStr := claims["user_id"].(string)
+		if !okStr {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID type in token.", nil)
+		}
+		parsedID, err := strconv.ParseFloat(adminStaffIDStr, 64)
+		if err != nil {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID format in token string.", err)
+		}
+		adminStaffIDFloat = parsedID
+	}
+	adminStaffID := uint(adminStaffIDFloat)
+
+	fiIDStr := c.Params("id")
+	fiID, err := strconv.ParseUint(fiIDStr, 10, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid financial institution ID format.", err)
+	}
+
+	if err := h.adminService.DeleteFinancialInstitution(c.Context(), uint(fiID), adminStaffID); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution not found.", err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to delete financial institution.", err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// --- Financial Institution Product Management ---
+
+// CreateFinancialInstitutionProduct godoc
+// @Summary Create financial institution product
+// @Description Create a new product for a financial institution
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param request body dtos.CreateFinancialInstitutionProductRequest true "Financial institution product creation details"
+// @Success 201 {object} dtos.FinancialInstitutionProductResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse "Financial institution not found"
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions/products [post]
+func (h *AdminHandler) CreateFinancialInstitutionProduct(c *fiber.Ctx) error {
+	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid token claims.", nil)
+	}
+	adminStaffIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
+		adminStaffIDStr, okStr := claims["user_id"].(string)
+		if !okStr {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID type in token.", nil)
+		}
+		parsedID, err := strconv.ParseFloat(adminStaffIDStr, 64)
+		if err != nil {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID format in token string.", err)
+		}
+		adminStaffIDFloat = parsedID
+	}
+	adminStaffID := uint(adminStaffIDFloat)
+
+	var req dtos.CreateFinancialInstitutionProductRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid request body.", err)
+	}
+	if errs := h.validate.Struct(req); errs != nil {
+		return utils.HandleValidationError(c, errs)
+	}
+
+	product, err := h.adminService.CreateFinancialInstitutionProduct(c.Context(), adminStaffID, req)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution not found.", err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to create financial institution product.", err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(product)
+}
+
+// GetFinancialInstitutionProductByID godoc
+// @Summary Get financial institution product by ID
+// @Description Get details of a specific financial institution product by its ID
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param id path int true "Product ID"
+// @Success 200 {object} dtos.FinancialInstitutionProductResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions/products/{id} [get]
+func (h *AdminHandler) GetFinancialInstitutionProductByID(c *fiber.Ctx) error {
+	productIDStr := c.Params("id")
+	productID, err := strconv.ParseUint(productIDStr, 10, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid product ID format.", err)
+	}
+
+	product, err := h.adminService.GetFinancialInstitutionProductByID(c.Context(), uint(productID))
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution product not found.", err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to retrieve financial institution product.", err)
+	}
+	return c.Status(fiber.StatusOK).JSON(product)
+}
+
+// GetFinancialInstitutionProducts godoc
+// @Summary Get financial institution products
+// @Description Get a paginated list of products for a specific financial institution
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param fiId path int true "Financial Institution ID"
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Page size (default: 10)"
+// @Success 200 {object} dtos.FinancialInstitutionProductListResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions/{fiId}/products [get]
+func (h *AdminHandler) GetFinancialInstitutionProducts(c *fiber.Ctx) error {
+	fiIDStr := c.Params("fiId")
+	fiID, err := strconv.ParseUint(fiIDStr, 10, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid financial institution ID format.", err)
+	}
+
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	pageSize, _ := strconv.Atoi(c.Query("pageSize", "10"))
+
+	products, total, err := h.adminService.GetFinancialInstitutionProducts(c.Context(), uint(fiID), page, pageSize)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution not found.", err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to retrieve financial institution products.", err)
+	}
+	return c.Status(fiber.StatusOK).JSON(dtos.FinancialInstitutionProductListResponse{
+		Products: products, Total: total, Page: page, PageSize: pageSize,
+	})
+}
+
+// UpdateFinancialInstitutionProduct godoc
+// @Summary Update financial institution product
+// @Description Update an existing financial institution product
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param id path int true "Product ID"
+// @Param request body dtos.UpdateFinancialInstitutionProductRequest true "Product update details"
+// @Success 200 {object} dtos.FinancialInstitutionProductResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions/products/{id} [put]
+func (h *AdminHandler) UpdateFinancialInstitutionProduct(c *fiber.Ctx) error {
+	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid token claims.", nil)
+	}
+	adminStaffIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
+		adminStaffIDStr, okStr := claims["user_id"].(string)
+		if !okStr {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID type in token.", nil)
+		}
+		parsedID, err := strconv.ParseFloat(adminStaffIDStr, 64)
+		if err != nil {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID format in token string.", err)
+		}
+		adminStaffIDFloat = parsedID
+	}
+	adminStaffID := uint(adminStaffIDFloat)
+
+	productIDStr := c.Params("id")
+	productID, err := strconv.ParseUint(productIDStr, 10, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid product ID format.", err)
+	}
+
+	var req dtos.UpdateFinancialInstitutionProductRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid request body.", err)
+	}
+	if errs := h.validate.Struct(req); errs != nil {
+		return utils.HandleValidationError(c, errs)
+	}
+
+	product, err := h.adminService.UpdateFinancialInstitutionProduct(c.Context(), uint(productID), adminStaffID, req)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution product not found.", err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to update financial institution product.", err)
+	}
+	return c.Status(fiber.StatusOK).JSON(product)
+}
+
+// DeleteFinancialInstitutionProduct godoc
+// @Summary Delete financial institution product
+// @Description Delete a financial institution product
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param id path int true "Product ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions/products/{id} [delete]
+func (h *AdminHandler) DeleteFinancialInstitutionProduct(c *fiber.Ctx) error {
+	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid token claims.", nil)
+	}
+	adminStaffIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
+		adminStaffIDStr, okStr := claims["user_id"].(string)
+		if !okStr {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID type in token.", nil)
+		}
+		parsedID, err := strconv.ParseFloat(adminStaffIDStr, 64)
+		if err != nil {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID format in token string.", err)
+		}
+		adminStaffIDFloat = parsedID
+	}
+	adminStaffID := uint(adminStaffIDFloat)
+
+	productIDStr := c.Params("id")
+	productID, err := strconv.ParseUint(productIDStr, 10, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid product ID format.", err)
+	}
+
+	if err := h.adminService.DeleteFinancialInstitutionProduct(c.Context(), uint(productID), adminStaffID); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution product not found.", err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to delete financial institution product.", err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// --- Financial Institution Term Management ---
+
+// CreateFinancialInstitutionTerm creates a new financial institution term.
+func (h *AdminHandler) CreateFinancialInstitutionTerm(c *fiber.Ctx) error {
+	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid token claims.", nil)
+	}
+	adminStaffIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
+		adminStaffIDStr, okStr := claims["user_id"].(string)
+		if !okStr {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID type in token.", nil)
+		}
+		parsedID, err := strconv.ParseFloat(adminStaffIDStr, 64)
+		if err != nil {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID format in token string.", err)
+		}
+		adminStaffIDFloat = parsedID
+	}
+	adminStaffID := uint(adminStaffIDFloat)
+
+	var req dtos.CreateFinancialInstitutionTermRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid request body.", err)
+	}
+	if errs := h.validate.Struct(req); errs != nil {
+		return utils.HandleValidationError(c, errs)
+	}
+
+	term, err := h.adminService.CreateFinancialInstitutionTerm(c.Context(), adminStaffID, req)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution or product not found.", err)
+		}
+		if strings.Contains(err.Error(), "invalid") {
+			return utils.HandleError(c, fiber.StatusBadRequest, err.Error(), err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to create financial institution term.", err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(term)
+}
+
+// GetFinancialInstitutionTermByID retrieves a specific financial institution term by its ID.
+func (h *AdminHandler) GetFinancialInstitutionTermByID(c *fiber.Ctx) error {
+	termIDStr := c.Params("id")
+	termID, err := strconv.ParseUint(termIDStr, 10, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid term ID format.", err)
+	}
+
+	term, err := h.adminService.GetFinancialInstitutionTermByID(c.Context(), uint(termID))
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution term not found.", err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to retrieve financial institution term.", err)
+	}
+	return c.Status(fiber.StatusOK).JSON(term)
+}
+
+// GetFinancialInstitutionTerms godoc
+// @Summary Get financial institution terms
+// @Description Get a paginated list of terms for a specific financial institution
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param fiId path int true "Financial Institution ID"
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Page size (default: 10)"
+// @Success 200 {object} dtos.FinancialInstitutionTermListResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions/{fiId}/terms [get]
+func (h *AdminHandler) GetFinancialInstitutionTerms(c *fiber.Ctx) error {
+	fiIDStr := c.Params("fiId")
+	fiID, err := strconv.ParseUint(fiIDStr, 10, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid financial institution ID format.", err)
+	}
+
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	pageSize, _ := strconv.Atoi(c.Query("pageSize", "10"))
+
+	terms, total, err := h.adminService.GetFinancialInstitutionTerms(c.Context(), uint(fiID), page, pageSize)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution not found.", err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to retrieve financial institution terms.", err)
+	}
+	return c.Status(fiber.StatusOK).JSON(dtos.FinancialInstitutionTermListResponse{
+		Terms: terms, Total: total, Page: page, PageSize: pageSize,
+	})
+}
+
+// GetFinancialInstitutionTermsByProduct godoc
+// @Summary Get terms by product
+// @Description Get a paginated list of terms for a specific financial institution product
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param productId path int true "Product ID"
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Page size (default: 10)"
+// @Success 200 {object} dtos.FinancialInstitutionTermListResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions/products/{productId}/terms [get]
+func (h *AdminHandler) GetFinancialInstitutionTermsByProduct(c *fiber.Ctx) error {
+	productIDStr := c.Params("productId")
+	productID, err := strconv.ParseUint(productIDStr, 10, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid product ID format.", err)
+	}
+
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	pageSize, _ := strconv.Atoi(c.Query("pageSize", "10"))
+
+	terms, total, err := h.adminService.GetFinancialInstitutionTermsByProduct(c.Context(), uint(productID), page, pageSize)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution product not found.", err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to retrieve financial institution terms by product.", err)
+	}
+	return c.Status(fiber.StatusOK).JSON(dtos.FinancialInstitutionTermListResponse{
+		Terms: terms, Total: total, Page: page, PageSize: pageSize,
+	})
+}
+
+// UpdateFinancialInstitutionTerm godoc
+// @Summary Update financial institution term
+// @Description Update an existing financial institution term
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param id path int true "Term ID"
+// @Param request body dtos.UpdateFinancialInstitutionTermRequest true "Term update details"
+// @Success 200 {object} dtos.FinancialInstitutionTermResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions/terms/{id} [put]
+func (h *AdminHandler) UpdateFinancialInstitutionTerm(c *fiber.Ctx) error {
+	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid token claims.", nil)
+	}
+	adminStaffIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
+		adminStaffIDStr, okStr := claims["user_id"].(string)
+		if !okStr {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID type in token.", nil)
+		}
+		parsedID, err := strconv.ParseFloat(adminStaffIDStr, 64)
+		if err != nil {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID format in token string.", err)
+		}
+		adminStaffIDFloat = parsedID
+	}
+	adminStaffID := uint(adminStaffIDFloat)
+
+	termIDStr := c.Params("id")
+	termID, err := strconv.ParseUint(termIDStr, 10, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid term ID format.", err)
+	}
+
+	var req dtos.UpdateFinancialInstitutionTermRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid request body.", err)
+	}
+	if errs := h.validate.Struct(req); errs != nil {
+		return utils.HandleValidationError(c, errs)
+	}
+
+	term, err := h.adminService.UpdateFinancialInstitutionTerm(c.Context(), uint(termID), adminStaffID, req)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution term not found.", err)
+		}
+		if strings.Contains(err.Error(), "invalid") {
+			return utils.HandleError(c, fiber.StatusBadRequest, err.Error(), err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to update financial institution term.", err)
+	}
+	return c.Status(fiber.StatusOK).JSON(term)
+}
+
+// DeleteFinancialInstitutionTerm godoc
+// @Summary Delete financial institution term
+// @Description Delete a financial institution term
+// @Tags admin-financial-institutions
+// @Accept json
+// @Produce json
+// @Param id path int true "Term ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /admin/financial-institutions/terms/{id} [delete]
+func (h *AdminHandler) DeleteFinancialInstitutionTerm(c *fiber.Ctx) error {
+	claims, ok := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid token claims.", nil)
+	}
+	adminStaffIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
+		adminStaffIDStr, okStr := claims["user_id"].(string)
+		if !okStr {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID type in token.", nil)
+		}
+		parsedID, err := strconv.ParseFloat(adminStaffIDStr, 64)
+		if err != nil {
+			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid staff ID format in token string.", err)
+		}
+		adminStaffIDFloat = parsedID
+	}
+	adminStaffID := uint(adminStaffIDFloat)
+
+	termIDStr := c.Params("id")
+	termID, err := strconv.ParseUint(termIDStr, 10, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid term ID format.", err)
+	}
+
+	if err := h.adminService.DeleteFinancialInstitutionTerm(c.Context(), uint(termID), adminStaffID); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return utils.HandleError(c, fiber.StatusNotFound, "Financial institution term not found.", err)
+		}
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to delete financial institution term.", err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }

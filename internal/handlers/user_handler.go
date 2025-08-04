@@ -23,6 +23,18 @@ func NewUserHandler(userService services.UserService, validate *validator.Valida
 	}
 }
 
+// GetUserProfile godoc
+// @Summary Get user profile
+// @Description Get the profile of the authenticated user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Success 200 {object} dtos.UserProfileResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /user/profile [get]
 func (h *UserHandler) GetUserProfile(c *fiber.Ctx) error {
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	userIDStr := claims["user_id"].(string)
@@ -57,6 +69,19 @@ func (h *UserHandler) GetUserProfile(c *fiber.Ctx) error {
 	})
 }
 
+// UpdateUserProfile godoc
+// @Summary Update user profile
+// @Description Update the profile of the authenticated user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param request body dtos.UpdateUserProfileRequest true "User profile update details"
+// @Success 200 {object} dtos.UserProfileResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /user/profile [put]
 func (h *UserHandler) UpdateUserProfile(c *fiber.Ctx) error {
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	userIDStr := claims["user_id"].(string)
@@ -98,6 +123,19 @@ func (h *UserHandler) UpdateUserProfile(c *fiber.Ctx) error {
 	})
 }
 
+// SubmitKYC godoc
+// @Summary Submit KYC information
+// @Description Submit or update KYC (Know Your Customer) information for the authenticated user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param request body dtos.SubmitKYCRequest true "KYC submission details"
+// @Success 200 {object} dtos.KYCStatusResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /user/kyc [post]
 func (h *UserHandler) SubmitKYC(c *fiber.Ctx) error {
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	userIDStr := claims["user_id"].(string)
@@ -129,6 +167,18 @@ func (h *UserHandler) SubmitKYC(c *fiber.Ctx) error {
 	})
 }
 
+// GetKYCStatus godoc
+// @Summary Get KYC status
+// @Description Get the current KYC (Know Your Customer) status for the authenticated user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Success 200 {object} dtos.KYCStatusResponse
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Security ApiKeyAuth
+// @Router /user/kyc [get]
 func (h *UserHandler) GetKYCStatus(c *fiber.Ctx) error {
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	userIDStr := claims["user_id"].(string)

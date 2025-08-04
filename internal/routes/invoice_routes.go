@@ -15,4 +15,6 @@ func SetupInvoiceRoutes(router fiber.Router, invoiceHandler *handlers.InvoiceHan
 	userInvoiceGroup.Get("/:id", invoiceHandler.GetInvoiceByID)
 	userInvoiceGroup.Get("/:id/viewreceipt", invoiceHandler.ViewReceipt)
 	userInvoiceGroup.Get("/:id/receipt", invoiceHandler.DownloadReceipt)
+	userInvoiceGroup.Get("/:id/suggested-financial-institutions", invoiceHandler.GetSuggestedFinancialInstitutions)
+	userInvoiceGroup.Post("/:id/select-financial-institution", invoiceHandler.SelectFinancialInstitution)
 }

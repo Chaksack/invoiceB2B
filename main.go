@@ -1,8 +1,19 @@
+// @title Invoice B2B API
+// @version 1.0
+// @description This is the API documentation for the Invoice B2B platform
+// @termsOfService http://swagger.io/terms/
+// @contact.name API Support
+// @contact.email support@invoiceb2b.com
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+// @host localhost:8080
+// @BasePath /api/v1
 package main
 
 import (
 	"context"
 	"fmt"
+	"github.com/MarceloPetrucio/go-scalar-api-reference"
 	"invoiceB2B/internal/dtos"
 	"net/http"
 	"os"
@@ -26,6 +37,8 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	flogger "github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/swagger"
+	_ "github.com/swaggo/swag"
 )
 
 type NuxtProjectConfig struct {
@@ -108,11 +121,12 @@ func main() {
 	staffRepo := repositories.NewStaffRepository(db)
 	activityLogRepo := repositories.NewActivityLogRepository(db)
 	transactionRepo := repositories.NewTransactionRepository(db)
+	financialInstitutionRepo := repositories.NewFinancialInstitutionRepository(db)
 
 	activityLogSvc := services.NewActivityLogService(activityLogRepo)
 	authService := services.NewAuthService(userRepo, staffRepo, kycRepo, jwtService, emailService, otpService, notificationService, activityLogSvc, cfg)
 	userService := services.NewUserService(userRepo, kycRepo, activityLogSvc)
-	invoiceService := services.NewInvoiceService(invoiceRepo, userRepo, transactionRepo, fileService, notificationService, activityLogSvc, emailService, cfg)
+	invoiceService := services.NewInvoiceService(invoiceRepo, userRepo, transactionRepo, financialInstitutionRepo, fileService, notificationService, activityLogSvc, emailService, cfg)
 	internalService := services.NewInternalService(invoiceRepo, activityLogSvc)
 
 	// Initialize AdminService (pass all dependencies)
@@ -122,6 +136,7 @@ func main() {
 		staffRepo,
 		invoiceRepo,
 		transactionRepo,
+		financialInstitutionRepo,
 		activityLogSvc,
 		emailService,
 		notificationService, // Pass the initialized notificationService (can be nil)
@@ -169,6 +184,26 @@ func main() {
 	routes.SetupInvoiceRoutes(apiV1, invoiceHandler, authMiddleware, adminMiddleware)
 	routes.SetupAdminRoutes(apiV1, adminHandler, authMiddleware, adminMiddleware)
 	routes.SetupInternalRoutes(apiV1, internalHandler, internalApiMiddleware)
+
+	// Setup Swagger
+	app.Get("/swagger/*", swagger.HandlerDefault)
+
+	app.Get("/documentation", func(c *fiber.Ctx) error {
+		htmlContent, err := scalar.ApiReferenceHTML(&scalar.Options{
+			SpecURL: "./docs/swagger.json",
+			CustomOptions: scalar.CustomOptions{
+				PageTitle: "Profundr API",
+			},
+			DarkMode: true,
+		})
+
+		if err != nil {
+			fmt.Printf("%v", err)
+			return c.Status(fiber.StatusInternalServerError).SendString("Error generating API documentation")
+		}
+
+		return c.Status(fiber.StatusOK).Type("html").SendString(htmlContent)
+	})
 
 	app.Get("/api/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{

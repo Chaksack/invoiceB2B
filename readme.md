@@ -396,7 +396,48 @@ The infrastructure is managed using Terraform, with the following components:
 * EFS for persistent storage
 * ALB for load balancing
 
-### 11.3. Infrastructure Destruction
+### 11.3. Monitoring Services
+
+The application includes a comprehensive monitoring solution deployed on AWS ECS using Terraform. The monitoring infrastructure is defined in `monitoring_ecs.tf` and includes the following services:
+
+1. **SonarQube:** Code quality and security analysis
+2. **Prometheus:** Metrics collection and storage
+3. **Grafana:** Metrics visualization and dashboards
+4. **Alertmanager:** Alert handling and notifications
+
+#### Architecture
+
+* All monitoring services are deployed as ECS Fargate tasks in the existing ECS cluster
+* Each service has its own EFS volume for persistent storage
+* Services are exposed through the Application Load Balancer (ALB) with path-based routing:
+  * SonarQube: `/sonarqube/*`
+  * Prometheus: `/prometheus/*`
+  * Grafana: `/grafana/*`
+  * Alertmanager: `/alertmanager/*`
+* Services run in private subnets with no direct internet access
+* Security groups control traffic flow between services
+
+#### Monitoring CI/CD Pipeline
+
+A dedicated CI/CD pipeline for monitoring services is defined in `.github/workflows/monitoring-services.yml` and includes:
+
+1. **Build and Push Monitoring Images:** Builds and pushes Docker images for all monitoring services to Amazon ECR
+2. **Force New ECS Deployment:** Updates ECS services to use the latest images
+3. **Generate Deployment Summary:** Creates a summary of the deployment
+4. **Notify Deployment Status:** Sends notifications (Slack and email) about the deployment status
+
+#### Access and Configuration
+
+After deployment, the monitoring services are available at:
+
+* SonarQube: `https://your-alb-dns/sonarqube/`
+* Prometheus: `https://your-alb-dns/prometheus/`
+* Grafana: `https://your-alb-dns/grafana/`
+* Alertmanager: `https://your-alb-dns/alertmanager/`
+
+For detailed information about the monitoring services, refer to the `monitoring-services-readme.md` file.
+
+### 11.4. Infrastructure Destruction
 
 A separate workflow is provided for destroying the infrastructure when needed:
 
@@ -427,7 +468,7 @@ The workflow is designed to work even if the S3 backend hasn't been set up yet o
 3. Initialize Terraform with the appropriate backend configuration
 4. Use environment-specific state files when using the S3 backend
 
-### 11.4. Terraform Backend Setup
+### 11.5. Terraform Backend Setup
 
 The project uses an S3 backend for storing Terraform state, which enables:
 * Team collaboration (shared state)

@@ -67,3 +67,29 @@ type UpdateInvoiceProcessedDataRequest struct {
 	ProcessingError            *string               `json:"processingError,omitempty"` // For n8n to report errors
 	NewStatus                  *models.InvoiceStatus `json:"newStatus,omitempty"`       // Optional: n8n can suggest a new status
 }
+
+// DTO for selecting a financial institution for an invoice
+type SelectFinancialInstitutionRequest struct {
+	FinancialInstitutionID   string `json:"financialInstitutionId" validate:"required"`
+	FinancialInstitutionName string `json:"financialInstitutionName" validate:"required"`
+	FinancialInstitutionEmail string `json:"financialInstitutionEmail" validate:"required,email"`
+}
+
+// SuggestedFinancialInstitution represents a financial institution suggested for an invoice
+type SuggestedFinancialInstitution struct {
+	ID               uint    `json:"id"`
+	Name             string  `json:"name"`
+	Code             string  `json:"code"`
+	Description      string  `json:"description,omitempty"`
+	InterestRateMin  float64 `json:"interestRateMin,omitempty"`
+	InterestRateMax  float64 `json:"interestRateMax,omitempty"`
+	ProcessingFee    float64 `json:"processingFee,omitempty"`
+	TermsDays        int     `json:"termsDays,omitempty"`
+	CompatibilityScore float64 `json:"compatibilityScore"`
+	Email            string  `json:"email,omitempty"`
+}
+
+// SuggestedFinancialInstitutionsResponse represents a list of suggested financial institutions for an invoice
+type SuggestedFinancialInstitutionsResponse struct {
+	Suggestions []SuggestedFinancialInstitution `json:"suggestions"`
+}
