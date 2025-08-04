@@ -1,10 +1,10 @@
 <template>
   <div>
+    <Toaster richColors position="top-right" />
     <NuxtLayout>
-      <Toaster richColors position="top-right" />
       <NuxtLoadingIndicator />
-    <NuxtPage />
-    </NuxtLayout >
+      <NuxtPage />
+    </NuxtLayout>
   </div>
 </template>
 <script setup lang="ts">

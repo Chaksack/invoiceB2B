@@ -329,6 +329,27 @@ jobs:
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          
+      # Send email notification for destruction status
+      - name: Send Email Notification for Destruction Status
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: ${{ job.status == 'success' && '✅ Terraform Infrastructure Destroyed Successfully' || '❌ Terraform Destroy Failed' }} - ${{ github.repository }}
+          body: |
+            ${{ job.status == 'success' && 'Terraform Infrastructure Destroyed Successfully' || 'Terraform Destroy Failed' }}
+            
+            Repository: ${{ github.repository }}
+            Environment: ${{ env.ENVIRONMENT }}
+            Triggered by: ${{ github.actor }}
+            Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: GitHub Actions <${{ secrets.SMTP_USERNAME }}>
+        continue-on-error: true
 
   terraform:
     name: 'Deploy Infrastructure'
@@ -818,6 +839,28 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         continue-on-error: true
+        
+      # Send email notification for deployment status
+      - name: Send Email Notification for Deployment Status
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: ${{ job.status == 'success' && '✅ Deployment Successful' || '❌ Deployment Failed' }} - ${{ github.repository }}
+          body: |
+            ${{ job.status == 'success' && 'Deployment Successful' || 'Deployment Failed' }}
+            
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Environment: ${{ env.ENVIRONMENT }}
+            Triggered by: ${{ github.actor }}
+            Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: GitHub Actions <${{ secrets.SMTP_USERNAME }}>
+        continue-on-error: true
 
   # Rollback job that runs when deployment fails
   rollback:
@@ -896,6 +939,27 @@ jobs:
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+        
+      # Send email notification for rollback status
+      - name: Send Email Notification for Rollback Status
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: ${{ job.status == 'success' && '✅ Rollback Successful' || '❌ Rollback Failed' }} - ${{ github.repository }}
+          body: |
+            ${{ job.status == 'success' && 'Rollback Completed Successfully' || 'Rollback Failed' }}
+            
+            Repository: ${{ github.repository }}
+            Environment: ${{ github.event.inputs.environment || 'staging' }}
+            Triggered by: ${{ github.actor }}
+            Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: GitHub Actions <${{ secrets.SMTP_USERNAME }}>
         continue-on-error: true
 
   # Summary job to report overall workflow status
@@ -1062,6 +1126,37 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         continue-on-error: true
+        
+      # Send email notification for deployment summary
+      - name: Send Email Deployment Summary Notification
+        if: always() && steps.check-destroy.outputs.destroy_run == 'false'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: Deployment Summary for ${{ github.repository }} - ${{ env.ENVIRONMENT }} Environment
+          body: |
+            Deployment Summary - ${{ env.ENVIRONMENT }} Environment
+            
+            Environment: ${{ env.ENVIRONMENT }}
+            ${{ contains(needs.*.result, needs.vulnerability-scan.result) && format('Vulnerability Scanning: {0}', needs.vulnerability-scan.result) || '' }}
+            Infrastructure: ${{ needs.terraform.result }}
+            Docker Images: ${{ needs.build-and-push.result }}
+            Docker Image Scanning: ${{ needs.docker-image-scan.result }}
+            ECS Deployment: ${{ needs.deploy-to-ecs.result }}
+            ${{ contains(needs.*.result, needs.rollback.result) && format('Rollback: {0}', needs.rollback.result) || '' }}
+            
+            ${{ contains(needs.*.result, needs.rollback.result) && '⚠️ A rollback was performed due to deployment failure' || '' }}
+            ${{ contains(needs.*.result, needs.vulnerability-scan.result) && needs.vulnerability-scan.result != 'success' && '⚠️ Vulnerabilities were found during dependency scanning' || '' }}
+            ${{ contains(needs.*.result, needs.docker-image-scan.result) && needs.docker-image-scan.outputs.scan_status == 'warning' && '⚠️ Vulnerabilities were found in Docker images, but deployment continued' || '' }}
+            
+            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Completed at $(date)
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: GitHub Actions <${{ secrets.SMTP_USERNAME }}>
+        continue-on-error: true
 
       # Send notification for destruction
       - name: Send Destruction Summary Notification
@@ -1090,4 +1185,26 @@ jobs:
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+        
+      # Send email notification for destruction summary
+      - name: Send Email Destruction Summary Notification
+        if: always() && steps.check-destroy.outputs.destroy_run == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: Infrastructure Destruction Summary for ${{ github.repository }} - ${{ env.ENVIRONMENT }} Environment
+          body: |
+            Infrastructure Destruction Summary - ${{ env.ENVIRONMENT }} Environment
+            
+            Environment: ${{ env.ENVIRONMENT }}
+            Infrastructure Destruction: ${{ needs.terraform-destroy.result }}
+            
+            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Completed at $(date)
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: GitHub Actions <${{ secrets.SMTP_USERNAME }}>
         continue-on-error: true

@@ -11,7 +11,7 @@ on:
         options:
           - dev
           - staging
-          - production
+          - prod
       confirmation:
         description: 'Type "destroy" to confirm destruction of infrastructure for the selected environment'
         required: true
@@ -52,8 +52,8 @@ jobs:
       TARGET_ENVIRONMENT: ${{ github.event.inputs.environment }}
       TERRAFORM_VERSION: "1.7.0"
       AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
-      TERRAFORM_STATE_BUCKET_NAME: "invoicefnd-terraform-state"
-      TERRAFORM_LOCK_TABLE_NAME: "invoiceb2bapi-terraform-locks"
+      TERRAFORM_STATE_BUCKET: "invoiceb2b-terraform-state"
+      TERRAFORM_LOCK_TABLE: "invoiceb2b-terraform-locks"
 
     steps:
       - name: Checkout code
@@ -76,25 +76,20 @@ jobs:
         id: init
         run: |
           echo "Initializing Terraform for environment: ${{ env.TARGET_ENVIRONMENT }}"
-          echo "Using S3 bucket: ${{ env.TERRAFORM_STATE_BUCKET_NAME }}"
+          echo "Using S3 bucket: ${{ env.TERRAFORM_STATE_BUCKET }}"
           echo "Using S3 key: environments/${{ env.TARGET_ENVIRONMENT }}/terraform.tfstate"
-          echo "Using DynamoDB table: ${{ env.TERRAFORM_LOCK_TABLE_NAME }}"
-          terraform init \
-            -backend-config="bucket=${{ env.TERRAFORM_STATE_BUCKET_NAME }}" \
-            -backend-config="key=environments/${{ env.TARGET_ENVIRONMENT }}/terraform.tfstate" \
-            -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="dynamodb_table=${{ env.TERRAFORM_LOCK_TABLE_NAME }}" \
-            -reconfigure
+          echo "Using DynamoDB table: ${{ env.TERRAFORM_LOCK_TABLE }}"
+          terraform init -reconfigure -backend-config="key=environments/${{ env.TARGET_ENVIRONMENT }}/terraform.tfstate"
 
       - name: Debug S3 State File Access
         if: always() # Run this step even if previous steps fail, to gather info
         run: |
           echo "Attempting to access S3 state file for debugging..."
           S3_KEY="environments/${{ env.TARGET_ENVIRONMENT }}/terraform.tfstate"
-          echo "Checking S3 object: s3://${{ env.TERRAFORM_STATE_BUCKET_NAME }}/${S3_KEY}"
-          aws s3 ls "s3://${{ env.TERRAFORM_STATE_BUCKET_NAME }}/${S3_KEY}" || echo "State file not found via 'aws s3 ls' or access issue."
+          echo "Checking S3 object: s3://${{ env.TERRAFORM_STATE_BUCKET }}/${S3_KEY}"
+          aws s3 ls "s3://${{ env.TERRAFORM_STATE_BUCKET }}/${S3_KEY}" || echo "State file not found via 'aws s3 ls' or access issue."
           echo "Checking S3 object metadata with 'aws s3api head-object':"
-          aws s3api head-object --bucket "${{ env.TERRAFORM_STATE_BUCKET_NAME }}" --key "${S3_KEY}" || echo "State file metadata not found via 'aws s3api head-object' or access issue."
+          aws s3api head-object --bucket "${{ env.TERRAFORM_STATE_BUCKET }}" --key "${S3_KEY}" || echo "State file metadata not found via 'aws s3api head-object' or access issue."
 
       - name: List Terraform State
         if: always() # Run this step to see what Terraform loaded
@@ -168,3 +163,21 @@ jobs:
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      
+      - name: Send Email Notification for Destroy Status
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: ${{ needs.terraform-destroy.result == 'success' && '✅ Terraform Infrastructure Destroyed Successfully' || '❌ Terraform Destroy Failed' }} - ${{ github.repository }}
+          body: |
+            ${{ needs.terraform-destroy.result == 'success' && 'Terraform Infrastructure Destroyed Successfully' || 'Terraform Destroy Failed' }}
+            
+            Repository: ${{ github.repository }}
+            Environment: ${{ env.TARGET_ENVIRONMENT }}
+            Triggered by: ${{ github.actor }}
+            Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: GitHub Actions <${{ secrets.SMTP_USERNAME }}>
