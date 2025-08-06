@@ -418,40 +418,51 @@ func (s *authService) LogoutUser(ctx context.Context, tokenStr string) error {
 	claims, err := s.jwtService.ValidateToken(tokenStr, false)
 	if err != nil {
 		log.Printf("Logout: Validating access token failed (possibly expired): %v", err)
+		return fmt.Errorf("invalid token: %w", err)
 	}
 
+	// Extract token ID (jti) from claims for revocation
+	tokenID, ok := claims["jti"].(string)
+	if !ok {
+		log.Printf("Logout: Token ID (jti) not found in claims")
+		return fmt.Errorf("token missing jti claim")
+	}
+
+	// Revoke the token using the JWT service
+	err = s.jwtService.RevokeToken(tokenID)
+	if err != nil {
+		log.Printf("Failed to revoke token on logout: %v", err)
+		return fmt.Errorf("failed to revoke token: %w", err)
+	}
+
+	// For backward compatibility, also blacklist the token using the OTP service
+	// This can be removed once all tokens are using the new JWT format with jti claims
 	var expiryDuration time.Duration
-	if claims != nil {
-		if expFloat, ok := claims["exp"].(float64); ok {
-			expTime := time.Unix(int64(expFloat), 0)
-			if expTime.After(time.Now()) {
-				expiryDuration = time.Until(expTime)
-			} else {
-				expiryDuration = time.Minute
-			}
+	if expFloat, ok := claims["exp"].(float64); ok {
+		expTime := time.Unix(int64(expFloat), 0)
+		if expTime.After(time.Now()) {
+			expiryDuration = time.Until(expTime)
 		} else {
-			expiryDuration = s.cfg.JWTAccessTokenExpirationMinutes
+			expiryDuration = time.Minute
 		}
 	} else {
 		expiryDuration = s.cfg.JWTAccessTokenExpirationMinutes
 	}
 
-	err = s.otpService.BlacklistToken(ctx, tokenStr, expiryDuration)
-	if err != nil {
-		log.Printf("Failed to blacklist access token on logout: %v", err)
-		return fmt.Errorf("failed to blacklist token: %w", err)
-	}
+	// Try to blacklist the token, but don't fail if it doesn't work
+	// since we've already revoked it using the JWT service
+	_ = s.otpService.BlacklistToken(ctx, tokenStr, expiryDuration)
 
-	if claims != nil {
-		userIDStr, ok := claims["user_id"].(string)
-		if ok {
-			parsedUserID, pErr := strconv.ParseUint(userIDStr, 10, 64)
-			if pErr == nil {
-				uid := uint(parsedUserID)
-				_ = s.activityLogService.LogActivity(ctx, nil, &uid, "USER_LOGOUT", fmt.Sprintf("User ID %d logged out.", uid), "")
-			}
+	// Log the logout activity
+	userIDStr, ok := claims["user_id"].(string)
+	if ok {
+		parsedUserID, pErr := strconv.ParseUint(userIDStr, 10, 64)
+		if pErr == nil {
+			uid := uint(parsedUserID)
+			_ = s.activityLogService.LogActivity(ctx, nil, &uid, "USER_LOGOUT", fmt.Sprintf("User ID %d logged out.", uid), "")
 		}
 	}
+	
 	return nil
 }
 

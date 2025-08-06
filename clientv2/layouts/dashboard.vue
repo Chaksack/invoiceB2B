@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { useRouter } from '#app';
 import { toast } from 'vue-sonner';
+import { onMounted, onBeforeUnmount } from 'vue';
 
 const router = useRouter();
 
@@ -43,18 +44,67 @@ const notifications = ref([
 
 // User dropdown state
 const showUserMenu = ref(false);
+// Mobile sidebar state
+const showMobileSidebar = ref(false);
 
 // Toggle notification panel
 const toggleNotifications = () => {
   showNotifications.value = !showNotifications.value;
   if (showUserMenu.value) showUserMenu.value = false;
+  if (showMobileSidebar.value) showMobileSidebar.value = false;
 };
 
 // Toggle user menu
 const toggleUserMenu = () => {
   showUserMenu.value = !showUserMenu.value;
   if (showNotifications.value) showNotifications.value = false;
+  if (showMobileSidebar.value) showMobileSidebar.value = false;
 };
+
+// Toggle mobile sidebar
+const toggleMobileSidebar = () => {
+  showMobileSidebar.value = !showMobileSidebar.value;
+  if (showNotifications.value) showNotifications.value = false;
+  if (showUserMenu.value) showUserMenu.value = false;
+};
+
+// Close mobile sidebar when screen size changes to desktop
+const handleResize = () => {
+  if (window.innerWidth >= 768 && showMobileSidebar.value) {
+    showMobileSidebar.value = false;
+  }
+};
+
+// Close dropdowns when clicking outside
+const handleClickOutside = (event) => {
+  // Close notifications dropdown if clicking outside
+  if (showNotifications.value && !event.target.closest('.notifications-container')) {
+    showNotifications.value = false;
+  }
+  
+  // Close user menu dropdown if clicking outside
+  if (showUserMenu.value && !event.target.closest('.user-menu-container')) {
+    showUserMenu.value = false;
+  }
+  
+  // Don't close mobile sidebar when clicking inside it
+  if (showMobileSidebar.value && !event.target.closest('.mobile-sidebar') && 
+      !event.target.closest('.mobile-menu-button')) {
+    showMobileSidebar.value = false;
+  }
+};
+
+// Setup event listeners
+onMounted(() => {
+  window.addEventListener('resize', handleResize);
+  document.addEventListener('click', handleClickOutside);
+});
+
+// Clean up event listeners
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize);
+  document.removeEventListener('click', handleClickOutside);
+});
 
 // Mark notification as read
 const markAsRead = (notificationId) => {
@@ -151,8 +201,8 @@ const navigationItems = [
 
 <template>
   <div class="min-h-screen bg-background flex">
-    <!-- Sidebar -->
-    <aside class="w-64 bg-sidebar border-r border-sidebar-border hidden md:block fixed top-0 left-0 h-full z-10">
+    <!-- Desktop Sidebar -->
+    <aside class="w-64 bg-sidebar border-r border-sidebar-border hidden md:block fixed top-0 left-0 h-full z-20">
       <div class="p-4 border-b border-sidebar-border">
         <div class="flex items-center space-x-2">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -165,7 +215,67 @@ const navigationItems = [
       <nav class="p-2 overflow-y-auto h-[calc(100%-4rem)]">
         <ul class="space-y-1">
           <li v-for="item in navigationItems" :key="item.title">
-            <NuxtLink :to="item.to" class="flex items-center p-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors">
+            <NuxtLink 
+              :to="item.to" 
+              class="flex items-center p-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+              active-class="bg-sidebar-primary text-sidebar-primary-foreground font-medium"
+              exact-active-class="bg-sidebar-primary text-sidebar-primary-foreground font-medium"
+            >
+              <span class="mr-2">
+                <!-- Placeholder for icon -->
+                <div class="w-5 h-5 flex items-center justify-center">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  </svg>
+                </div>
+              </span>
+              <span>{{ item.title }}</span>
+            </NuxtLink>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Mobile Sidebar Overlay -->
+    <div 
+      v-if="showMobileSidebar" 
+      class="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
+      @click="showMobileSidebar = false"
+    ></div>
+
+    <!-- Mobile Sidebar -->
+    <aside 
+      v-if="showMobileSidebar"
+      class="mobile-sidebar w-64 bg-sidebar border-r border-sidebar-border fixed top-0 left-0 h-full z-40 md:hidden transform transition-transform duration-300"
+      :class="{ 'translate-x-0': showMobileSidebar, '-translate-x-full': !showMobileSidebar }"
+    >
+      <div class="p-4 border-b border-sidebar-border flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L2 12L12 22L22 12L12 2Z" fill="var(--sidebar-primary)" />
+          </svg>
+          <span class="text-xl font-bold text-sidebar-foreground">InvoiceFlow</span>
+        </div>
+        <button 
+          @click="showMobileSidebar = false"
+          class="p-1 rounded-md text-sidebar-foreground hover:bg-sidebar-accent"
+        >
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      
+      <nav class="p-2 overflow-y-auto h-[calc(100%-4rem)]">
+        <ul class="space-y-1">
+          <li v-for="item in navigationItems" :key="item.title">
+            <NuxtLink 
+              :to="item.to" 
+              class="flex items-center p-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+              active-class="bg-sidebar-primary text-sidebar-primary-foreground font-medium"
+              exact-active-class="bg-sidebar-primary text-sidebar-primary-foreground font-medium"
+              @click="showMobileSidebar = false"
+            >
               <span class="mr-2">
                 <!-- Placeholder for icon -->
                 <div class="w-5 h-5 flex items-center justify-center">
@@ -187,7 +297,10 @@ const navigationItems = [
       <header class="bg-card shadow-sm border-b fixed top-0 right-0 left-0 md:left-64 z-10">
         <div class="container mx-auto px-4 py-3 flex justify-between items-center">
           <!-- Mobile menu button -->
-          <button class="md:hidden p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100">
+          <button 
+            @click="toggleMobileSidebar"
+            class="mobile-menu-button md:hidden p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+          >
             <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
             </svg>
@@ -208,99 +321,101 @@ const navigationItems = [
           <!-- User menu -->
           <div class="flex items-center space-x-4">
             <!-- Notifications -->
-            <button 
-              @click="toggleNotifications"
-              class="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 relative"
-            >
-              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
-              </svg>
-              <span 
-                v-if="unreadNotifications.length > 0" 
-                class="absolute top-0 right-0 block h-4 w-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center"
+            <div class="notifications-container relative">
+              <button 
+                @click="toggleNotifications"
+                class="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 relative"
               >
-                {{ unreadNotifications.length > 9 ? '9+' : unreadNotifications.length }}
-              </span>
-            </button>
-            
-            <!-- Notification Dropdown -->
-            <div 
-              v-if="showNotifications" 
-              class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
-              style="top: 100%;"
-            >
-              <div class="p-3 border-b border-gray-200 flex justify-between items-center">
-                <h3 class="text-sm font-medium">Notifications</h3>
-                <button 
-                  v-if="unreadNotifications.length > 0"
-                  @click="markAllAsRead"
-                  class="text-xs text-primary hover:text-primary-700"
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                </svg>
+                <span 
+                  v-if="unreadNotifications.length > 0" 
+                  class="absolute top-0 right-0 block h-4 w-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center"
                 >
-                  Mark all as read
-                </button>
-              </div>
+                  {{ unreadNotifications.length > 9 ? '9+' : unreadNotifications.length }}
+                </span>
+              </button>
               
-              <div class="max-h-80 overflow-y-auto">
-                <div v-if="notifications.length === 0" class="p-4 text-center text-gray-500">
-                  No notifications
+              <!-- Notification Dropdown -->
+              <div 
+                v-if="showNotifications" 
+                class="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+                style="top: 100%;"
+              >
+                <div class="p-3 border-b border-gray-200 flex justify-between items-center">
+                  <h3 class="text-sm font-medium">Notifications</h3>
+                  <button 
+                    v-if="unreadNotifications.length > 0"
+                    @click="markAllAsRead"
+                    class="text-xs text-primary hover:text-primary-700"
+                  >
+                    Mark all as read
+                  </button>
                 </div>
                 
-                <div 
-                  v-for="notification in notifications" 
-                  :key="notification.id"
-                  class="p-3 border-b border-gray-100 hover:bg-gray-50"
-                  :class="{ 'bg-blue-50': !notification.read }"
-                >
-                  <div class="flex">
-                    <div class="flex-shrink-0 mr-3">
-                      <div 
-                        class="h-8 w-8 rounded-full flex items-center justify-center"
-                        :class="{
-                          'bg-green-500': notification.type === 'success',
-                          'bg-blue-500': notification.type === 'info',
-                          'bg-yellow-500': notification.type === 'warning',
-                          'bg-red-500': notification.type === 'error'
-                        }"
-                      >
-                        <svg v-if="notification.type === 'success'" class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                        <svg v-else-if="notification.type === 'info'" class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        <svg v-else-if="notification.type === 'warning'" class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                        </svg>
-                        <svg v-else-if="notification.type === 'error'" class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
+                <div class="max-h-80 overflow-y-auto">
+                  <div v-if="notifications.length === 0" class="p-4 text-center text-gray-500">
+                    No notifications
+                  </div>
+                  
+                  <div 
+                    v-for="notification in notifications" 
+                    :key="notification.id"
+                    class="p-3 border-b border-gray-100 hover:bg-gray-50"
+                    :class="{ 'bg-blue-50': !notification.read }"
+                  >
+                    <div class="flex">
+                      <div class="flex-shrink-0 mr-3">
+                        <div 
+                          class="h-8 w-8 rounded-full flex items-center justify-center"
+                          :class="{
+                            'bg-green-500': notification.type === 'success',
+                            'bg-blue-500': notification.type === 'info',
+                            'bg-yellow-500': notification.type === 'warning',
+                            'bg-red-500': notification.type === 'error'
+                          }"
+                        >
+                          <svg v-if="notification.type === 'success'" class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                          </svg>
+                          <svg v-else-if="notification.type === 'info'" class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                          </svg>
+                          <svg v-else-if="notification.type === 'warning'" class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                          </svg>
+                          <svg v-else-if="notification.type === 'error'" class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                          </svg>
+                        </div>
                       </div>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 truncate">{{ notification.title }}</p>
+                        <p class="text-xs text-gray-500 mt-1 break-words">{{ notification.message }}</p>
+                        <p class="text-xs text-gray-400 mt-1">{{ formatRelativeTime(notification.timestamp) }}</p>
+                      </div>
+                      <button 
+                        v-if="!notification.read" 
+                        @click="markAsRead(notification.id)"
+                        class="ml-2 text-xs text-primary hover:text-primary-700 flex-shrink-0"
+                      >
+                        Mark as read
+                      </button>
                     </div>
-                    <div class="flex-1">
-                      <p class="text-sm font-medium text-gray-900">{{ notification.title }}</p>
-                      <p class="text-xs text-gray-500 mt-1">{{ notification.message }}</p>
-                      <p class="text-xs text-gray-400 mt-1">{{ formatRelativeTime(notification.timestamp) }}</p>
-                    </div>
-                    <button 
-                      v-if="!notification.read" 
-                      @click="markAsRead(notification.id)"
-                      class="ml-2 text-xs text-primary hover:text-primary-700"
-                    >
-                      Mark as read
-                    </button>
                   </div>
                 </div>
-              </div>
-              
-              <div class="p-2 border-t border-gray-200 text-center">
-                <NuxtLink to="/settings" class="text-xs text-primary hover:text-primary-700">
-                  View all notifications
-                </NuxtLink>
+                
+                <div class="p-2 border-t border-gray-200 text-center">
+                  <NuxtLink to="/settings" class="text-xs text-primary hover:text-primary-700">
+                    View all notifications
+                  </NuxtLink>
+                </div>
               </div>
             </div>
             
             <!-- User dropdown -->
-            <div class="relative">
+            <div class="user-menu-container relative">
               <button 
                 @click="toggleUserMenu"
                 class="flex items-center space-x-2 p-1 rounded-md hover:bg-gray-100"
@@ -318,12 +433,12 @@ const navigationItems = [
               <!-- User Dropdown Menu -->
               <div 
                 v-if="showUserMenu" 
-                class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+                class="absolute right-0 mt-2 w-48 max-w-[90vw] bg-white rounded-lg shadow-lg border border-gray-200 z-50"
                 style="top: 100%;"
               >
                 <div class="p-3 border-b border-gray-200">
-                  <p class="text-sm font-medium text-gray-900">{{ user.name }}</p>
-                  <p class="text-xs text-gray-500">{{ user.email }}</p>
+                  <p class="text-sm font-medium text-gray-900 truncate">{{ user.name }}</p>
+                  <p class="text-xs text-gray-500 truncate">{{ user.email }}</p>
                 </div>
                 
                 <div class="py-1">

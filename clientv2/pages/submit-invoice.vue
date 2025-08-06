@@ -183,7 +183,7 @@ definePageMeta({
               <p v-if="errors.invoiceNumber" class="mt-1 text-sm text-red-600">{{ errors.invoiceNumber }}</p>
             </div>
             <div>
-              <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+              <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Amount (GHC)</label>
               <input 
                 id="amount" 
                 v-model="invoiceForm.amount" 

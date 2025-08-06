@@ -4,9 +4,9 @@ import { toast } from 'vue-sonner';
 
 // This data would typically come from an API
 const invoices = ref([
-  { id: 'INV-2025-001', client: 'Acme Corp', amount: '$12,500.00', dueDate: '2025-08-25', status: 'Pending', selected: false },
-  { id: 'INV-2025-002', client: 'Globex Inc', amount: '$8,750.00', dueDate: '2025-08-24', status: 'Pending', selected: false },
-  { id: 'INV-2025-006', client: 'Oscorp Industries', amount: '$7,200.00', dueDate: '2025-08-15', status: 'Pending', selected: false },
+  { id: 'INV-2025-001', client: 'Acme Corp', amount: 'GHC 12,500.00', dueDate: '2025-08-25', status: 'Pending', selected: false },
+  { id: 'INV-2025-002', client: 'Globex Inc', amount: 'GHC 8,750.00', dueDate: '2025-08-24', status: 'Pending', selected: false },
+  { id: 'INV-2025-006', client: 'Oscorp Industries', amount: 'GHC 7,200.00', dueDate: '2025-08-15', status: 'Pending', selected: false },
 ]);
 
 // Financing options
@@ -89,8 +89,8 @@ const selectedInvoices = computed(() => {
 
 const totalInvoiceAmount = computed(() => {
   return selectedInvoices.value.reduce((total, invoice) => {
-    // Remove $ and commas for calculation
-    const amount = parseFloat(invoice.amount.replace('$', '').replace(',', ''));
+    // Remove GHC and commas for calculation
+    const amount = parseFloat(invoice.amount.replace('GHC', '').replace(',', ''));
     return total + amount;
   }, 0).toFixed(2);
 });
@@ -177,7 +177,7 @@ definePageMeta({
       <!-- Left Column: Invoices Selection -->
       <div class="lg:col-span-2">
         <div class="bg-card rounded-lg shadow-sm border border-border overflow-hidden mb-6">
-          <div class="p-4 border-b border-border flex justify-between items-center">
+          <div class="p-4 border-b border-border flex flex-wrap justify-between items-center gap-2">
             <h2 class="font-semibold text-lg">Select Invoices to Finance</h2>
             <button 
               @click="selectAllInvoices"
@@ -191,7 +191,8 @@ definePageMeta({
             <p class="text-sm text-red-600">{{ errors.invoices }}</p>
           </div>
           
-          <div class="overflow-x-auto">
+          <!-- Desktop Table View -->
+          <div class="hidden md:block overflow-x-auto">
             <table class="w-full">
               <thead>
                 <tr class="bg-muted/50">
@@ -233,6 +234,46 @@ definePageMeta({
             </table>
           </div>
           
+          <!-- Mobile Card View -->
+          <div class="md:hidden divide-y divide-border">
+            <div 
+              v-for="invoice in invoices" 
+              :key="invoice.id" 
+              class="p-4 hover:bg-muted/20"
+            >
+              <div class="flex items-start mb-2">
+                <div class="mr-3">
+                  <input 
+                    type="checkbox" 
+                    :checked="invoice.selected"
+                    @change="toggleInvoiceSelection(invoice.id)"
+                    class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded mt-1"
+                  />
+                </div>
+                <div class="flex-1">
+                  <div class="font-medium text-gray-900">{{ invoice.id }}</div>
+                  <div class="grid grid-cols-2 gap-2 mt-2 text-sm">
+                    <div>
+                      <div class="text-gray-500 font-medium">Client</div>
+                      <div>{{ invoice.client }}</div>
+                    </div>
+                    <div>
+                      <div class="text-gray-500 font-medium">Amount</div>
+                      <div>{{ invoice.amount }}</div>
+                    </div>
+                    <div>
+                      <div class="text-gray-500 font-medium">Due Date</div>
+                      <div>{{ invoice.dueDate }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-if="invoices.length === 0" class="p-6 text-center text-gray-500">
+              No invoices available for financing.
+            </div>
+          </div>
+          
           <div v-if="selectedInvoices.length > 0" class="p-4 border-t border-border bg-muted/10">
             <div class="flex justify-between items-center">
               <div>
@@ -241,7 +282,7 @@ definePageMeta({
               </div>
               <div>
                 <span class="text-sm text-gray-500">Total Amount:</span>
-                <span class="ml-1 text-sm font-bold">${{ totalInvoiceAmount }}</span>
+                <span class="ml-1 text-sm font-bold">GHC {{ totalInvoiceAmount }}</span>
               </div>
             </div>
           </div>
@@ -263,12 +304,12 @@ definePageMeta({
             >
               <div class="flex items-start">
                 <div class="flex-shrink-0 mt-0.5">
-                  <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center" :class="{ 'border-primary': option.selected, 'border-gray-300': !option.selected }">
-                    <div v-if="option.selected" class="w-2.5 h-2.5 rounded-full bg-primary"></div>
+                  <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center" :class="{ 'border-primary': option.selected, 'border-gray-300': !option.selected }">
+                    <div v-if="option.selected" class="w-3 h-3 rounded-full bg-primary"></div>
                   </div>
                 </div>
                 <div class="ml-3 flex-1">
-                  <div class="flex justify-between">
+                  <div class="flex flex-wrap justify-between gap-2">
                     <h3 class="text-base font-medium text-gray-900">{{ option.name }}</h3>
                     <div class="text-sm font-medium text-primary">{{ (option.advanceRate * 100) }}% advance</div>
                   </div>
@@ -297,25 +338,25 @@ definePageMeta({
           </div>
           
           <div class="p-4 space-y-4">
-            <div class="flex justify-between items-center">
+            <div class="flex flex-wrap justify-between items-center gap-2">
               <span class="text-sm text-gray-500">Total Invoice Amount:</span>
-              <span class="text-sm font-bold">${{ totalInvoiceAmount }}</span>
+              <span class="text-sm font-bold">GHC {{ totalInvoiceAmount }}</span>
             </div>
-            <div class="flex justify-between items-center">
+            <div class="flex flex-wrap justify-between items-center gap-2">
               <span class="text-sm text-gray-500">Advance Rate:</span>
               <span class="text-sm font-medium">{{ selectedFinancingOption ? (selectedFinancingOption.advanceRate * 100) + '%' : '0%' }}</span>
             </div>
-            <div class="flex justify-between items-center">
+            <div class="flex flex-wrap justify-between items-center gap-2">
               <span class="text-sm text-gray-500">Advance Amount:</span>
-              <span class="text-sm font-medium">${{ advanceAmount }}</span>
+              <span class="text-sm font-medium">GHC {{ advanceAmount }}</span>
             </div>
-            <div class="flex justify-between items-center">
+            <div class="flex flex-wrap justify-between items-center gap-2">
               <span class="text-sm text-gray-500">Financing Fee:</span>
-              <span class="text-sm font-medium text-red-500">-${{ financingFee }}</span>
+              <span class="text-sm font-medium text-red-500">-GHC {{ financingFee }}</span>
             </div>
-            <div class="pt-3 border-t border-border flex justify-between items-center">
+            <div class="pt-3 border-t border-border flex flex-wrap justify-between items-center gap-2">
               <span class="text-sm font-medium text-gray-700">Net Amount:</span>
-              <span class="text-base font-bold text-primary">${{ netAmount }}</span>
+              <span class="text-base font-bold text-primary">GHC {{ netAmount }}</span>
             </div>
           </div>
         </div>
@@ -326,14 +367,14 @@ definePageMeta({
             <h2 class="font-semibold text-lg">Payment Details</h2>
           </div>
           
-          <form @submit.prevent="submitFinancingRequest" class="p-4 space-y-4">
+          <form @submit.prevent="submitFinancingRequest" class="p-4 space-y-5">
             <div>
               <label for="bankName" class="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
               <input 
                 id="bankName" 
                 v-model="financingForm.bankName" 
                 type="text" 
-                class="w-full py-2 px-3 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                class="w-full py-3 px-4 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 :class="{ 'border-red-500 focus:ring-red-500 focus:border-red-500': errors.bankName }"
                 placeholder="Enter your bank name"
               />
@@ -346,7 +387,8 @@ definePageMeta({
                 id="accountNumber" 
                 v-model="financingForm.accountNumber" 
                 type="text" 
-                class="w-full py-2 px-3 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                inputmode="numeric"
+                class="w-full py-3 px-4 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 :class="{ 'border-red-500 focus:ring-red-500 focus:border-red-500': errors.accountNumber }"
                 placeholder="Enter your account number"
               />
@@ -359,7 +401,8 @@ definePageMeta({
                 id="routingNumber" 
                 v-model="financingForm.routingNumber" 
                 type="text" 
-                class="w-full py-2 px-3 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                inputmode="numeric"
+                class="w-full py-3 px-4 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 :class="{ 'border-red-500 focus:ring-red-500 focus:border-red-500': errors.routingNumber }"
                 placeholder="Enter your routing number"
               />
@@ -371,7 +414,7 @@ definePageMeta({
               <select 
                 id="accountType" 
                 v-model="financingForm.accountType" 
-                class="w-full py-2 px-3 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                class="w-full py-3 px-4 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               >
                 <option v-for="type in accountTypes" :key="type.value" :value="type.value">
                   {{ type.label }}
@@ -386,7 +429,7 @@ definePageMeta({
                     id="termsAccepted" 
                     v-model="financingForm.termsAccepted" 
                     type="checkbox" 
-                    class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                    class="h-5 w-5 text-primary focus:ring-primary border-gray-300 rounded"
                     :class="{ 'border-red-500': errors.termsAccepted }"
                   />
                 </div>
@@ -402,7 +445,7 @@ definePageMeta({
             <div class="pt-4">
               <button 
                 type="submit" 
-                class="w-full px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                class="w-full py-3 px-4 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
                 :disabled="isSubmitting || selectedInvoices.length === 0"
               >
                 <span v-if="isSubmitting" class="flex items-center justify-center">

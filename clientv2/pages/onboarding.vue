@@ -176,8 +176,8 @@ const submitForm = () => {
             <div class="text-sm sm:text-lg font-semibold">Funds Available</div>
           </div>
           <div class="flex justify-between items-center mb-6">
-            <div class="text-lg sm:text-2xl font-bold">$124,908.00</div>
-            <div class="text-lg sm:text-2xl font-bold">$85,750.00</div>
+            <div class="text-lg sm:text-2xl font-bold">GHC 124,908.00</div>
+            <div class="text-lg sm:text-2xl font-bold">GHC 85,750.00</div>
           </div>
           <!-- Graph Placeholder -->
           <div class="h-16 sm:h-24 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 mb-6">
@@ -204,11 +204,11 @@ const submitForm = () => {
               <div class="text-xs sm:text-sm font-medium text-gray-600">Jan 24</div>
             </div>
             <div class="flex justify-between items-center text-xs sm:text-sm">
-              <div class="font-medium text-gray-800">$35,798.00</div>
-              <div class="font-medium text-gray-800">$23.10</div>
-              <div class="font-medium text-gray-800">$23.10</div>
-              <div class="font-medium text-gray-800">$23.10</div>
-              <div class="font-medium text-gray-800">$23.10</div>
+              <div class="font-medium text-gray-800">GHC 35,798.00</div>
+              <div class="font-medium text-gray-800">GHC 23.10</div>
+              <div class="font-medium text-gray-800">GHC 23.10</div>
+              <div class="font-medium text-gray-800">GHC 23.10</div>
+              <div class="font-medium text-gray-800">GHC 23.10</div>
             </div>
           </div>
         </div>
@@ -216,22 +216,22 @@ const submitForm = () => {
         <!-- Overlapping Card 1 -->
         <div class="absolute bg-white text-gray-800 p-3 sm:p-4 rounded-xl shadow-lg -top-6 sm:-top-10 left-1/3 sm:left-1/4 transform -translate-x-1/2 z-0 opacity-90">
           <div class="font-semibold text-xs sm:text-sm mb-1 sm:mb-2">Invoice Financed</div>
-          <div class="text-sm sm:text-lg font-bold text-green-500">+$42,500.00</div>
+          <div class="text-sm sm:text-lg font-bold text-green-500">+GHC 42,500.00</div>
         </div>
 
         <!-- Overlapping Card 2 -->
         <div class="absolute bg-white text-gray-800 p-3 sm:p-4 rounded-xl shadow-lg bottom-6 sm:bottom-10 right-0 transform translate-x-1/6 sm:translate-x-1/4 z-0 opacity-90">
           <div class="flex items-center justify-between text-xs sm:text-sm mb-1">
             <span class="font-medium">Financing Fee</span>
-            <span class="text-red-500 font-bold">-$1,275</span>
+            <span class="text-red-500 font-bold">-GHC 1,275</span>
           </div>
           <div class="flex items-center justify-between text-xs sm:text-sm mb-1">
             <span class="font-medium">Service Charge</span>
-            <span class="text-red-500 font-bold">-$425</span>
+            <span class="text-red-500 font-bold">-GHC 425</span>
           </div>
           <div class="flex items-center justify-between text-xs sm:text-sm">
             <span class="font-medium">Processing Fee</span>
-            <span class="text-red-500 font-bold">-$212</span>
+            <span class="text-red-500 font-bold">-GHC 212</span>
           </div>
           <div class="text-xs text-gray-500 mt-1 sm:mt-2">Today at 9:24 AM</div>
         </div>

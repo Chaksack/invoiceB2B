@@ -11,27 +11,27 @@ const isProcessing = ref(false);
 const financingOptions = ref([
   { 
     id: 1, 
-    name: 'First National Bank', 
+    name: 'Standard Financing Package', 
     rate: '2.5%', 
     term: '30 days',
     amount: 'GHC 12,250.00',
-    description: 'Standard financing with 2.5% fee'
+    description: 'Basic financing package with standard rates and terms'
   },
   { 
     id: 2, 
-    name: 'Global Finance Partners', 
+    name: 'Extended Financing Package', 
     rate: '2.0%', 
     term: '45 days',
     amount: 'GHC 12,300.00',
-    description: 'Extended term financing with competitive rates'
+    description: 'Extended term financing with competitive rates and longer payment period'
   },
   { 
     id: 3, 
-    name: 'Metropolis Credit Union', 
+    name: 'Premium Financing Package', 
     rate: '1.8%', 
     term: '30 days',
     amount: 'GHC 12,350.00',
-    description: 'Premium client rate with fast processing'
+    description: 'Premium package with lowest rates and expedited processing'
   }
 ]);
 const selectedFinancingOption = ref(null);
@@ -97,6 +97,33 @@ const completeFinancing = () => {
     
     // Show success message
     toast.success('Invoice submitted for financing successfully!');
+  }, 1500);
+};
+
+// Save financing for later
+const saveForLater = () => {
+  if (!selectedFinancingOption.value) {
+    errors.value.financing = 'Please select a financing option';
+    return;
+  }
+  
+  // Clear errors
+  errors.value = {};
+  
+  // Show processing
+  isProcessing.value = true;
+  
+  // Simulate API call
+  setTimeout(() => {
+    isProcessing.value = false;
+    // Close dialog but don't reset (could be implemented to keep state)
+    isDialogOpen.value = false;
+    
+    // Show success message
+    toast.success('Financing option saved for later application!');
+    
+    // In a real implementation, we would save the selected financing option
+    // to the user's profile or a database for later retrieval
   }, 1500);
 };
 
@@ -881,6 +908,20 @@ definePageMeta({
             class="px-4 py-2 border border-input rounded-md text-sm font-medium text-gray-700 hover:bg-muted/20"
           >
             Back
+          </button>
+          <button 
+            @click="saveForLater"
+            class="px-4 py-2 border border-primary text-primary rounded-md text-sm font-medium hover:bg-primary/10"
+            :disabled="isProcessing"
+          >
+            <span v-if="isProcessing" class="flex items-center justify-center">
+              <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Processing...
+            </span>
+            <span v-else>Save for Later</span>
           </button>
           <button 
             @click="completeFinancing"

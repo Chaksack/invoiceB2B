@@ -3,24 +3,24 @@ import { ref } from 'vue';
 
 // This data would typically come from an API
 const stats = ref([
-  { title: 'Total Invoices', value: '$245,678.00', change: '+12.5%', changeType: 'positive' },
-  { title: 'Financed Amount', value: '$187,432.00', change: '+8.2%', changeType: 'positive' },
-  { title: 'Available Funds', value: '$58,246.00', change: '-3.1%', changeType: 'negative' },
+  { title: 'Total Invoices', value: 'GHC 245,678.00', change: '+12.5%', changeType: 'positive' },
+  { title: 'Financed Amount', value: 'GHC 187,432.00', change: '+8.2%', changeType: 'positive' },
+  { title: 'Available Funds', value: 'GHC 58,246.00', change: '-3.1%', changeType: 'negative' },
   { title: 'Average Financing Rate', value: '4.2%', change: '-0.5%', changeType: 'positive' }
 ]);
 
 const recentInvoices = ref([
-  { id: 'INV-2025-001', client: 'Acme Corp', amount: '$12,500.00', date: '2025-07-25', status: 'Financed' },
-  { id: 'INV-2025-002', client: 'Globex Inc', amount: '$8,750.00', date: '2025-07-24', status: 'Pending' },
-  { id: 'INV-2025-003', client: 'Stark Industries', amount: '$15,200.00', date: '2025-07-22', status: 'Financed' },
-  { id: 'INV-2025-004', client: 'Wayne Enterprises', amount: '$9,800.00', date: '2025-07-20', status: 'Paid' },
-  { id: 'INV-2025-005', client: 'Umbrella Corp', amount: '$11,350.00', date: '2025-07-18', status: 'Financed' }
+  { id: 'INV-2025-001', client: 'Acme Corp', amount: 'GHC 12,500.00', date: '2025-07-25', status: 'Financed' },
+  { id: 'INV-2025-002', client: 'Globex Inc', amount: 'GHC 8,750.00', date: '2025-07-24', status: 'Pending' },
+  { id: 'INV-2025-003', client: 'Stark Industries', amount: 'GHC 15,200.00', date: '2025-07-22', status: 'Financed' },
+  { id: 'INV-2025-004', client: 'Wayne Enterprises', amount: 'GHC 9,800.00', date: '2025-07-20', status: 'Paid' },
+  { id: 'INV-2025-005', client: 'Umbrella Corp', amount: 'GHC 11,350.00', date: '2025-07-18', status: 'Financed' }
 ]);
 
 const upcomingPayments = ref([
-  { id: 'PAY-2025-001', invoice: 'INV-2025-001', amount: '$12,500.00', dueDate: '2025-08-25' },
-  { id: 'PAY-2025-002', invoice: 'INV-2025-003', amount: '$15,200.00', dueDate: '2025-08-22' },
-  { id: 'PAY-2025-003', invoice: 'INV-2025-005', amount: '$11,350.00', dueDate: '2025-08-18' }
+  { id: 'PAY-2025-001', invoice: 'INV-2025-001', amount: 'GHC 12,500.00', dueDate: '2025-08-25' },
+  { id: 'PAY-2025-002', invoice: 'INV-2025-003', amount: 'GHC 15,200.00', dueDate: '2025-08-22' },
+  { id: 'PAY-2025-003', invoice: 'INV-2025-005', amount: 'GHC 11,350.00', dueDate: '2025-08-18' }
 ]);
 
 definePageMeta({

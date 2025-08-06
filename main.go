@@ -28,6 +28,7 @@ import (
 	"invoiceB2B/internal/models"
 	"invoiceB2B/internal/repositories"
 	"invoiceB2B/internal/routes"
+	"invoiceB2B/internal/secureconfig"
 	"invoiceB2B/internal/services"
 	"invoiceB2B/internal/utils"
 
@@ -48,9 +49,35 @@ type NuxtProjectConfig struct {
 }
 
 func main() {
+	// Load basic configuration from environment variables
 	cfg, err := config.LoadConfig(".")
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
+	}
+	
+	// Initialize the encrypted secrets manager service
+	secretsDir := "./secrets"
+	secretsManager, err := services.NewEncryptedSecretsManagerService(secretsDir, cfg.EncryptionMasterKey)
+	if err != nil {
+		log.Infof("Warning: Failed to initialize secrets manager: %v. Using environment variables for configuration.", err)
+	} else {
+		// Create secure config with secrets management
+		secureConfig := secureconfig.NewSecureConfig(cfg, secretsManager)
+		
+		// Initialize secrets in the secrets manager (if they don't exist)
+		if err := secureConfig.InitializeSecrets(); err != nil {
+			log.Infof("Warning: Failed to initialize secrets: %v", err)
+		}
+		
+		// Load secrets from the secrets manager
+		if err := secureConfig.LoadSecrets(); err != nil {
+			log.Infof("Warning: Failed to load secrets: %v. Using environment variables for configuration.", err)
+		} else {
+			log.Infof("Successfully loaded configuration from secrets manager")
+		}
+		
+		// Setup automatic credential rotation
+		secureConfig.SetupCredentialRotation()
 	}
 
 	if _, err := os.Stat(cfg.UploadsDir); os.IsNotExist(err) {
@@ -105,10 +132,85 @@ func main() {
 		}
 	}
 
-	jwtService := services.NewJWTService(cfg)
+	jwtService := services.NewJWTService(cfg, rdb)
 	emailService := services.NewEmailService(cfg)
 	otpService := services.NewOTPService(rdb, cfg.OTPExpirationMinutes)
-	fileService := services.NewFileService(cfg.UploadsDir, cfg.MaxUploadSizeMB*1024*1024)
+	// Initialize virus scanning service
+	virusScanConfig := services.VirusScanConfig{
+		PrimaryScanMethod:   3, // Fallback method (pattern-based scanning)
+		FallbackScanMethod:  3, // Fallback method
+		ScanTimeout:         30 * time.Second,
+		LogResults:          true,
+	}
+	
+	// If ClamAV is available, use it as the primary scan method
+	if cfg.ClamAVEnabled {
+		virusScanConfig.PrimaryScanMethod = 0 // LocalClamAV
+		virusScanConfig.ClamAVPath = cfg.ClamAVPath
+	}
+	
+	// If external virus scanning API is configured, use it
+	if cfg.VirusScanAPIEnabled {
+		virusScanConfig.PrimaryScanMethod = 2 // ExternalAPI
+		virusScanConfig.ExternalAPIURL = cfg.VirusScanAPIURL
+		virusScanConfig.ExternalAPIKey = cfg.VirusScanAPIKey
+	}
+	
+	virusScanService := services.NewVirusScanService(virusScanConfig)
+	
+	// Initialize encryption service
+	encryptionConfig := services.EncryptionConfig{
+		MasterKey:    cfg.EncryptionMasterKey,
+		TempDir:      cfg.EncryptionTempDir,
+		EncryptedExt: cfg.EncryptionFileExt,
+		TypeKeys:     cfg.TypeEncryptionKeys,
+	}
+	
+	encryptionService, err := services.NewEncryptionService(encryptionConfig)
+	if err != nil {
+		log.Infof("Warning: Failed to initialize encryption service: %v. File encryption will be disabled.", err)
+		// Continue without encryption
+	}
+	
+	// Initialize integrity verification service
+	var integrityService services.IntegrityVerificationService
+	if cfg.IntegrityVerificationEnabled {
+		integrityConfig := services.IntegrityConfig{
+			Algorithm:      services.IntegrityAlgorithm(cfg.IntegrityAlgorithm),
+			HMACKey:        cfg.IntegrityHMACKey,
+			ChecksumDir:    cfg.IntegrityChecksumDir,
+			VerifyOnAccess: cfg.IntegrityVerifyOnAccess,
+			ScheduleChecks: cfg.IntegrityScheduleChecks,
+			CheckInterval:  time.Duration(cfg.IntegrityCheckInterval) * time.Hour,
+		}
+		
+		integrityService, err = services.NewIntegrityVerificationService(integrityConfig)
+		if err != nil {
+			log.Infof("Warning: Failed to initialize integrity verification service: %v. File integrity verification will be disabled.", err)
+			// Continue without integrity verification
+		} else {
+			log.Infof("Integrity verification service initialized with algorithm: %s", cfg.IntegrityAlgorithm)
+		}
+	} else {
+		log.Infof("File integrity verification is disabled")
+	}
+	
+	// Initialize file access control service
+	fileAccessService := services.NewFileAccessService()
+	log.Infof("File access control service initialized")
+	
+	fileService := services.NewFileService(
+		cfg.UploadsDir, 
+		cfg.MaxUploadSizeMB*1024*1024, 
+		virusScanService,
+		encryptionService,
+		cfg.EncryptionEnabled,
+		cfg.SensitiveFileTypes,
+		integrityService,
+		cfg.IntegrityVerificationEnabled,
+		cfg.IntegrityVerifyOnAccess,
+		fileAccessService,
+	)
 
 	// Placeholder for PDFService initialization - it will be nil for now
 	// In a real application, you would initialize your PDFService implementation here.
@@ -177,12 +279,19 @@ func main() {
 	authMiddleware := middleware.NewAuthMiddleware(jwtService)
 	adminMiddleware := middleware.NewAdminMiddleware(staffRepo)
 	internalApiMiddleware := middleware.NewInternalAPIMiddleware(cfg.InternalAPIKey)
+	rateLimitMiddleware := middleware.NewRateLimitMiddleware(cfg, rdb)
+	csrfMiddleware := middleware.NewCSRFMiddleware(cfg)
 
 	apiV1 := app.Group("/api/v1")
-	routes.SetupAuthRoutes(apiV1, authHandler, authMiddleware)
-	routes.SetupUserRoutes(apiV1, userHandler, authMiddleware)
-	routes.SetupInvoiceRoutes(apiV1, invoiceHandler, authMiddleware, adminMiddleware)
-	routes.SetupAdminRoutes(apiV1, adminHandler, authMiddleware, adminMiddleware)
+	
+	// Apply rate limiting to all API routes
+	apiV1.Use(rateLimitMiddleware.RateLimit())
+	
+	// Setup routes with all required middleware
+	routes.SetupAuthRoutes(apiV1, authHandler, authMiddleware, csrfMiddleware)
+	routes.SetupUserRoutes(apiV1, userHandler, authMiddleware, csrfMiddleware)
+	routes.SetupInvoiceRoutes(apiV1, invoiceHandler, authMiddleware, adminMiddleware, csrfMiddleware)
+	routes.SetupAdminRoutes(apiV1, adminHandler, authMiddleware, adminMiddleware, csrfMiddleware)
 	routes.SetupInternalRoutes(apiV1, internalHandler, internalApiMiddleware)
 
 	// Setup Swagger

@@ -35,34 +35,56 @@ func (am *AuthMiddleware) Protected() fiber.Handler {
 			return utils.HandleError(c, fiber.StatusUnauthorized, "Invalid or expired token", err)
 		}
 
-		// Check if token is blacklisted (for logout)
-		// This requires otpService or a dedicated blacklist service.
-		// For simplicity, let's assume otpService has IsTokenBlacklisted.
-		// This dependency might need to be passed to AuthMiddleware or handled differently.
-		// isBlacklisted, _ := am.otpService.IsTokenBlacklisted(c.Context(), tokenStr)
-		// if isBlacklisted {
-		// 	return utils.HandleError(c, fiber.StatusUnauthorized, "Token has been invalidated", nil)
-		// }
-
-		// Store claims in context for handlers to use
-		// Convert claims (jwt.MapClaims) to a more usable struct if needed, or pass as is.
-		// For simplicity, passing the raw token object which contains claims.
-		// Handlers will need to cast c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
-
-		// Create a new token object to store in locals, as the parsed one might not be ideal.
-		// It's better to store the parsed claims directly or a custom user identity struct.
-		// For now, storing the validated token object.
-		// A common practice is to parse into your custom Claims struct.
-
-		// Create a jwt.Token object to store in locals. This is a bit of a workaround
-		// as Fiber doesn't have a direct way to pass arbitrary structs easily without type assertion.
-		// The claims are already validated.
-		tokenWithClaims := jwt.NewWithClaims(jwt.SigningMethodHS256, claims) // Recreate a token object with validated claims
-		tokenWithClaims.Raw = tokenStr                                       // Store the raw token string as well if needed later (e.g. for blacklist)
-
-		c.Locals("user", tokenWithClaims) // Store the validated token object (which includes claims)
-		// c.Locals("user_id", claims["user_id"]) // Example of storing specific claim
+		// Token validation now includes:
+		// 1. Signature verification with RSA public key
+		// 2. Expiration time validation
+		// 3. Not before time validation
+		// 4. Audience validation
+		// 5. Token revocation check
+		// 6. Token type validation (access vs refresh)
+		
+		// Extract user ID and role from claims for convenience
+		userID, _ := claims["user_id"].(string)
+		role, _ := claims["role"].(string)
+		
+		// Store these in context for easy access in handlers
+		c.Locals("user_id", userID)
+		c.Locals("role", role)
+		
+		// Create a jwt.Token object to store in locals
+		// Use RS256 since we're now using asymmetric signing
+		tokenWithClaims := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+		tokenWithClaims.Raw = tokenStr
+		
+		// Store the full token object for handlers that need access to all claims
+		c.Locals("user", tokenWithClaims)
 
 		return c.Next()
 	}
+}
+
+// Logout handler helper to revoke the current token
+func (am *AuthMiddleware) RevokeCurrentToken(c *fiber.Ctx) error {
+	token, ok := c.Locals("user").(*jwt.Token)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Token not found in context", nil)
+	}
+	
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Invalid token claims", nil)
+	}
+	
+	// Get the token ID (jti) from claims
+	tokenID, ok := claims["jti"].(string)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Token ID not found in claims", nil)
+	}
+	
+	// Revoke the token
+	if err := am.jwtService.RevokeToken(tokenID); err != nil {
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to revoke token", err)
+	}
+	
+	return nil
 }

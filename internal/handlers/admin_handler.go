@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"invoiceB2B/internal/dtos"
 	"invoiceB2B/internal/services"
 	"invoiceB2B/internal/utils"
@@ -375,6 +376,12 @@ func (h *AdminHandler) UploadDisbursementReceipt(c *fiber.Ctx) error {
 		adminStaffIDFloat = parsedID
 	}
 	adminStaffID := uint(adminStaffIDFloat)
+	
+	// Extract user role, default to "staff" if not present
+	userRole, ok := claims["role"].(string)
+	if !ok {
+		userRole = "staff" // Default role for admin staff if not specified in token
+	}
 
 	invoiceIDStr := c.Params("id")
 	invoiceID, err := strconv.ParseUint(invoiceIDStr, 10, 64)
@@ -393,13 +400,19 @@ func (h *AdminHandler) UploadDisbursementReceipt(c *fiber.Ctx) error {
 	if !allowedExtensions[ext] {
 		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid file type. Only PDF, PNG, JPG, JPEG allowed.", nil)
 	}
-	if err := h.fileService.ValidateFileSize(file.Size); err != nil { // Assuming fileService has ValidateFileSize
+	
+	// Use the standard ValidateFileSize method (this doesn't need access control)
+	if err := h.fileService.ValidateFileSize(file.Size); err != nil {
 		return utils.HandleError(c, fiber.StatusBadRequest, err.Error(), err)
 	}
 
 	req := dtos.AdminUploadReceiptRequest{File: file} // File is *multipart.FileHeader
+	
+	// Convert adminStaffID to string for access control
+	adminStaffIDStr := fmt.Sprintf("%d", adminStaffID)
 
-	updatedInvoice, err := h.adminService.UploadDisbursementReceipt(c.Context(), uint(invoiceID), adminStaffID, req)
+	// Pass the user ID and role to the AdminService for access control
+	updatedInvoice, err := h.adminService.UploadDisbursementReceipt(c.Context(), uint(invoiceID), adminStaffID, req, adminStaffIDStr, userRole)
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to upload receipt.", err)
 	}

@@ -7,7 +7,7 @@ const payments = ref([
     id: 'PAY-2025-001', 
     invoiceId: 'INV-2025-001', 
     client: 'Acme Corp', 
-    amount: '$10,000.00', 
+    amount: 'GHC 10,000.00', 
     date: '2025-07-25', 
     type: 'Advance', 
     status: 'Completed',
@@ -17,7 +17,7 @@ const payments = ref([
     id: 'PAY-2025-002', 
     invoiceId: 'INV-2025-003', 
     client: 'Stark Industries', 
-    amount: '$12,160.00', 
+    amount: 'GHC 12,160.00', 
     date: '2025-07-22', 
     type: 'Advance', 
     status: 'Completed',
@@ -27,7 +27,7 @@ const payments = ref([
     id: 'PAY-2025-003', 
     invoiceId: 'INV-2025-005', 
     client: 'Umbrella Corp', 
-    amount: '$9,080.00', 
+    amount: 'GHC 9,080.00', 
     date: '2025-07-18', 
     type: 'Advance', 
     status: 'Completed',
@@ -37,7 +37,7 @@ const payments = ref([
     id: 'PAY-2025-004', 
     invoiceId: 'INV-2025-001', 
     client: 'Acme Corp', 
-    amount: '$2,500.00', 
+    amount: 'GHC 2,500.00', 
     date: '2025-08-25', 
     type: 'Balance', 
     status: 'Pending',
@@ -47,7 +47,7 @@ const payments = ref([
     id: 'PAY-2025-005', 
     invoiceId: 'INV-2025-003', 
     client: 'Stark Industries', 
-    amount: '$3,040.00', 
+    amount: 'GHC 3,040.00', 
     date: '2025-08-22', 
     type: 'Balance', 
     status: 'Pending',
@@ -57,7 +57,7 @@ const payments = ref([
     id: 'PAY-2025-006', 
     invoiceId: 'INV-2025-005', 
     client: 'Umbrella Corp', 
-    amount: '$2,270.00', 
+    amount: 'GHC 2,270.00', 
     date: '2025-08-18', 
     type: 'Balance', 
     status: 'Pending',
@@ -67,7 +67,7 @@ const payments = ref([
     id: 'PAY-2025-007', 
     invoiceId: 'INV-2025-007', 
     client: 'LexCorp', 
-    amount: '$15,120.00', 
+    amount: 'GHC 15,120.00', 
     date: '2025-07-12', 
     type: 'Advance', 
     status: 'Completed',
@@ -77,7 +77,7 @@ const payments = ref([
     id: 'PAY-2025-008', 
     invoiceId: 'INV-2025-007', 
     client: 'LexCorp', 
-    amount: '$3,780.00', 
+    amount: 'GHC 3,780.00', 
     date: '2025-08-12', 
     type: 'Balance', 
     status: 'Pending',
@@ -87,7 +87,7 @@ const payments = ref([
     id: 'PAY-2025-009', 
     invoiceId: 'INV-2025-009', 
     client: 'Massive Dynamic', 
-    amount: '$18,200.00', 
+    amount: 'GHC 18,200.00', 
     date: '2025-07-08', 
     type: 'Advance', 
     status: 'Completed',
@@ -97,7 +97,7 @@ const payments = ref([
     id: 'PAY-2025-010', 
     invoiceId: 'INV-2025-009', 
     client: 'Massive Dynamic', 
-    amount: '$4,550.00', 
+    amount: 'GHC 4,550.00', 
     date: '2025-08-08', 
     type: 'Balance', 
     status: 'Pending',
@@ -156,9 +156,9 @@ const filteredPayments = computed(() => {
   result.sort((a, b) => {
     let comparison = 0;
     if (sortBy.value === 'amount') {
-      // Remove $ and commas for numeric comparison
-      const amountA = parseFloat(a.amount.replace('$', '').replace(',', ''));
-      const amountB = parseFloat(b.amount.replace('$', '').replace(',', ''));
+      // Remove GHC and commas for numeric comparison
+      const amountA = parseFloat(a.amount.replace('GHC', '').replace(',', ''));
+      const amountB = parseFloat(b.amount.replace('GHC', '').replace(',', ''));
       comparison = amountA - amountB;
     } else if (sortBy.value === 'date') {
       comparison = new Date(a.date) - new Date(b.date);

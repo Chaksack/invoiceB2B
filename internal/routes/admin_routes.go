@@ -12,62 +12,86 @@ func SetupAdminRoutes(
 	adminHandler *handlers.AdminHandler,
 	authMw *middleware.AuthMiddleware,
 	adminMw *middleware.AdminMiddleware,
+	csrfMw *middleware.CSRFMiddleware,
 ) {
 	adminGroup := router.Group("/admin")
 	adminGroup.Use(authMw.Protected())
 	adminGroup.Use(adminMw.AdminRequired())
+	
+	// Generate CSRF token for all admin routes
+	adminGroup.Use(csrfMw.GenerateToken)
+	
+	// Create a group for read-only operations (GET)
+	adminReadGroup := adminGroup.Group("")
+	
+	// Create a group for state-changing operations (POST, PUT, DELETE)
+	// that require CSRF verification
+	adminWriteGroup := adminGroup.Group("")
+	adminWriteGroup.Use(csrfMw.VerifyToken())
 
 	// --- Admin Profile ---
-	adminGroup.Get("/profile/me", adminHandler.GetAdminProfile)
+	adminReadGroup.Get("/profile/me", adminHandler.GetAdminProfile)
 
 	// --- Admin User & KYC Management ---
-	adminUsersGroup := adminGroup.Group("/users")
-	adminUsersGroup.Get("", adminHandler.GetAllUsers)
-	adminUsersGroup.Get("/:id", adminHandler.GetUserByID)
-	adminUsersGroup.Get("/:id/kyc", adminHandler.GetUserKYCDetail)
-	adminUsersGroup.Put("/:id/kyc/review", adminHandler.ReviewKYC)
-	adminUsersGroup.Get("/:id/activity-logs", adminHandler.GetUserActivityLogs)
+	// Read operations
+	adminUsersReadGroup := adminReadGroup.Group("/users")
+	adminUsersReadGroup.Get("", adminHandler.GetAllUsers)
+	adminUsersReadGroup.Get("/:id", adminHandler.GetUserByID)
+	adminUsersReadGroup.Get("/:id/kyc", adminHandler.GetUserKYCDetail)
+	adminUsersReadGroup.Get("/:id/activity-logs", adminHandler.GetUserActivityLogs)
+	
+	// Write operations
+	adminUsersWriteGroup := adminWriteGroup.Group("/users")
+	adminUsersWriteGroup.Put("/:id/kyc/review", adminHandler.ReviewKYC)
 
 	// --- Admin Invoice Management ---
-	adminInvoicesGroup := adminGroup.Group("/invoices")
-	adminInvoicesGroup.Get("", adminHandler.GetAllInvoices)
-	adminInvoicesGroup.Get("/:id", adminHandler.GetInvoiceDetail)
-	adminInvoicesGroup.Put("/:id/status", adminHandler.UpdateInvoiceStatus)
-	adminInvoicesGroup.Post("/:id/receipt", adminHandler.UploadDisbursementReceipt)
-	adminInvoicesGroup.Get("/:id/download-pdf", adminHandler.DownloadInvoicePDF)
+	// Read operations
+	adminInvoicesReadGroup := adminReadGroup.Group("/invoices")
+	adminInvoicesReadGroup.Get("", adminHandler.GetAllInvoices)
+	adminInvoicesReadGroup.Get("/:id", adminHandler.GetInvoiceDetail)
+	adminInvoicesReadGroup.Get("/:id/download-pdf", adminHandler.DownloadInvoicePDF)
+	
+	// Write operations
+	adminInvoicesWriteGroup := adminWriteGroup.Group("/invoices")
+	adminInvoicesWriteGroup.Put("/:id/status", adminHandler.UpdateInvoiceStatus)
+	adminInvoicesWriteGroup.Post("/:id/receipt", adminHandler.UploadDisbursementReceipt)
 
 	// --- Admin Staff Management ---
-	adminStaffGroup := adminGroup.Group("/staff")
-	adminStaffGroup.Post("", adminHandler.CreateStaff)
-	adminStaffGroup.Get("", adminHandler.GetAllStaff)
-	adminStaffGroup.Put("/:id", adminHandler.UpdateStaff)
-	adminStaffGroup.Delete("/:id", adminHandler.DeleteStaff)
+	// Read operations
+	adminStaffReadGroup := adminReadGroup.Group("/staff")
+	adminStaffReadGroup.Get("", adminHandler.GetAllStaff)
+	
+	// Write operations
+	adminStaffWriteGroup := adminWriteGroup.Group("/staff")
+	adminStaffWriteGroup.Post("", adminHandler.CreateStaff)
+	adminStaffWriteGroup.Put("/:id", adminHandler.UpdateStaff)
+	adminStaffWriteGroup.Delete("/:id", adminHandler.DeleteStaff)
 
 	// --- Admin Activity Logs & Analytics ---
-	adminGroup.Get("/activity-logs", adminHandler.GetActivityLogs)
+	adminReadGroup.Get("/activity-logs", adminHandler.GetActivityLogs)
 	// Dashboard analytics
-	adminGroup.Get("/dashboard/analytics", adminHandler.GetAdminDashboardAnalytics)
+	adminReadGroup.Get("/dashboard/analytics", adminHandler.GetAdminDashboardAnalytics)
 
 	// --- Admin Financial Institution Management ---
-	adminFIGroup := adminGroup.Group("/financial-institutions")
-	adminFIGroup.Post("", adminHandler.CreateFinancialInstitution)
-	adminFIGroup.Get("", adminHandler.GetAllFinancialInstitutions)
-	adminFIGroup.Get("/:id", adminHandler.GetFinancialInstitutionByID)
-	adminFIGroup.Put("/:id", adminHandler.UpdateFinancialInstitution)
-	adminFIGroup.Delete("/:id", adminHandler.DeleteFinancialInstitution)
-
-	// Financial Institution Products
-	adminFIGroup.Post("/products", adminHandler.CreateFinancialInstitutionProduct)
-	adminFIGroup.Get("/products/:id", adminHandler.GetFinancialInstitutionProductByID)
-	adminFIGroup.Get("/:fiId/products", adminHandler.GetFinancialInstitutionProducts)
-	adminFIGroup.Put("/products/:id", adminHandler.UpdateFinancialInstitutionProduct)
-	adminFIGroup.Delete("/products/:id", adminHandler.DeleteFinancialInstitutionProduct)
-
-	// Financial Institution Terms
-	adminFIGroup.Post("/terms", adminHandler.CreateFinancialInstitutionTerm)
-	adminFIGroup.Get("/terms/:id", adminHandler.GetFinancialInstitutionTermByID)
-	adminFIGroup.Get("/:fiId/terms", adminHandler.GetFinancialInstitutionTerms)
-	adminFIGroup.Get("/products/:productId/terms", adminHandler.GetFinancialInstitutionTermsByProduct)
-	adminFIGroup.Put("/terms/:id", adminHandler.UpdateFinancialInstitutionTerm)
-	adminFIGroup.Delete("/terms/:id", adminHandler.DeleteFinancialInstitutionTerm)
+	// Read operations
+	adminFIReadGroup := adminReadGroup.Group("/financial-institutions")
+	adminFIReadGroup.Get("", adminHandler.GetAllFinancialInstitutions)
+	adminFIReadGroup.Get("/:id", adminHandler.GetFinancialInstitutionByID)
+	adminFIReadGroup.Get("/products/:id", adminHandler.GetFinancialInstitutionProductByID)
+	adminFIReadGroup.Get("/:fiId/products", adminHandler.GetFinancialInstitutionProducts)
+	adminFIReadGroup.Get("/terms/:id", adminHandler.GetFinancialInstitutionTermByID)
+	adminFIReadGroup.Get("/:fiId/terms", adminHandler.GetFinancialInstitutionTerms)
+	adminFIReadGroup.Get("/products/:productId/terms", adminHandler.GetFinancialInstitutionTermsByProduct)
+	
+	// Write operations
+	adminFIWriteGroup := adminWriteGroup.Group("/financial-institutions")
+	adminFIWriteGroup.Post("", adminHandler.CreateFinancialInstitution)
+	adminFIWriteGroup.Put("/:id", adminHandler.UpdateFinancialInstitution)
+	adminFIWriteGroup.Delete("/:id", adminHandler.DeleteFinancialInstitution)
+	adminFIWriteGroup.Post("/products", adminHandler.CreateFinancialInstitutionProduct)
+	adminFIWriteGroup.Put("/products/:id", adminHandler.UpdateFinancialInstitutionProduct)
+	adminFIWriteGroup.Delete("/products/:id", adminHandler.DeleteFinancialInstitutionProduct)
+	adminFIWriteGroup.Post("/terms", adminHandler.CreateFinancialInstitutionTerm)
+	adminFIWriteGroup.Put("/terms/:id", adminHandler.UpdateFinancialInstitutionTerm)
+	adminFIWriteGroup.Delete("/terms/:id", adminHandler.DeleteFinancialInstitutionTerm)
 }

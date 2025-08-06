@@ -28,7 +28,7 @@ var (
 )
 
 type InvoiceService interface {
-	CreateInvoice(ctx context.Context, userID uint, req dtos.InvoiceUploadRequest) (*dtos.InvoiceResponse, error)
+	CreateInvoice(ctx context.Context, userID uint, req dtos.InvoiceUploadRequest, userRole string) (*dtos.InvoiceResponse, error)
 	GetUserInvoices(ctx context.Context, userID uint, page, pageSize int) ([]dtos.InvoiceResponse, int64, error)
 	GetInvoiceByIDForUser(ctx context.Context, invoiceID, userID uint) (*dtos.InvoiceResponse, error)
 	GetReceiptPathForUser(ctx context.Context, invoiceID, userID uint) (string, string, error)
@@ -103,7 +103,7 @@ func mapInvoiceToResponse(invoice *models.Invoice) dtos.InvoiceResponse {
 	}
 }
 
-func (s *invoiceService) CreateInvoice(ctx context.Context, userID uint, req dtos.InvoiceUploadRequest) (*dtos.InvoiceResponse, error) {
+func (s *invoiceService) CreateInvoice(ctx context.Context, userID uint, req dtos.InvoiceUploadRequest, userRole string) (*dtos.InvoiceResponse, error) {
 	user, err := s.userRepo.FindByIDWithKYC(ctx, userID)
 	if err != nil {
 		return nil, ErrUserNotFound
@@ -133,8 +133,11 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, userID uint, req dto
 		return nil, ErrKYCNotApprovedForInvoiceUpload
 	}
 
-	// Assuming req.File is of type *multipart.FileHeader or compatible with fileService.SaveFile
-	relativePath, originalFileName, err := s.fileService.SaveFile(req.File, "invoices")
+	// Convert userID to string for access control
+	userIDStr := fmt.Sprintf("%d", userID)
+	
+	// Use the enhanced SaveFileWithAccess method with access control
+	relativePath, originalFileName, err := s.fileService.SaveFileWithAccess(req.File, "invoices", userIDStr, userRole)
 	if err != nil {
 		log.Printf("Error saving invoice file for user %d: %v", userID, err)
 		return nil, fmt.Errorf("failed to save invoice file: %w", err)

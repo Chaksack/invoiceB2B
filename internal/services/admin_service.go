@@ -80,7 +80,7 @@ type AdminService interface {
 	GetAllInvoices(ctx context.Context, page, pageSize int, statusFilter string) ([]dtos.InvoiceResponse, int64, error)
 	GetInvoiceDetail(ctx context.Context, invoiceID uint) (*dtos.InvoiceResponse, error)
 	UpdateInvoiceStatus(ctx context.Context, invoiceID, adminStaffID uint, req dtos.AdminInvoiceUpdateRequest) (*dtos.InvoiceResponse, error)
-	UploadDisbursementReceipt(ctx context.Context, invoiceID, adminStaffID uint, req dtos.AdminUploadReceiptRequest) (*dtos.InvoiceResponse, error)
+	UploadDisbursementReceipt(ctx context.Context, invoiceID, adminStaffID uint, req dtos.AdminUploadReceiptRequest, userID string, userRole string) (*dtos.InvoiceResponse, error)
 	DownloadInvoicePDF(ctx context.Context, invoiceID, adminStaffID uint) (*InvoicePDFResponse, error)
 
 	// Staff Management
@@ -521,7 +521,7 @@ func (s *adminService) UpdateInvoiceStatus(ctx context.Context, invoiceID, admin
 	return &resp, nil
 }
 
-func (s *adminService) UploadDisbursementReceipt(ctx context.Context, invoiceID, adminStaffID uint, req dtos.AdminUploadReceiptRequest) (*dtos.InvoiceResponse, error) {
+func (s *adminService) UploadDisbursementReceipt(ctx context.Context, invoiceID, adminStaffID uint, req dtos.AdminUploadReceiptRequest, userID string, userRole string) (*dtos.InvoiceResponse, error) {
 	invoice, err := s.invoiceRepo.FindByID(ctx, invoiceID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -535,7 +535,7 @@ func (s *adminService) UploadDisbursementReceipt(ctx context.Context, invoiceID,
 		return nil, ErrServiceNotAvailable
 	}
 
-	relativePath, uniqueFileName, err := s.fileService.SaveFile(req.File, filepath.Join("receipts", "disbursements"))
+	relativePath, uniqueFileName, err := s.fileService.SaveFileWithAccess(req.File, filepath.Join("receipts", "disbursements"), userID, userRole)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save receipt file: %w", err)
 	}
@@ -554,7 +554,7 @@ func (s *adminService) UploadDisbursementReceipt(ctx context.Context, invoiceID,
 			subject := fmt.Sprintf("Disbursement Receipt Uploaded for Invoice #%s", invoice.InvoiceNumber)
 			body := fmt.Sprintf("Dear %s,\n\nA disbursement receipt has been uploaded for your invoice #%s (Amount: %.2f %s). You can view or download it from your dashboard.\n\nRegards,\nThe Admin Team", user.FirstName, invoice.InvoiceNumber, invoice.Amount, invoice.Currency)
 
-			absAttachmentPath, pathErr := s.fileService.GetAbsPath(relativePath)
+			absAttachmentPath, pathErr := s.fileService.GetAbsPathWithAccess(relativePath, userID, userRole)
 			if pathErr != nil {
 				log.Printf("Failed to get absolute path for receipt attachment %s: %v. Sending email without attachment.", relativePath, pathErr)
 				if emailErr := s.emailService.SendEmail(user.Email, subject, body); emailErr != nil {

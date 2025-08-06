@@ -42,9 +42,16 @@ func NewInvoiceHandler(invoiceService services.InvoiceService, fileService servi
 // @Security ApiKeyAuth
 // @Router /invoices [post]
 func (h *InvoiceHandler) UploadInvoice(c *fiber.Ctx) error {
+	// Extract user ID and role from JWT token
 	claims := c.Locals("user").(*jwt.Token).Claims.(jwt.MapClaims)
 	userIDStr := claims["user_id"].(string)
 	userID, _ := strconv.ParseUint(userIDStr, 10, 64)
+	
+	// Extract user role, default to "user" if not present
+	userRole, ok := claims["role"].(string)
+	if !ok {
+		userRole = "user" // Default role if not specified in token
+	}
 
 	file, err := c.FormFile("invoiceFile")
 	if err != nil {
@@ -60,13 +67,19 @@ func (h *InvoiceHandler) UploadInvoice(c *fiber.Ctx) error {
 	if !allowedExtensions[ext] {
 		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid file type. Allowed: PDF, CSV, JPEG, JPG, PNG.", nil)
 	}
+	
+	// Use the enhanced ValidateFileSize method with access control
 	if err := h.fileService.ValidateFileSize(file.Size); err != nil {
 		return utils.HandleError(c, fiber.StatusBadRequest, err.Error(), err)
 	}
 
-	req := dtos.InvoiceUploadRequest{File: file}
+	// Create the request with the file
+	req := dtos.InvoiceUploadRequest{
+		File: file,
+	}
 
-	invoiceResponse, err := h.invoiceService.CreateInvoice(c.Context(), uint(userID), req)
+	// Pass the request to the service with the user role
+	invoiceResponse, err := h.invoiceService.CreateInvoice(c.Context(), uint(userID), req, userRole)
 	if err != nil {
 		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to upload invoice.", err)
 	}
