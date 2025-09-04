@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 )
 
 // AWSSecretsManagerConfig holds configuration for AWS Secrets Manager
@@ -100,7 +101,7 @@ func (s *awsSecretsManagerService) StoreSecretWithUser(secretName string, secret
 
 	if err != nil {
 		// Secret doesn't exist, create it
-		tags := []secretsmanager.Tag{
+		tags := []types.Tag{
 			{
 				Key:   aws.String(fmt.Sprintf("%s/created-by", s.tagPrefix)),
 				Value: aws.String(userID),
@@ -132,7 +133,7 @@ func (s *awsSecretsManagerService) StoreSecretWithUser(secretName string, secret
 		// Update tags
 		_, err = s.client.TagResource(context.TODO(), &secretsmanager.TagResourceInput{
 			SecretId: aws.String(fullSecretName),
-			Tags: []secretsmanager.Tag{
+			Tags: []types.Tag{
 				{
 					Key:   aws.String(fmt.Sprintf("%s/updated-by", s.tagPrefix)),
 					Value: aws.String(userID),
@@ -261,7 +262,7 @@ func (s *awsSecretsManagerService) GetSecretVersion(secretName string, version i
 	if userID != "" {
 		_, err = s.client.TagResource(context.TODO(), &secretsmanager.TagResourceInput{
 			SecretId: aws.String(fullSecretName),
-			Tags: []secretsmanager.Tag{
+			Tags: []types.Tag{
 				{
 					Key:   aws.String(fmt.Sprintf("%s/accessed-by", s.tagPrefix)),
 					Value: aws.String(userID),
@@ -316,7 +317,7 @@ func (s *awsSecretsManagerService) GetSecretHistory(secretName string, userID st
 	if userID != "" {
 		_, err = s.client.TagResource(context.TODO(), &secretsmanager.TagResourceInput{
 			SecretId: aws.String(fullSecretName),
-			Tags: []secretsmanager.Tag{
+			Tags: []types.Tag{
 				{
 					Key:   aws.String(fmt.Sprintf("%s/history-accessed-by", s.tagPrefix)),
 					Value: aws.String(userID),
@@ -386,7 +387,7 @@ func (s *awsSecretsManagerService) GetAccessLog(secretName string, userID string
 	if userID != "" {
 		_, err = s.client.TagResource(context.TODO(), &secretsmanager.TagResourceInput{
 			SecretId: aws.String(fullSecretName),
-			Tags: []secretsmanager.Tag{
+			Tags: []types.Tag{
 				{
 					Key:   aws.String(fmt.Sprintf("%s/log-accessed-by", s.tagPrefix)),
 					Value: aws.String(userID),

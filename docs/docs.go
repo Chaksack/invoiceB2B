@@ -1968,6 +1968,1411 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/admin/loan-applications": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve all loan applications with pagination for admin",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Loan Applications"
+                ],
+                "summary": "Get all loan applications (Admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.LoanApplicationListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/loan-applications/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve loan application statistics for admin dashboard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Loan Applications"
+                ],
+                "summary": "Get loan application statistics (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.LoanApplicationStatsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/loan-applications/{id}/review": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Admin review and approve/reject a loan application",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Loan Applications"
+                ],
+                "summary": "Admin review loan application",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Loan Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Admin review request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dtos.AdminReviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/loan-applications/{id}/send-to-financial-institution": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Admin sends loan application data (both raw and processed) to a financial institution",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Loan Applications"
+                ],
+                "summary": "Send loan application to financial institution",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Loan Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Send to financial institution request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dtos.SendToFinancialInstitutionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/reports/activity": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Generate a comprehensive activity report with statistics and trends",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Reports"
+                ],
+                "summary": "Generate activity report",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "daily",
+                            "weekly",
+                            "monthly",
+                            "yearly"
+                        ],
+                        "type": "string",
+                        "description": "Group by period",
+                        "name": "group_by",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ActivityReportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/reports/export": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Export a report in the specified format (JSON, CSV, PDF)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Reports"
+                ],
+                "summary": "Export report",
+                "parameters": [
+                    {
+                        "description": "Report export request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ReportRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ExportReportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/reports/financial-institutions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Generate a comprehensive financial institution report with statistics",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Reports"
+                ],
+                "summary": "Generate financial institution report",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.FinancialInstitutionReportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/reports/generate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Generate a comprehensive report based on the specified type and filters",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Reports"
+                ],
+                "summary": "Generate a report",
+                "parameters": [
+                    {
+                        "description": "Report generation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ReportRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/reports/invoices": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Generate a comprehensive invoice report with statistics and trends",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Reports"
+                ],
+                "summary": "Generate invoice report",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by user ID",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "daily",
+                            "weekly",
+                            "monthly",
+                            "yearly"
+                        ],
+                        "type": "string",
+                        "description": "Group by period",
+                        "name": "group_by",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.InvoiceReportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/reports/loan-applications": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Generate a comprehensive loan application report with statistics and trends",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Reports"
+                ],
+                "summary": "Generate loan application report",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by user ID",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "daily",
+                            "weekly",
+                            "monthly",
+                            "yearly"
+                        ],
+                        "type": "string",
+                        "description": "Group by period",
+                        "name": "group_by",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.LoanApplicationReportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/reports/overview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Generate a comprehensive overview report with all system statistics",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Reports"
+                ],
+                "summary": "Generate overview report",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.OverviewReportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/reports/users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Generate a comprehensive user report with statistics and trends",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Reports"
+                ],
+                "summary": "Generate user report",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "daily",
+                            "weekly",
+                            "monthly",
+                            "yearly"
+                        ],
+                        "type": "string",
+                        "description": "Group by period",
+                        "name": "group_by",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.UserReportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/loan-applications": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve all loan applications for the authenticated user with pagination",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Loan Applications"
+                ],
+                "summary": "Get user's loan applications",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.LoanApplicationListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new loan application with basic details",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Loan Applications"
+                ],
+                "summary": "Create a new loan application",
+                "parameters": [
+                    {
+                        "description": "Loan application request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dtos.CreateLoanApplicationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.LoanApplicationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/loan-applications/manual": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a loan application with all KYB and financial data provided manually",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Loan Applications"
+                ],
+                "summary": "Create a manual loan application",
+                "parameters": [
+                    {
+                        "description": "Manual loan application request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ManualLoanInputRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.LoanApplicationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/loan-applications/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a specific loan application by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Loan Applications"
+                ],
+                "summary": "Get loan application by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Loan Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.LoanApplicationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/loan-applications/{id}/documents": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Upload an invoice or contract document for loan application processing",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Loan Applications"
+                ],
+                "summary": "Upload invoice or contract document",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Loan Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Invoice or contract file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Document source (invoice or contract)",
+                        "name": "source",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.DocumentUploadResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/loan-applications/{id}/financial-statements": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Submit financial statement data for a loan application",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Loan Applications"
+                ],
+                "summary": "Submit financial statement",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Loan Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Financial statement request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dtos.SubmitFinancialStatementRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.FinancialStatementResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/loan-applications/{id}/financial-statements/upload": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Upload a financial statement file for a loan application",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Loan Applications"
+                ],
+                "summary": "Upload financial statement file",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Loan Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Financial statement file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement type (bank or mobile_money)",
+                        "name": "type",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bank or mobile money provider name",
+                        "name": "provider_name",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account number",
+                        "name": "account_number",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.DocumentUploadResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/loan-applications/{id}/kyb": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Submit Know Your Business information for a loan application",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Loan Applications"
+                ],
+                "summary": "Submit KYB information",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Loan Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "KYB information request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dtos.SubmitKYBInformationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.KYBInformationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/2fa/toggle": {
             "post": {
                 "security": [
@@ -2913,6 +4318,20 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dtos.ActionBreakdownData": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "percentage": {
+                    "type": "number"
+                }
+            }
+        },
         "dtos.ActivityLogListResponse": {
             "type": "object",
             "properties": {
@@ -2958,6 +4377,80 @@ const docTemplate = `{
                 },
                 "userEmail": {
                     "description": "Email of user related to action",
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.ActivityReportResponse": {
+            "type": "object",
+            "properties": {
+                "action_breakdown": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.ActionBreakdownData"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/dtos.ActivitySummary"
+                },
+                "top_activities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.ActivitySummaryItem"
+                    }
+                },
+                "trends": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.ActivityTrendData"
+                    }
+                }
+            }
+        },
+        "dtos.ActivitySummary": {
+            "type": "object",
+            "properties": {
+                "top_action": {
+                    "type": "string"
+                },
+                "total_activities": {
+                    "type": "integer"
+                },
+                "unique_staff": {
+                    "type": "integer"
+                },
+                "unique_users": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dtos.ActivitySummaryItem": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "user_email": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.ActivityTrendData": {
+            "type": "object",
+            "properties": {
+                "activities": {
+                    "type": "integer"
+                },
+                "date": {
                     "type": "string"
                 }
             }
@@ -3054,6 +4547,83 @@ const docTemplate = `{
                             "$ref": "#/definitions/models.KYCStatus"
                         }
                     ]
+                }
+            }
+        },
+        "dtos.AdminReviewRequest": {
+            "type": "object",
+            "required": [
+                "action"
+            ],
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "approve",
+                        "reject",
+                        "request_info"
+                    ]
+                },
+                "approved_amount": {
+                    "type": "number"
+                },
+                "rejection_reason": {
+                    "type": "string"
+                },
+                "review_notes": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.AmountRangeData": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "range": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.BeneficialOwnerInfo": {
+            "type": "object",
+            "required": [
+                "address",
+                "contact_number",
+                "full_name",
+                "id_number",
+                "nationality",
+                "share_percentage"
+            ],
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "contact_number": {
+                    "type": "string",
+                    "maxLength": 20
+                },
+                "full_name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 2
+                },
+                "id_number": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "nationality": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "share_percentage": {
+                    "type": "number",
+                    "maximum": 100,
+                    "minimum": 0
                 }
             }
         },
@@ -3154,6 +4724,33 @@ const docTemplate = `{
                 }
             }
         },
+        "dtos.CreateLoanApplicationRequest": {
+            "type": "object",
+            "required": [
+                "currency",
+                "requested_amount",
+                "source"
+            ],
+            "properties": {
+                "currency": {
+                    "type": "string"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "requested_amount": {
+                    "type": "number"
+                },
+                "source": {
+                    "type": "string",
+                    "enum": [
+                        "manual",
+                        "invoice",
+                        "contract"
+                    ]
+                }
+            }
+        },
         "dtos.CreateStaffRequest": {
             "type": "object",
             "required": [
@@ -3190,6 +4787,60 @@ const docTemplate = `{
                 }
             }
         },
+        "dtos.DirectorInformation": {
+            "type": "object",
+            "required": [
+                "address",
+                "contact_number",
+                "full_name",
+                "id_number",
+                "position"
+            ],
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "contact_number": {
+                    "type": "string",
+                    "maxLength": 20
+                },
+                "full_name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 2
+                },
+                "id_number": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "position": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "share_percentage": {
+                    "type": "number",
+                    "maximum": 100,
+                    "minimum": 0
+                }
+            }
+        },
+        "dtos.DocumentUploadResponse": {
+            "type": "object",
+            "properties": {
+                "file_name": {
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "uploaded_at": {
+                    "type": "string"
+                }
+            }
+        },
         "dtos.Enable2FARequest": {
             "type": "object",
             "properties": {
@@ -3206,6 +4857,26 @@ const docTemplate = `{
                 },
                 "twoFaEnabled": {
                     "type": "boolean"
+                }
+            }
+        },
+        "dtos.ExportReportResponse": {
+            "type": "object",
+            "properties": {
+                "download_url": {
+                    "type": "string"
+                },
+                "file_name": {
+                    "type": "string"
+                },
+                "format": {
+                    "type": "string"
+                },
+                "generated_at": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
                 }
             }
         },
@@ -3293,6 +4964,52 @@ const docTemplate = `{
                 }
             }
         },
+        "dtos.FinancialInstitutionReportResponse": {
+            "type": "object",
+            "properties": {
+                "institution_breakdown": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.InstitutionBreakdownData"
+                    }
+                },
+                "product_breakdown": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.ProductBreakdownData"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/dtos.FinancialInstitutionReportSummary"
+                },
+                "top_institutions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.FinancialInstitutionSummaryItem"
+                    }
+                }
+            }
+        },
+        "dtos.FinancialInstitutionReportSummary": {
+            "type": "object",
+            "properties": {
+                "active_institutions": {
+                    "type": "integer"
+                },
+                "average_interest_rate": {
+                    "type": "number"
+                },
+                "total_applications_sent": {
+                    "type": "integer"
+                },
+                "total_institutions": {
+                    "type": "integer"
+                },
+                "total_products": {
+                    "type": "integer"
+                }
+            }
+        },
         "dtos.FinancialInstitutionResponse": {
             "type": "object",
             "properties": {
@@ -3334,6 +5051,52 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
+                }
+            }
+        },
+        "dtos.FinancialInstitutionSummary": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "interest_rate_max": {
+                    "type": "number"
+                },
+                "interest_rate_min": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "processing_fee": {
+                    "type": "number"
+                }
+            }
+        },
+        "dtos.FinancialInstitutionSummaryItem": {
+            "type": "object",
+            "properties": {
+                "applications_count": {
+                    "type": "integer"
+                },
+                "average_rate": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "product_count": {
+                    "type": "integer"
                 }
             }
         },
@@ -3407,6 +5170,88 @@ const docTemplate = `{
                 }
             }
         },
+        "dtos.FinancialStatementResponse": {
+            "type": "object",
+            "properties": {
+                "account_number": {
+                    "type": "string"
+                },
+                "average_balance": {
+                    "type": "number"
+                },
+                "closing_balance": {
+                    "type": "number"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_expired": {
+                    "type": "boolean"
+                },
+                "last_refreshed_at": {
+                    "type": "string"
+                },
+                "n8n_processed_at": {
+                    "type": "string"
+                },
+                "n8n_processing_status": {
+                    "type": "string"
+                },
+                "opening_balance": {
+                    "type": "number"
+                },
+                "provider_name": {
+                    "type": "string"
+                },
+                "refresh_due_date": {
+                    "type": "string"
+                },
+                "statement_period_from": {
+                    "type": "string"
+                },
+                "statement_period_to": {
+                    "type": "string"
+                },
+                "submitted_at": {
+                    "type": "string"
+                },
+                "total_credits": {
+                    "type": "number"
+                },
+                "total_debits": {
+                    "type": "number"
+                },
+                "transaction_count": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.InstitutionBreakdownData": {
+            "type": "object",
+            "properties": {
+                "applications_sent": {
+                    "type": "integer"
+                },
+                "average_amount": {
+                    "type": "number"
+                },
+                "institution_name": {
+                    "type": "string"
+                },
+                "total_amount": {
+                    "type": "number"
+                }
+            }
+        },
         "dtos.InvoiceListResponse": {
             "type": "object",
             "properties": {
@@ -3424,6 +5269,38 @@ const docTemplate = `{
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "dtos.InvoiceReportResponse": {
+            "type": "object",
+            "properties": {
+                "amount_ranges": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.AmountRangeData"
+                    }
+                },
+                "status_breakdown": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.StatusBreakdownData"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/dtos.InvoiceSummary"
+                },
+                "top_invoices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.InvoiceSummaryItem"
+                    }
+                },
+                "trends": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.InvoiceTrendData"
+                    }
                 }
             }
         },
@@ -3501,6 +5378,157 @@ const docTemplate = `{
                 }
             }
         },
+        "dtos.InvoiceSummary": {
+            "type": "object",
+            "properties": {
+                "average_invoice_amount": {
+                    "type": "number"
+                },
+                "processing_rate": {
+                    "type": "number"
+                },
+                "total_invoice_amount": {
+                    "type": "number"
+                },
+                "total_invoices": {
+                    "type": "integer"
+                },
+                "total_processed": {
+                    "type": "number"
+                }
+            }
+        },
+        "dtos.InvoiceSummaryItem": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "company_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "invoice_number": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.InvoiceTrendData": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "invoice_amount": {
+                    "type": "number"
+                },
+                "invoices": {
+                    "type": "integer"
+                },
+                "processed_amount": {
+                    "type": "number"
+                }
+            }
+        },
+        "dtos.KYBInformationResponse": {
+            "type": "object",
+            "properties": {
+                "annual_revenue": {
+                    "type": "number"
+                },
+                "beneficial_owners": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.BeneficialOwnerInfo"
+                    }
+                },
+                "business_address": {
+                    "type": "string"
+                },
+                "business_description": {
+                    "type": "string"
+                },
+                "business_name": {
+                    "type": "string"
+                },
+                "business_registration_no": {
+                    "type": "string"
+                },
+                "business_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "directors_information": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.DirectorInformation"
+                    }
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "industry_type": {
+                    "type": "string"
+                },
+                "is_expired": {
+                    "type": "boolean"
+                },
+                "last_refreshed_at": {
+                    "type": "string"
+                },
+                "monthly_revenue": {
+                    "type": "number"
+                },
+                "number_of_employees": {
+                    "type": "integer"
+                },
+                "refresh_due_date": {
+                    "type": "string"
+                },
+                "submitted_at": {
+                    "type": "string"
+                },
+                "tax_identification_number": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "verification_status": {
+                    "type": "string"
+                },
+                "verified_at": {
+                    "type": "string"
+                },
+                "years_in_operation": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dtos.KYCBreakdownData": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "dtos.KYCStatusResponse": {
             "type": "object",
             "properties": {
@@ -3521,6 +5549,239 @@ const docTemplate = `{
                 },
                 "userId": {
                     "type": "integer"
+                }
+            }
+        },
+        "dtos.LoanApplicationListResponse": {
+            "type": "object",
+            "properties": {
+                "applications": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.LoanApplicationResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total_count": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dtos.LoanApplicationReportResponse": {
+            "type": "object",
+            "properties": {
+                "amount_ranges": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.AmountRangeData"
+                    }
+                },
+                "source_breakdown": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.SourceBreakdownData"
+                    }
+                },
+                "status_breakdown": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.StatusBreakdownData"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/dtos.LoanApplicationSummary"
+                },
+                "top_applications": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.LoanApplicationSummaryItem"
+                    }
+                },
+                "trends": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.LoanApplicationTrendData"
+                    }
+                }
+            }
+        },
+        "dtos.LoanApplicationResponse": {
+            "type": "object",
+            "properties": {
+                "application_reference": {
+                    "type": "string"
+                },
+                "approved_amount": {
+                    "type": "number"
+                },
+                "approved_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "disbursed_amount": {
+                    "type": "number"
+                },
+                "disbursed_at": {
+                    "type": "string"
+                },
+                "financial_statements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.FinancialStatementResponse"
+                    }
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_data_expired": {
+                    "type": "boolean"
+                },
+                "kyb_information": {
+                    "$ref": "#/definitions/dtos.KYBInformationResponse"
+                },
+                "last_updated_at": {
+                    "type": "string"
+                },
+                "next_refresh_date": {
+                    "type": "string"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "recommended_institution": {
+                    "$ref": "#/definitions/dtos.FinancialInstitutionSummary"
+                },
+                "requested_amount": {
+                    "type": "number"
+                },
+                "review_notes": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "submitted_at": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.LoanApplicationStatsResponse": {
+            "type": "object",
+            "properties": {
+                "approved_applications": {
+                    "type": "integer"
+                },
+                "disbursed_applications": {
+                    "type": "integer"
+                },
+                "expired_data_count": {
+                    "type": "integer"
+                },
+                "pending_applications": {
+                    "type": "integer"
+                },
+                "rejected_applications": {
+                    "type": "integer"
+                },
+                "total_amount_approved": {
+                    "type": "number"
+                },
+                "total_amount_disbursed": {
+                    "type": "number"
+                },
+                "total_amount_requested": {
+                    "type": "number"
+                },
+                "total_applications": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dtos.LoanApplicationSummary": {
+            "type": "object",
+            "properties": {
+                "approval_rate": {
+                    "type": "number"
+                },
+                "average_processing_days": {
+                    "type": "number"
+                },
+                "disbursement_rate": {
+                    "type": "number"
+                },
+                "total_amount_approved": {
+                    "type": "number"
+                },
+                "total_amount_disbursed": {
+                    "type": "number"
+                },
+                "total_amount_requested": {
+                    "type": "number"
+                },
+                "total_applications": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dtos.LoanApplicationSummaryItem": {
+            "type": "object",
+            "properties": {
+                "application_reference": {
+                    "type": "string"
+                },
+                "company_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "requested_amount": {
+                    "type": "number"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "submitted_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.LoanApplicationTrendData": {
+            "type": "object",
+            "properties": {
+                "amount_approved": {
+                    "type": "number"
+                },
+                "amount_disbursed": {
+                    "type": "number"
+                },
+                "amount_requested": {
+                    "type": "number"
+                },
+                "applications": {
+                    "type": "integer"
+                },
+                "date": {
+                    "type": "string"
                 }
             }
         },
@@ -3573,6 +5834,90 @@ const docTemplate = `{
                             "$ref": "#/definitions/dtos.UserResponse"
                         }
                     ]
+                }
+            }
+        },
+        "dtos.ManualLoanInputRequest": {
+            "type": "object",
+            "required": [
+                "currency",
+                "financial_statements",
+                "requested_amount",
+                "source"
+            ],
+            "properties": {
+                "currency": {
+                    "type": "string"
+                },
+                "financial_statements": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/dtos.SubmitFinancialStatementRequest"
+                    }
+                },
+                "kyb_information": {
+                    "$ref": "#/definitions/dtos.SubmitKYBInformationRequest"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "requested_amount": {
+                    "type": "number"
+                },
+                "source": {
+                    "type": "string",
+                    "enum": [
+                        "manual",
+                        "invoice",
+                        "contract"
+                    ]
+                }
+            }
+        },
+        "dtos.OverviewReportResponse": {
+            "type": "object",
+            "properties": {
+                "activity": {
+                    "$ref": "#/definitions/dtos.ActivitySummary"
+                },
+                "financial_institutions": {
+                    "$ref": "#/definitions/dtos.FinancialInstitutionReportSummary"
+                },
+                "invoices": {
+                    "$ref": "#/definitions/dtos.InvoiceSummary"
+                },
+                "loan_applications": {
+                    "$ref": "#/definitions/dtos.LoanApplicationSummary"
+                },
+                "recent_activities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.ActivitySummaryItem"
+                    }
+                },
+                "system_health": {
+                    "$ref": "#/definitions/dtos.SystemHealthData"
+                },
+                "users": {
+                    "$ref": "#/definitions/dtos.UserSummary"
+                }
+            }
+        },
+        "dtos.ProductBreakdownData": {
+            "type": "object",
+            "properties": {
+                "applications_count": {
+                    "type": "integer"
+                },
+                "institution_name": {
+                    "type": "string"
+                },
+                "interest_rate": {
+                    "type": "number"
+                },
+                "product_name": {
+                    "type": "string"
                 }
             }
         },
@@ -3650,6 +5995,49 @@ const docTemplate = `{
                 }
             }
         },
+        "dtos.ReportRequest": {
+            "type": "object",
+            "required": [
+                "report_type"
+            ],
+            "properties": {
+                "end_date": {
+                    "type": "string"
+                },
+                "export_format": {
+                    "type": "string",
+                    "enum": [
+                        "json",
+                        "csv",
+                        "pdf"
+                    ]
+                },
+                "group_by": {
+                    "description": "daily, weekly, monthly, yearly",
+                    "type": "string"
+                },
+                "report_type": {
+                    "type": "string",
+                    "enum": [
+                        "loan_applications",
+                        "invoices",
+                        "users",
+                        "activity",
+                        "financial_institutions",
+                        "overview"
+                    ]
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
         "dtos.SelectFinancialInstitutionRequest": {
             "type": "object",
             "required": [
@@ -3665,6 +6053,45 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "financialInstitutionName": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.SendToFinancialInstitutionRequest": {
+            "type": "object",
+            "required": [
+                "financial_institution_email",
+                "financial_institution_id",
+                "financial_institution_name"
+            ],
+            "properties": {
+                "financial_institution_email": {
+                    "type": "string"
+                },
+                "financial_institution_id": {
+                    "type": "integer"
+                },
+                "financial_institution_name": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.SourceBreakdownData": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "source": {
                     "type": "string"
                 }
             }
@@ -3698,6 +6125,156 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
+                }
+            }
+        },
+        "dtos.StatusBreakdownData": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.SubmitFinancialStatementRequest": {
+            "type": "object",
+            "required": [
+                "account_number",
+                "closing_balance",
+                "opening_balance",
+                "provider_name",
+                "statement_period_from",
+                "statement_period_to",
+                "total_credits",
+                "total_debits",
+                "transaction_count",
+                "type"
+            ],
+            "properties": {
+                "account_number": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "average_balance": {
+                    "type": "number"
+                },
+                "closing_balance": {
+                    "type": "number"
+                },
+                "opening_balance": {
+                    "type": "number"
+                },
+                "provider_name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 2
+                },
+                "statement_period_from": {
+                    "type": "string"
+                },
+                "statement_period_to": {
+                    "type": "string"
+                },
+                "total_credits": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "total_debits": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "transaction_count": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "bank",
+                        "mobile_money"
+                    ]
+                }
+            }
+        },
+        "dtos.SubmitKYBInformationRequest": {
+            "type": "object",
+            "required": [
+                "beneficial_owners",
+                "business_address",
+                "business_description",
+                "business_name",
+                "business_registration_no",
+                "business_type",
+                "directors_information",
+                "industry_type",
+                "tax_identification_number",
+                "years_in_operation"
+            ],
+            "properties": {
+                "annual_revenue": {
+                    "type": "number"
+                },
+                "beneficial_owners": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/dtos.BeneficialOwnerInfo"
+                    }
+                },
+                "business_address": {
+                    "type": "string"
+                },
+                "business_description": {
+                    "type": "string",
+                    "minLength": 10
+                },
+                "business_name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 2
+                },
+                "business_registration_no": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "business_type": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "directors_information": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/dtos.DirectorInformation"
+                    }
+                },
+                "industry_type": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "monthly_revenue": {
+                    "type": "number"
+                },
+                "number_of_employees": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "tax_identification_number": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "years_in_operation": {
+                    "type": "integer",
+                    "minimum": 0
                 }
             }
         },
@@ -3770,6 +6347,26 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dtos.SuggestedFinancialInstitution"
                     }
+                }
+            }
+        },
+        "dtos.SystemHealthData": {
+            "type": "object",
+            "properties": {
+                "average_response_time": {
+                    "type": "number"
+                },
+                "expired_data_count": {
+                    "type": "integer"
+                },
+                "pending_refresh_count": {
+                    "type": "integer"
+                },
+                "success_rate": {
+                    "type": "number"
+                },
+                "total_transactions": {
+                    "type": "integer"
                 }
             }
         },
@@ -4028,6 +6625,32 @@ const docTemplate = `{
                 }
             }
         },
+        "dtos.UserReportResponse": {
+            "type": "object",
+            "properties": {
+                "kyc_breakdown": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.KYCBreakdownData"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/dtos.UserSummary"
+                },
+                "top_users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.UserSummaryItem"
+                    }
+                },
+                "trends": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.UserTrendData"
+                    }
+                }
+            }
+        },
         "dtos.UserResponse": {
             "type": "object",
             "properties": {
@@ -4051,6 +6674,63 @@ const docTemplate = `{
                 },
                 "twoFAEnabled": {
                     "type": "boolean"
+                }
+            }
+        },
+        "dtos.UserSummary": {
+            "type": "object",
+            "properties": {
+                "active_users": {
+                    "type": "integer"
+                },
+                "average_applications_per_user": {
+                    "type": "number"
+                },
+                "kyc_completed_users": {
+                    "type": "integer"
+                },
+                "total_users": {
+                    "type": "integer"
+                },
+                "verified_users": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dtos.UserSummaryItem": {
+            "type": "object",
+            "properties": {
+                "company_name": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "registration_date": {
+                    "type": "string"
+                },
+                "total_amount_requested": {
+                    "type": "number"
+                },
+                "total_applications": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dtos.UserTrendData": {
+            "type": "object",
+            "properties": {
+                "active_users": {
+                    "type": "integer"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "new_users": {
+                    "type": "integer"
                 }
             }
         },
@@ -4214,7 +6894,85 @@ const docTemplate = `{
                 }
             }
         },
+        "utils.ErrorCode": {
+            "type": "string",
+            "enum": [
+                "UNKNOWN_ERROR",
+                "INVALID_INPUT",
+                "NOT_FOUND",
+                "UNAUTHORIZED",
+                "FORBIDDEN",
+                "CONFLICT",
+                "INTERNAL_SERVER_ERROR",
+                "DATABASE_ERROR",
+                "VALIDATION_FAILED",
+                "INVALID_CREDENTIALS",
+                "USER_NOT_FOUND",
+                "EMAIL_EXISTS",
+                "OTP_INVALID",
+                "2FA_NOT_ENABLED",
+                "ACCOUNT_NOT_ACTIVE",
+                "KYC_NOT_APPROVED",
+                "REFRESH_TOKEN_INVALID",
+                "TOKEN_BLACKLISTED"
+            ],
+            "x-enum-varnames": [
+                "ErrCodeUnknown",
+                "ErrCodeInvalidInput",
+                "ErrCodeNotFound",
+                "ErrCodeUnauthorized",
+                "ErrCodeForbidden",
+                "ErrCodeConflict",
+                "ErrCodeInternalServer",
+                "ErrCodeDatabaseError",
+                "ErrCodeValidationFailed",
+                "ErrCodeInvalidCredentials",
+                "ErrCodeUserNotFound",
+                "ErrCodeEmailExists",
+                "ErrCodeOTPInvalid",
+                "ErrCode2FANotEnabled",
+                "ErrCodeAccountNotActive",
+                "ErrCodeKYCNotApproved",
+                "ErrCodeRefreshTokenInvalid",
+                "ErrCodeTokenBlacklisted"
+            ]
+        },
         "utils.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "$ref": "#/definitions/utils.ErrorCode"
+                },
+                "details": {},
+                "message": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "utils.SuccessResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "message": {
+                    "type": "string",
+                    "example": "Operation completed successfully"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "success"
+                }
+            }
+        },
+        "utils.SwaggerErrorResponse": {
             "type": "object",
             "properties": {
                 "details": {},

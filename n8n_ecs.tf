@@ -26,6 +26,7 @@ resource "aws_ecs_task_definition" "n8n" {
         { name = "N8N_PROTOCOL", value = "https" },
         { name = "N8N_HOST", value = "${aws_lb.main.dns_name}" }, # Using ALB DNS name
         { name = "N8N_PATH", value = "/n8n/" }, # Match the ALB path pattern
+        { name = "N8N_SECURE_COOKIE", value = "false" }, # Disable secure cookies
         { name = "DB_TYPE", value = "postgresdb" },
         { name = "DB_POSTGRESDB_DATABASE", value = var.n8n_db_name }, # Database for n8n
         { name = "DB_POSTGRESDB_PORT", value = "5432" },

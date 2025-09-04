@@ -1,5 +1,14 @@
 basePath: /api/v1
 definitions:
+  dtos.ActionBreakdownData:
+    properties:
+      action:
+        type: string
+      count:
+        type: integer
+      percentage:
+        type: number
+    type: object
   dtos.ActivityLogListResponse:
     properties:
       logs:
@@ -31,6 +40,54 @@ definitions:
         type: string
       userEmail:
         description: Email of user related to action
+        type: string
+    type: object
+  dtos.ActivityReportResponse:
+    properties:
+      action_breakdown:
+        items:
+          $ref: '#/definitions/dtos.ActionBreakdownData'
+        type: array
+      summary:
+        $ref: '#/definitions/dtos.ActivitySummary'
+      top_activities:
+        items:
+          $ref: '#/definitions/dtos.ActivitySummaryItem'
+        type: array
+      trends:
+        items:
+          $ref: '#/definitions/dtos.ActivityTrendData'
+        type: array
+    type: object
+  dtos.ActivitySummary:
+    properties:
+      top_action:
+        type: string
+      total_activities:
+        type: integer
+      unique_staff:
+        type: integer
+      unique_users:
+        type: integer
+    type: object
+  dtos.ActivitySummaryItem:
+    properties:
+      action:
+        type: string
+      details:
+        type: string
+      id:
+        type: integer
+      timestamp:
+        type: string
+      user_email:
+        type: string
+    type: object
+  dtos.ActivityTrendData:
+    properties:
+      activities:
+        type: integer
+      date:
         type: string
     type: object
   dtos.AdminInvoiceUpdateRequest:
@@ -94,6 +151,61 @@ definitions:
         - rejected
     required:
     - status
+    type: object
+  dtos.AdminReviewRequest:
+    properties:
+      action:
+        enum:
+        - approve
+        - reject
+        - request_info
+        type: string
+      approved_amount:
+        type: number
+      rejection_reason:
+        type: string
+      review_notes:
+        type: string
+    required:
+    - action
+    type: object
+  dtos.AmountRangeData:
+    properties:
+      count:
+        type: integer
+      percentage:
+        type: number
+      range:
+        type: string
+    type: object
+  dtos.BeneficialOwnerInfo:
+    properties:
+      address:
+        type: string
+      contact_number:
+        maxLength: 20
+        type: string
+      full_name:
+        maxLength: 255
+        minLength: 2
+        type: string
+      id_number:
+        maxLength: 50
+        type: string
+      nationality:
+        maxLength: 100
+        type: string
+      share_percentage:
+        maximum: 100
+        minimum: 0
+        type: number
+    required:
+    - address
+    - contact_number
+    - full_name
+    - id_number
+    - nationality
+    - share_percentage
     type: object
   dtos.CreateFinancialInstitutionProductRequest:
     properties:
@@ -166,6 +278,25 @@ definitions:
     - code
     - name
     type: object
+  dtos.CreateLoanApplicationRequest:
+    properties:
+      currency:
+        type: string
+      purpose:
+        type: string
+      requested_amount:
+        type: number
+      source:
+        enum:
+        - manual
+        - invoice
+        - contract
+        type: string
+    required:
+    - currency
+    - requested_amount
+    - source
+    type: object
   dtos.CreateStaffRequest:
     properties:
       email:
@@ -193,6 +324,45 @@ definitions:
     - password
     - role
     type: object
+  dtos.DirectorInformation:
+    properties:
+      address:
+        type: string
+      contact_number:
+        maxLength: 20
+        type: string
+      full_name:
+        maxLength: 255
+        minLength: 2
+        type: string
+      id_number:
+        maxLength: 50
+        type: string
+      position:
+        maxLength: 100
+        type: string
+      share_percentage:
+        maximum: 100
+        minimum: 0
+        type: number
+    required:
+    - address
+    - contact_number
+    - full_name
+    - id_number
+    - position
+    type: object
+  dtos.DocumentUploadResponse:
+    properties:
+      file_name:
+        type: string
+      file_path:
+        type: string
+      file_size:
+        type: integer
+      uploaded_at:
+        type: string
+    type: object
   dtos.Enable2FARequest:
     properties:
       enable:
@@ -204,6 +374,19 @@ definitions:
         type: string
       twoFaEnabled:
         type: boolean
+    type: object
+  dtos.ExportReportResponse:
+    properties:
+      download_url:
+        type: string
+      file_name:
+        type: string
+      format:
+        type: string
+      generated_at:
+        type: string
+      size:
+        type: integer
     type: object
   dtos.FinancialInstitutionListResponse:
     properties:
@@ -260,6 +443,36 @@ definitions:
       updatedAt:
         type: string
     type: object
+  dtos.FinancialInstitutionReportResponse:
+    properties:
+      institution_breakdown:
+        items:
+          $ref: '#/definitions/dtos.InstitutionBreakdownData'
+        type: array
+      product_breakdown:
+        items:
+          $ref: '#/definitions/dtos.ProductBreakdownData'
+        type: array
+      summary:
+        $ref: '#/definitions/dtos.FinancialInstitutionReportSummary'
+      top_institutions:
+        items:
+          $ref: '#/definitions/dtos.FinancialInstitutionSummaryItem'
+        type: array
+    type: object
+  dtos.FinancialInstitutionReportSummary:
+    properties:
+      active_institutions:
+        type: integer
+      average_interest_rate:
+        type: number
+      total_applications_sent:
+        type: integer
+      total_institutions:
+        type: integer
+      total_products:
+        type: integer
+    type: object
   dtos.FinancialInstitutionResponse:
     properties:
       code:
@@ -288,6 +501,36 @@ definitions:
         type: integer
       updatedAt:
         type: string
+    type: object
+  dtos.FinancialInstitutionSummary:
+    properties:
+      code:
+        type: string
+      id:
+        type: integer
+      interest_rate_max:
+        type: number
+      interest_rate_min:
+        type: number
+      name:
+        type: string
+      processing_fee:
+        type: number
+    type: object
+  dtos.FinancialInstitutionSummaryItem:
+    properties:
+      applications_count:
+        type: integer
+      average_rate:
+        type: number
+      code:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      product_count:
+        type: integer
     type: object
   dtos.FinancialInstitutionTermListResponse:
     properties:
@@ -335,6 +578,60 @@ definitions:
       validUntil:
         type: string
     type: object
+  dtos.FinancialStatementResponse:
+    properties:
+      account_number:
+        type: string
+      average_balance:
+        type: number
+      closing_balance:
+        type: number
+      created_at:
+        type: string
+      id:
+        type: integer
+      is_expired:
+        type: boolean
+      last_refreshed_at:
+        type: string
+      n8n_processed_at:
+        type: string
+      n8n_processing_status:
+        type: string
+      opening_balance:
+        type: number
+      provider_name:
+        type: string
+      refresh_due_date:
+        type: string
+      statement_period_from:
+        type: string
+      statement_period_to:
+        type: string
+      submitted_at:
+        type: string
+      total_credits:
+        type: number
+      total_debits:
+        type: number
+      transaction_count:
+        type: integer
+      type:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  dtos.InstitutionBreakdownData:
+    properties:
+      applications_sent:
+        type: integer
+      average_amount:
+        type: number
+      institution_name:
+        type: string
+      total_amount:
+        type: number
+    type: object
   dtos.InvoiceListResponse:
     properties:
       invoices:
@@ -347,6 +644,27 @@ definitions:
         type: integer
       total:
         type: integer
+    type: object
+  dtos.InvoiceReportResponse:
+    properties:
+      amount_ranges:
+        items:
+          $ref: '#/definitions/dtos.AmountRangeData'
+        type: array
+      status_breakdown:
+        items:
+          $ref: '#/definitions/dtos.StatusBreakdownData'
+        type: array
+      summary:
+        $ref: '#/definitions/dtos.InvoiceSummary'
+      top_invoices:
+        items:
+          $ref: '#/definitions/dtos.InvoiceSummaryItem'
+        type: array
+      trends:
+        items:
+          $ref: '#/definitions/dtos.InvoiceTrendData'
+        type: array
     type: object
   dtos.InvoiceResponse:
     properties:
@@ -398,6 +716,105 @@ definitions:
       userId:
         type: integer
     type: object
+  dtos.InvoiceSummary:
+    properties:
+      average_invoice_amount:
+        type: number
+      processing_rate:
+        type: number
+      total_invoice_amount:
+        type: number
+      total_invoices:
+        type: integer
+      total_processed:
+        type: number
+    type: object
+  dtos.InvoiceSummaryItem:
+    properties:
+      amount:
+        type: number
+      company_name:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      invoice_number:
+        type: string
+      status:
+        type: string
+    type: object
+  dtos.InvoiceTrendData:
+    properties:
+      date:
+        type: string
+      invoice_amount:
+        type: number
+      invoices:
+        type: integer
+      processed_amount:
+        type: number
+    type: object
+  dtos.KYBInformationResponse:
+    properties:
+      annual_revenue:
+        type: number
+      beneficial_owners:
+        items:
+          $ref: '#/definitions/dtos.BeneficialOwnerInfo'
+        type: array
+      business_address:
+        type: string
+      business_description:
+        type: string
+      business_name:
+        type: string
+      business_registration_no:
+        type: string
+      business_type:
+        type: string
+      created_at:
+        type: string
+      directors_information:
+        items:
+          $ref: '#/definitions/dtos.DirectorInformation'
+        type: array
+      id:
+        type: integer
+      industry_type:
+        type: string
+      is_expired:
+        type: boolean
+      last_refreshed_at:
+        type: string
+      monthly_revenue:
+        type: number
+      number_of_employees:
+        type: integer
+      refresh_due_date:
+        type: string
+      submitted_at:
+        type: string
+      tax_identification_number:
+        type: string
+      updated_at:
+        type: string
+      verification_status:
+        type: string
+      verified_at:
+        type: string
+      years_in_operation:
+        type: integer
+    type: object
+  dtos.KYCBreakdownData:
+    properties:
+      count:
+        type: integer
+      percentage:
+        type: number
+      status:
+        type: string
+    type: object
   dtos.KYCStatusResponse:
     properties:
       message:
@@ -412,6 +829,159 @@ definitions:
         type: string
       userId:
         type: integer
+    type: object
+  dtos.LoanApplicationListResponse:
+    properties:
+      applications:
+        items:
+          $ref: '#/definitions/dtos.LoanApplicationResponse'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total_count:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  dtos.LoanApplicationReportResponse:
+    properties:
+      amount_ranges:
+        items:
+          $ref: '#/definitions/dtos.AmountRangeData'
+        type: array
+      source_breakdown:
+        items:
+          $ref: '#/definitions/dtos.SourceBreakdownData'
+        type: array
+      status_breakdown:
+        items:
+          $ref: '#/definitions/dtos.StatusBreakdownData'
+        type: array
+      summary:
+        $ref: '#/definitions/dtos.LoanApplicationSummary'
+      top_applications:
+        items:
+          $ref: '#/definitions/dtos.LoanApplicationSummaryItem'
+        type: array
+      trends:
+        items:
+          $ref: '#/definitions/dtos.LoanApplicationTrendData'
+        type: array
+    type: object
+  dtos.LoanApplicationResponse:
+    properties:
+      application_reference:
+        type: string
+      approved_amount:
+        type: number
+      approved_at:
+        type: string
+      created_at:
+        type: string
+      currency:
+        type: string
+      disbursed_amount:
+        type: number
+      disbursed_at:
+        type: string
+      financial_statements:
+        items:
+          $ref: '#/definitions/dtos.FinancialStatementResponse'
+        type: array
+      id:
+        type: integer
+      is_data_expired:
+        type: boolean
+      kyb_information:
+        $ref: '#/definitions/dtos.KYBInformationResponse'
+      last_updated_at:
+        type: string
+      next_refresh_date:
+        type: string
+      purpose:
+        type: string
+      recommended_institution:
+        $ref: '#/definitions/dtos.FinancialInstitutionSummary'
+      requested_amount:
+        type: number
+      review_notes:
+        type: string
+      source:
+        type: string
+      status:
+        type: string
+      submitted_at:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  dtos.LoanApplicationStatsResponse:
+    properties:
+      approved_applications:
+        type: integer
+      disbursed_applications:
+        type: integer
+      expired_data_count:
+        type: integer
+      pending_applications:
+        type: integer
+      rejected_applications:
+        type: integer
+      total_amount_approved:
+        type: number
+      total_amount_disbursed:
+        type: number
+      total_amount_requested:
+        type: number
+      total_applications:
+        type: integer
+    type: object
+  dtos.LoanApplicationSummary:
+    properties:
+      approval_rate:
+        type: number
+      average_processing_days:
+        type: number
+      disbursement_rate:
+        type: number
+      total_amount_approved:
+        type: number
+      total_amount_disbursed:
+        type: number
+      total_amount_requested:
+        type: number
+      total_applications:
+        type: integer
+    type: object
+  dtos.LoanApplicationSummaryItem:
+    properties:
+      application_reference:
+        type: string
+      company_name:
+        type: string
+      id:
+        type: integer
+      requested_amount:
+        type: number
+      status:
+        type: string
+      submitted_at:
+        type: string
+    type: object
+  dtos.LoanApplicationTrendData:
+    properties:
+      amount_approved:
+        type: number
+      amount_disbursed:
+        type: number
+      amount_requested:
+        type: number
+      applications:
+        type: integer
+      date:
+        type: string
     type: object
   dtos.LoginUserRequest:
     properties:
@@ -446,6 +1016,63 @@ definitions:
         allOf:
         - $ref: '#/definitions/dtos.UserResponse'
         description: Basic info for the logged-in entity
+    type: object
+  dtos.ManualLoanInputRequest:
+    properties:
+      currency:
+        type: string
+      financial_statements:
+        items:
+          $ref: '#/definitions/dtos.SubmitFinancialStatementRequest'
+        minItems: 1
+        type: array
+      kyb_information:
+        $ref: '#/definitions/dtos.SubmitKYBInformationRequest'
+      purpose:
+        type: string
+      requested_amount:
+        type: number
+      source:
+        enum:
+        - manual
+        - invoice
+        - contract
+        type: string
+    required:
+    - currency
+    - financial_statements
+    - requested_amount
+    - source
+    type: object
+  dtos.OverviewReportResponse:
+    properties:
+      activity:
+        $ref: '#/definitions/dtos.ActivitySummary'
+      financial_institutions:
+        $ref: '#/definitions/dtos.FinancialInstitutionReportSummary'
+      invoices:
+        $ref: '#/definitions/dtos.InvoiceSummary'
+      loan_applications:
+        $ref: '#/definitions/dtos.LoanApplicationSummary'
+      recent_activities:
+        items:
+          $ref: '#/definitions/dtos.ActivitySummaryItem'
+        type: array
+      system_health:
+        $ref: '#/definitions/dtos.SystemHealthData'
+      users:
+        $ref: '#/definitions/dtos.UserSummary'
+    type: object
+  dtos.ProductBreakdownData:
+    properties:
+      applications_count:
+        type: integer
+      institution_name:
+        type: string
+      interest_rate:
+        type: number
+      product_name:
+        type: string
     type: object
   dtos.RefreshTokenRequest:
     properties:
@@ -499,6 +1126,37 @@ definitions:
       user:
         $ref: '#/definitions/dtos.UserResponse'
     type: object
+  dtos.ReportRequest:
+    properties:
+      end_date:
+        type: string
+      export_format:
+        enum:
+        - json
+        - csv
+        - pdf
+        type: string
+      group_by:
+        description: daily, weekly, monthly, yearly
+        type: string
+      report_type:
+        enum:
+        - loan_applications
+        - invoices
+        - users
+        - activity
+        - financial_institutions
+        - overview
+        type: string
+      start_date:
+        type: string
+      status:
+        type: string
+      user_id:
+        type: integer
+    required:
+    - report_type
+    type: object
   dtos.SelectFinancialInstitutionRequest:
     properties:
       financialInstitutionEmail:
@@ -511,6 +1169,32 @@ definitions:
     - financialInstitutionEmail
     - financialInstitutionId
     - financialInstitutionName
+    type: object
+  dtos.SendToFinancialInstitutionRequest:
+    properties:
+      financial_institution_email:
+        type: string
+      financial_institution_id:
+        type: integer
+      financial_institution_name:
+        type: string
+      notes:
+        type: string
+    required:
+    - financial_institution_email
+    - financial_institution_id
+    - financial_institution_name
+    type: object
+  dtos.SourceBreakdownData:
+    properties:
+      amount:
+        type: number
+      count:
+        type: integer
+      percentage:
+        type: number
+      source:
+        type: string
     type: object
   dtos.StaffResponse:
     properties:
@@ -532,6 +1216,117 @@ definitions:
         type: string
       updatedAt:
         type: string
+    type: object
+  dtos.StatusBreakdownData:
+    properties:
+      amount:
+        type: number
+      count:
+        type: integer
+      percentage:
+        type: number
+      status:
+        type: string
+    type: object
+  dtos.SubmitFinancialStatementRequest:
+    properties:
+      account_number:
+        maxLength: 100
+        type: string
+      average_balance:
+        type: number
+      closing_balance:
+        type: number
+      opening_balance:
+        type: number
+      provider_name:
+        maxLength: 255
+        minLength: 2
+        type: string
+      statement_period_from:
+        type: string
+      statement_period_to:
+        type: string
+      total_credits:
+        minimum: 0
+        type: number
+      total_debits:
+        minimum: 0
+        type: number
+      transaction_count:
+        minimum: 0
+        type: integer
+      type:
+        enum:
+        - bank
+        - mobile_money
+        type: string
+    required:
+    - account_number
+    - closing_balance
+    - opening_balance
+    - provider_name
+    - statement_period_from
+    - statement_period_to
+    - total_credits
+    - total_debits
+    - transaction_count
+    - type
+    type: object
+  dtos.SubmitKYBInformationRequest:
+    properties:
+      annual_revenue:
+        type: number
+      beneficial_owners:
+        items:
+          $ref: '#/definitions/dtos.BeneficialOwnerInfo'
+        minItems: 1
+        type: array
+      business_address:
+        type: string
+      business_description:
+        minLength: 10
+        type: string
+      business_name:
+        maxLength: 255
+        minLength: 2
+        type: string
+      business_registration_no:
+        maxLength: 100
+        type: string
+      business_type:
+        maxLength: 100
+        type: string
+      directors_information:
+        items:
+          $ref: '#/definitions/dtos.DirectorInformation'
+        minItems: 1
+        type: array
+      industry_type:
+        maxLength: 100
+        type: string
+      monthly_revenue:
+        type: number
+      number_of_employees:
+        minimum: 1
+        type: integer
+      tax_identification_number:
+        maxLength: 100
+        type: string
+      years_in_operation:
+        minimum: 0
+        type: integer
+    required:
+    - beneficial_owners
+    - business_address
+    - business_description
+    - business_name
+    - business_registration_no
+    - business_type
+    - directors_information
+    - industry_type
+    - tax_identification_number
+    - years_in_operation
     type: object
   dtos.SubmitKYCRequest:
     properties:
@@ -580,6 +1375,19 @@ definitions:
         items:
           $ref: '#/definitions/dtos.SuggestedFinancialInstitution'
         type: array
+    type: object
+  dtos.SystemHealthData:
+    properties:
+      average_response_time:
+        type: number
+      expired_data_count:
+        type: integer
+      pending_refresh_count:
+        type: integer
+      success_rate:
+        type: number
+      total_transactions:
+        type: integer
     type: object
   dtos.UpdateFinancialInstitutionProductRequest:
     properties:
@@ -760,6 +1568,23 @@ definitions:
       updatedAt:
         type: string
     type: object
+  dtos.UserReportResponse:
+    properties:
+      kyc_breakdown:
+        items:
+          $ref: '#/definitions/dtos.KYCBreakdownData'
+        type: array
+      summary:
+        $ref: '#/definitions/dtos.UserSummary'
+      top_users:
+        items:
+          $ref: '#/definitions/dtos.UserSummaryItem'
+        type: array
+      trends:
+        items:
+          $ref: '#/definitions/dtos.UserTrendData'
+        type: array
+    type: object
   dtos.UserResponse:
     properties:
       companyName:
@@ -776,6 +1601,43 @@ definitions:
         type: string
       twoFAEnabled:
         type: boolean
+    type: object
+  dtos.UserSummary:
+    properties:
+      active_users:
+        type: integer
+      average_applications_per_user:
+        type: number
+      kyc_completed_users:
+        type: integer
+      total_users:
+        type: integer
+      verified_users:
+        type: integer
+    type: object
+  dtos.UserSummaryItem:
+    properties:
+      company_name:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      registration_date:
+        type: string
+      total_amount_requested:
+        type: number
+      total_applications:
+        type: integer
+    type: object
+  dtos.UserTrendData:
+    properties:
+      active_users:
+        type: integer
+      date:
+        type: string
+      new_users:
+        type: integer
     type: object
   dtos.VerifyOTPRequest:
     properties:
@@ -891,7 +1753,71 @@ definitions:
       totalSubmitted:
         type: integer
     type: object
+  utils.ErrorCode:
+    enum:
+    - UNKNOWN_ERROR
+    - INVALID_INPUT
+    - NOT_FOUND
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - CONFLICT
+    - INTERNAL_SERVER_ERROR
+    - DATABASE_ERROR
+    - VALIDATION_FAILED
+    - INVALID_CREDENTIALS
+    - USER_NOT_FOUND
+    - EMAIL_EXISTS
+    - OTP_INVALID
+    - 2FA_NOT_ENABLED
+    - ACCOUNT_NOT_ACTIVE
+    - KYC_NOT_APPROVED
+    - REFRESH_TOKEN_INVALID
+    - TOKEN_BLACKLISTED
+    type: string
+    x-enum-varnames:
+    - ErrCodeUnknown
+    - ErrCodeInvalidInput
+    - ErrCodeNotFound
+    - ErrCodeUnauthorized
+    - ErrCodeForbidden
+    - ErrCodeConflict
+    - ErrCodeInternalServer
+    - ErrCodeDatabaseError
+    - ErrCodeValidationFailed
+    - ErrCodeInvalidCredentials
+    - ErrCodeUserNotFound
+    - ErrCodeEmailExists
+    - ErrCodeOTPInvalid
+    - ErrCode2FANotEnabled
+    - ErrCodeAccountNotActive
+    - ErrCodeKYCNotApproved
+    - ErrCodeRefreshTokenInvalid
+    - ErrCodeTokenBlacklisted
   utils.ErrorResponse:
+    properties:
+      code:
+        $ref: '#/definitions/utils.ErrorCode'
+      details: {}
+      message:
+        type: string
+      request_id:
+        type: string
+      status:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  utils.SuccessResponse:
+    properties:
+      data: {}
+      message:
+        example: Operation completed successfully
+        type: string
+      status:
+        example: success
+        type: string
+    type: object
+  utils.SwaggerErrorResponse:
     properties:
       details: {}
       message:
@@ -2163,6 +3089,918 @@ paths:
       summary: Review user KYC application
       tags:
       - admin-users
+  /api/v1/admin/loan-applications:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all loan applications with pagination for admin
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Page size
+        in: query
+        name: page_size
+        type: integer
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.LoanApplicationListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all loan applications (Admin)
+      tags:
+      - Admin - Loan Applications
+  /api/v1/admin/loan-applications/{id}/review:
+    post:
+      consumes:
+      - application/json
+      description: Admin review and approve/reject a loan application
+      parameters:
+      - description: Loan Application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Admin review request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.AdminReviewRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Admin review loan application
+      tags:
+      - Admin - Loan Applications
+  /api/v1/admin/loan-applications/{id}/send-to-financial-institution:
+    post:
+      consumes:
+      - application/json
+      description: Admin sends loan application data (both raw and processed) to a
+        financial institution
+      parameters:
+      - description: Loan Application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Send to financial institution request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.SendToFinancialInstitutionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Send loan application to financial institution
+      tags:
+      - Admin - Loan Applications
+  /api/v1/admin/loan-applications/stats:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve loan application statistics for admin dashboard
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.LoanApplicationStatsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get loan application statistics (Admin)
+      tags:
+      - Admin - Loan Applications
+  /api/v1/admin/reports/activity:
+    get:
+      consumes:
+      - application/json
+      description: Generate a comprehensive activity report with statistics and trends
+      parameters:
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      - description: Group by period
+        enum:
+        - daily
+        - weekly
+        - monthly
+        - yearly
+        in: query
+        name: group_by
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.ActivityReportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Generate activity report
+      tags:
+      - Admin - Reports
+  /api/v1/admin/reports/export:
+    post:
+      consumes:
+      - application/json
+      description: Export a report in the specified format (JSON, CSV, PDF)
+      parameters:
+      - description: Report export request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.ReportRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.ExportReportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Export report
+      tags:
+      - Admin - Reports
+  /api/v1/admin/reports/financial-institutions:
+    get:
+      consumes:
+      - application/json
+      description: Generate a comprehensive financial institution report with statistics
+      parameters:
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.FinancialInstitutionReportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Generate financial institution report
+      tags:
+      - Admin - Reports
+  /api/v1/admin/reports/generate:
+    post:
+      consumes:
+      - application/json
+      description: Generate a comprehensive report based on the specified type and
+        filters
+      parameters:
+      - description: Report generation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.ReportRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Generate a report
+      tags:
+      - Admin - Reports
+  /api/v1/admin/reports/invoices:
+    get:
+      consumes:
+      - application/json
+      description: Generate a comprehensive invoice report with statistics and trends
+      parameters:
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - description: Filter by user ID
+        in: query
+        name: user_id
+        type: integer
+      - description: Group by period
+        enum:
+        - daily
+        - weekly
+        - monthly
+        - yearly
+        in: query
+        name: group_by
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.InvoiceReportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Generate invoice report
+      tags:
+      - Admin - Reports
+  /api/v1/admin/reports/loan-applications:
+    get:
+      consumes:
+      - application/json
+      description: Generate a comprehensive loan application report with statistics
+        and trends
+      parameters:
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - description: Filter by user ID
+        in: query
+        name: user_id
+        type: integer
+      - description: Group by period
+        enum:
+        - daily
+        - weekly
+        - monthly
+        - yearly
+        in: query
+        name: group_by
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.LoanApplicationReportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Generate loan application report
+      tags:
+      - Admin - Reports
+  /api/v1/admin/reports/overview:
+    get:
+      consumes:
+      - application/json
+      description: Generate a comprehensive overview report with all system statistics
+      parameters:
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.OverviewReportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Generate overview report
+      tags:
+      - Admin - Reports
+  /api/v1/admin/reports/users:
+    get:
+      consumes:
+      - application/json
+      description: Generate a comprehensive user report with statistics and trends
+      parameters:
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      - description: Group by period
+        enum:
+        - daily
+        - weekly
+        - monthly
+        - yearly
+        in: query
+        name: group_by
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.UserReportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Generate user report
+      tags:
+      - Admin - Reports
+  /api/v1/loan-applications:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all loan applications for the authenticated user with
+        pagination
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Page size
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.LoanApplicationListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user's loan applications
+      tags:
+      - Loan Applications
+    post:
+      consumes:
+      - application/json
+      description: Create a new loan application with basic details
+      parameters:
+      - description: Loan application request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.CreateLoanApplicationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dtos.LoanApplicationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new loan application
+      tags:
+      - Loan Applications
+  /api/v1/loan-applications/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a specific loan application by its ID
+      parameters:
+      - description: Loan Application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.LoanApplicationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get loan application by ID
+      tags:
+      - Loan Applications
+  /api/v1/loan-applications/{id}/documents:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload an invoice or contract document for loan application processing
+      parameters:
+      - description: Loan Application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Invoice or contract file
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: Document source (invoice or contract)
+        in: formData
+        name: source
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.DocumentUploadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Upload invoice or contract document
+      tags:
+      - Loan Applications
+  /api/v1/loan-applications/{id}/financial-statements:
+    post:
+      consumes:
+      - application/json
+      description: Submit financial statement data for a loan application
+      parameters:
+      - description: Loan Application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Financial statement request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.SubmitFinancialStatementRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.FinancialStatementResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Submit financial statement
+      tags:
+      - Loan Applications
+  /api/v1/loan-applications/{id}/financial-statements/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a financial statement file for a loan application
+      parameters:
+      - description: Loan Application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Financial statement file
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: Statement type (bank or mobile_money)
+        in: formData
+        name: type
+        required: true
+        type: string
+      - description: Bank or mobile money provider name
+        in: formData
+        name: provider_name
+        required: true
+        type: string
+      - description: Account number
+        in: formData
+        name: account_number
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.DocumentUploadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Upload financial statement file
+      tags:
+      - Loan Applications
+  /api/v1/loan-applications/{id}/kyb:
+    post:
+      consumes:
+      - application/json
+      description: Submit Know Your Business information for a loan application
+      parameters:
+      - description: Loan Application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: KYB information request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.SubmitKYBInformationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.KYBInformationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Submit KYB information
+      tags:
+      - Loan Applications
+  /api/v1/loan-applications/manual:
+    post:
+      consumes:
+      - application/json
+      description: Create a loan application with all KYB and financial data provided
+        manually
+      parameters:
+      - description: Manual loan application request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.ManualLoanInputRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dtos.LoanApplicationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.SwaggerErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a manual loan application
+      tags:
+      - Loan Applications
   /auth/2fa/toggle:
     post:
       consumes:

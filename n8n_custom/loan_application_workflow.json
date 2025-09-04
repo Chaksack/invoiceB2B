@@ -1,0 +1,487 @@
+{
+  "name": "Loan Application Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "loanApplicationId",
+              "value": "={{ $node[\"Set - Prepare Initial Data\"].json.loanApplicationId }}"
+            },
+            {
+              "name": "errorMessage",
+              "value": "={{ $error.message || 'Unknown processing error' }}"
+            },
+            {
+              "name": "errorDetails",
+              "value": "={{ JSON.stringify($error) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set - Error Details",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        520
+      ],
+      "id": "480b8dd9-fe86-4d77-95fd-335a0f645fef"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://api:3000/api/v1/internal/loan-applications/{{ $json.loanApplicationId }}/processed-data",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-API-Key",
+              "value": "your-strong-internal-api-key-for-n8n"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "processedData",
+              "value": "={{ $json.processedData }}"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json.status }}"
+            },
+            {
+              "name": "matchedInstitutions",
+              "value": "={{ $json.matchedInstitutions || [] }}"
+            },
+            {
+              "name": "recommendedInstitution",
+              "value": "={{ $json.recommendedInstitution || null }}"
+            },
+            {
+              "name": "riskAssessment",
+              "value": "={{ $json.riskAssessment || null }}"
+            },
+            {
+              "name": "workflowExecutionId",
+              "value": "={{ $execution.id }}"
+            }
+          ]
+        }
+      },
+      "name": "Update Loan Application Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        260
+      ],
+      "id": "update-loan-status",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://api:3000/api/v1/internal/loan-applications/{{ $json.loanApplicationId }}/error",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-API-Key",
+              "value": "your-strong-internal-api-key-for-n8n"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "error",
+              "value": "={{ $json.errorMessage }}"
+            },
+            {
+              "name": "status",
+              "value": "processing_failed"
+            },
+            {
+              "name": "workflowExecutionId",
+              "value": "={{ $execution.id }}"
+            }
+          ]
+        }
+      },
+      "name": "Update Error Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        520
+      ],
+      "id": "update-error-status",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "loanApplicationId",
+              "value": "={{ $json.loan_application_id }}"
+            },
+            {
+              "name": "processingType",
+              "value": "={{ $json.processing_type }}"
+            }
+          ],
+          "object": [
+            {
+              "name": "applicationData",
+              "value": "={{ $json.application_data }}"
+            },
+            {
+              "name": "kybInformation",
+              "value": "={{ $json.kyb_information }}"
+            },
+            {
+              "name": "financialStatements",
+              "value": "={{ $json.financial_statements }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set - Prepare Initial Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        260,
+        260
+      ],
+      "id": "prepare-initial-data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.processingType }}",
+              "operation": "equal",
+              "value2": "kyb"
+            }
+          ]
+        }
+      },
+      "name": "Check Processing Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        460,
+        260
+      ],
+      "id": "check-processing-type"
+    },
+    {
+      "parameters": {
+        "functionCode": "// KYB Information Validation and Scoring\nconst kybData = items[0].json.kybInformation;\nconst applicationData = items[0].json.applicationData;\n\nif (!kybData) {\n  return [{\n    json: {\n      loanApplicationId: items[0].json.loanApplicationId,\n      status: 'failed',\n      error: 'No KYB information provided'\n    }\n  }];\n}\n\n// Business validation rules\nconst validationResults = {\n  businessNameValid: kybData.business_name && kybData.business_name.length >= 2,\n  registrationValid: kybData.business_registration_no && kybData.business_registration_no.length > 0,\n  taxIdValid: kybData.tax_identification_number && kybData.tax_identification_number.length > 0,\n  yearsInOperationValid: kybData.years_in_operation >= 1,\n  directorsValid: kybData.directors_information && kybData.directors_information.length > 0,\n  beneficialOwnersValid: kybData.beneficial_owners && kybData.beneficial_owners.length > 0\n};\n\n// Calculate KYB score\nconst totalChecks = Object.keys(validationResults).length;\nconst passedChecks = Object.values(validationResults).filter(Boolean).length;\nconst kybScore = (passedChecks / totalChecks) * 100;\n\n// Risk assessment based on business details\nconst riskFactors = [];\nif (kybData.years_in_operation < 2) {\n  riskFactors.push('Limited operating history');\n}\nif (!kybData.annual_revenue || kybData.annual_revenue < 50000) {\n  riskFactors.push('Low annual revenue');\n}\nif (kybData.industry_type && ['gambling', 'crypto', 'adult'].includes(kybData.industry_type.toLowerCase())) {\n  riskFactors.push('High-risk industry');\n}\n\n// Determine risk level\nlet riskLevel = 'low';\nif (riskFactors.length > 2 || kybScore < 70) {\n  riskLevel = 'high';\n} else if (riskFactors.length > 0 || kybScore < 85) {\n  riskLevel = 'medium';\n}\n\nreturn [{\n  json: {\n    loanApplicationId: items[0].json.loanApplicationId,\n    kybValidation: {\n      score: kybScore,\n      validationResults: validationResults,\n      riskLevel: riskLevel,\n      riskFactors: riskFactors\n    },\n    processedKybData: {\n      businessName: kybData.business_name,\n      businessType: kybData.business_type,\n      industryType: kybData.industry_type,\n      yearsInOperation: kybData.years_in_operation,\n      annualRevenue: kybData.annual_revenue || 0,\n      monthlyRevenue: kybData.monthly_revenue || 0,\n      numberOfEmployees: kybData.number_of_employees || 0\n    },\n    status: kybScore >= 60 ? 'kyb_validated' : 'kyb_failed'\n  }\n}];"
+      },
+      "name": "Process KYB Information",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        660,
+        160
+      ],
+      "id": "process-kyb"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Financial Statement Analysis\nconst financialStatements = items[0].json.financialStatements;\nconst applicationData = items[0].json.applicationData;\n\nif (!financialStatements || financialStatements.length === 0) {\n  return [{\n    json: {\n      loanApplicationId: items[0].json.loanApplicationId,\n      status: 'failed',\n      error: 'No financial statements provided'\n    }\n  }];\n}\n\n// Analyze each financial statement\nconst analyzedStatements = financialStatements.map(statement => {\n  const periodDays = Math.ceil((new Date(statement.statement_period_to) - new Date(statement.statement_period_from)) / (1000 * 60 * 60 * 24));\n  const avgDailyBalance = statement.average_balance || ((statement.opening_balance + statement.closing_balance) / 2);\n  const turnoverRatio = statement.total_credits > 0 ? statement.total_debits / statement.total_credits : 0;\n  const cashFlowStability = Math.abs(statement.closing_balance - statement.opening_balance) / Math.max(statement.opening_balance, 1);\n  \n  // Calculate financial health indicators\n  const healthScore = Math.min(100, Math.max(0, \n    (avgDailyBalance / 1000 * 10) + // Balance score\n    (statement.total_credits / 10000 * 20) + // Credit activity score\n    (statement.transaction_count / 50 * 15) + // Activity frequency score\n    ((1 - Math.min(turnoverRatio, 2)) * 25) + // Turnover health score\n    ((1 - Math.min(cashFlowStability, 1)) * 30) // Stability score\n  ));\n  \n  return {\n    type: statement.type,\n    providerName: statement.provider_name,\n    avgDailyBalance: avgDailyBalance,\n    totalCredits: statement.total_credits,\n    totalDebits: statement.total_debits,\n    transactionCount: statement.transaction_count,\n    healthScore: Math.round(healthScore),\n    turnoverRatio: Math.round(turnoverRatio * 100) / 100,\n    cashFlowStability: Math.round(cashFlowStability * 100) / 100,\n    periodDays: periodDays\n  };\n});\n\n// Calculate overall financial health\nconst avgHealthScore = analyzedStatements.reduce((sum, stmt) => sum + stmt.healthScore, 0) / analyzedStatements.length;\nconst totalCredits = analyzedStatements.reduce((sum, stmt) => sum + stmt.totalCredits, 0);\nconst totalAvgBalance = analyzedStatements.reduce((sum, stmt) => sum + stmt.avgDailyBalance, 0) / analyzedStatements.length;\n\n// Determine creditworthiness\nlet creditRating = 'poor';\nif (avgHealthScore >= 80) {\n  creditRating = 'excellent';\n} else if (avgHealthScore >= 65) {\n  creditRating = 'good';\n} else if (avgHealthScore >= 50) {\n  creditRating = 'fair';\n}\n\n// Risk indicators\nconst riskIndicators = [];\nif (totalAvgBalance < 10000) {\n  riskIndicators.push('Low average balance');\n}\nif (avgHealthScore < 50) {\n  riskIndicators.push('Poor financial health');\n}\nconst highTurnoverCount = analyzedStatements.filter(stmt => stmt.turnoverRatio > 1.5).length;\nif (highTurnoverCount > 0) {\n  riskIndicators.push('High turnover ratio detected');\n}\n\nreturn [{\n  json: {\n    loanApplicationId: items[0].json.loanApplicationId,\n    financialAnalysis: {\n      overallHealthScore: Math.round(avgHealthScore),\n      creditRating: creditRating,\n      totalMonthlyCredits: Math.round(totalCredits),\n      averageBalance: Math.round(totalAvgBalance),\n      riskIndicators: riskIndicators,\n      statementAnalysis: analyzedStatements\n    },\n    status: avgHealthScore >= 40 ? 'financial_analyzed' : 'financial_insufficient'\n  }\n}];"
+      },
+      "name": "Analyze Financial Statements",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        660,
+        360
+      ],
+      "id": "analyze-financial"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Document Processing (Invoice/Contract)\nconst documentPath = items[0].json.documentPath;\nconst applicationData = items[0].json.applicationData;\n\nif (!documentPath) {\n  return [{\n    json: {\n      loanApplicationId: items[0].json.loanApplicationId,\n      status: 'failed',\n      error: 'No document provided for processing'\n    }\n  }];\n}\n\n// Simulate document extraction (in real implementation, this would use OCR/AI)\nconst extractedData = {\n  documentType: applicationData.source === 'invoice' ? 'invoice' : 'contract',\n  amount: applicationData.requested_amount,\n  currency: applicationData.currency || 'USD',\n  issueDate: new Date().toISOString(),\n  dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now\n  clientName: 'Extracted Client Name',\n  description: applicationData.purpose || 'Document-based loan request'\n};\n\n// Validate document data\nconst validationResults = {\n  amountValid: extractedData.amount > 0,\n  dateValid: new Date(extractedData.issueDate) <= new Date(),\n  dueDateValid: new Date(extractedData.dueDate) > new Date(),\n  clientValid: extractedData.clientName && extractedData.clientName.length > 0\n};\n\nconst validationScore = Object.values(validationResults).filter(Boolean).length / Object.keys(validationResults).length * 100;\n\nreturn [{\n  json: {\n    loanApplicationId: items[0].json.loanApplicationId,\n    documentExtraction: {\n      extractedData: extractedData,\n      validationResults: validationResults,\n      validationScore: Math.round(validationScore)\n    },\n    status: validationScore >= 75 ? 'document_processed' : 'document_invalid'\n  }\n}];"
+      },
+      "name": "Process Document",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        660,
+        560
+      ],
+      "id": "process-document"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://api:3000/api/v1/internal/financial-institutions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-API-Key",
+              "value": "your-strong-internal-api-key-for-n8n"
+            }
+          ]
+        }
+      },
+      "name": "Get Financial Institutions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        860,
+        260
+      ],
+      "id": "get-institutions"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Financial Institution Matching Logic\nconst institutions = items[0].json.data || [];\nconst applicationData = items[1].json.applicationData;\nconst kybValidation = items[1].json.kybValidation;\nconst financialAnalysis = items[1].json.financialAnalysis;\nconst loanApplicationId = items[1].json.loanApplicationId;\n\nif (institutions.length === 0) {\n  return [{\n    json: {\n      loanApplicationId: loanApplicationId,\n      status: 'failed',\n      error: 'No financial institutions available for matching'\n    }\n  }];\n}\n\n// Scoring criteria weights\nconst weights = {\n  amountMatch: 0.25,\n  riskProfile: 0.30,\n  industryMatch: 0.20,\n  interestRate: 0.15,\n  processingFee: 0.10\n};\n\nconst requestedAmount = applicationData.requested_amount;\nconst businessType = kybValidation?.processedKybData?.businessType || 'general';\nconst industryType = kybValidation?.processedKybData?.industryType || 'general';\nconst overallRiskLevel = kybValidation?.riskLevel || 'medium';\nconst creditRating = financialAnalysis?.creditRating || 'fair';\n\n// Score each institution\nconst scoredInstitutions = institutions.map(institution => {\n  let score = 0;\n  const matchReasons = [];\n  \n  // Amount matching\n  const amountFits = requestedAmount >= (institution.min_invoice_amount || 0) && \n                    requestedAmount <= (institution.max_invoice_amount || Infinity);\n  if (amountFits) {\n    score += weights.amountMatch * 100;\n    matchReasons.push('Amount within acceptable range');\n  }\n  \n  // Risk profile matching\n  const riskScore = {\n    'low': { 'excellent': 100, 'good': 90, 'fair': 70, 'poor': 40 },\n    'medium': { 'excellent': 90, 'good': 85, 'fair': 75, 'poor': 50 },\n    'high': { 'excellent': 70, 'good': 65, 'fair': 60, 'poor': 55 }\n  };\n  \n  const riskMatch = riskScore[overallRiskLevel]?.[creditRating] || 50;\n  score += weights.riskProfile * riskMatch;\n  if (riskMatch > 70) {\n    matchReasons.push('Good risk profile match');\n  }\n  \n  // Industry matching (simplified)\n  const industryMatch = industryType.toLowerCase().includes('tech') || \n                       industryType.toLowerCase().includes('service') ? 80 : 70;\n  score += weights.industryMatch * industryMatch;\n  \n  // Interest rate preference (lower is better)\n  const avgRate = (institution.interest_rate_min + institution.interest_rate_max) / 2;\n  const rateScore = Math.max(0, 100 - (avgRate * 10)); // Normalize rate to 0-100 scale\n  score += weights.interestRate * rateScore;\n  if (avgRate < 15) {\n    matchReasons.push('Competitive interest rates');\n  }\n  \n  // Processing fee (lower is better)\n  const feeScore = Math.max(0, 100 - (institution.processing_fee / 100));\n  score += weights.processingFee * feeScore;\n  \n  // Calculate estimated terms\n  const estimatedRate = avgRate + (overallRiskLevel === 'high' ? 2 : overallRiskLevel === 'medium' ? 1 : 0);\n  const estimatedFees = institution.processing_fee + (requestedAmount * 0.005); // 0.5% of amount\n  \n  return {\n    institutionId: institution.id,\n    institutionName: institution.name,\n    institutionCode: institution.code,\n    matchScore: Math.round(score),\n    matchReasons: matchReasons,\n    estimatedRate: Math.round(estimatedRate * 100) / 100,\n    estimatedFees: Math.round(estimatedFees * 100) / 100,\n    amountRange: {\n      min: institution.min_invoice_amount,\n      max: institution.max_invoice_amount\n    },\n    processingTime: institution.terms_days || 30\n  };\n}).filter(inst => inst.matchScore > 30).sort((a, b) => b.matchScore - a.matchScore);\n\n// Select top 5 matches\nconst topMatches = scoredInstitutions.slice(0, 5);\nconst recommendedInstitution = topMatches.length > 0 ? topMatches[0] : null;\n\n// Overall risk assessment\nconst overallRiskScore = Math.round(\n  (kybValidation?.score || 50) * 0.4 + \n  (financialAnalysis?.overallHealthScore || 50) * 0.6\n);\n\nconst riskAssessment = {\n  overallRiskScore: overallRiskScore,\n  riskLevel: overallRiskScore >= 80 ? 'low' : overallRiskScore >= 60 ? 'medium' : 'high',\n  creditworthinessScore: financialAnalysis?.overallHealthScore || 50,\n  businessRiskFactors: [\n    ...(kybValidation?.riskFactors || []),\n    ...(financialAnalysis?.riskIndicators || [])\n  ],\n  recommendations: [\n    overallRiskScore >= 70 ? 'Approved for standard terms' : 'Consider enhanced due diligence',\n    topMatches.length > 0 ? `Matched with ${topMatches.length} suitable institutions` : 'Limited institutional matches'\n  ]\n};\n\nreturn [{\n  json: {\n    loanApplicationId: loanApplicationId,\n    matchedInstitutions: topMatches,\n    recommendedInstitution: recommendedInstitution,\n    riskAssessment: riskAssessment,\n    processedData: {\n      kybValidation: kybValidation,\n      financialAnalysis: financialAnalysis,\n      institutionMatching: {\n        totalMatches: topMatches.length,\n        topMatchScore: recommendedInstitution?.matchScore || 0\n      }\n    },\n    status: 'completed'\n  }\n}];"
+      },
+      "name": "Match Financial Institutions",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        260
+      ],
+      "id": "match-institutions"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{ $json.processingType }}",
+                    "operation": "equal",
+                    "value2": "kyb"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "kyb"
+            },
+            {
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{ $json.processingType }}",
+                    "operation": "equal",
+                    "value2": "financial"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "financial"
+            },
+            {
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{ $json.processingType }}",
+                    "operation": "equal",
+                    "value2": "document"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "document"
+            },
+            {
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{ $json.processingType }}",
+                    "operation": "equal",
+                    "value2": "complete_application"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "complete"
+            }
+          ]
+        }
+      },
+      "name": "Route by Processing Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        460,
+        460
+      ],
+      "id": "route-processing-type"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "multiplex",
+        "options": {}
+      },
+      "name": "Combine KYB and Financial Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        860,
+        180
+      ],
+      "id": "combine-data"
+    }
+  ],
+  "connections": {
+    "Set - Prepare Initial Data": {
+      "main": [
+        [
+          {
+            "node": "Route by Processing Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Processing Type": {
+      "main": [
+        [
+          {
+            "node": "Process KYB Information",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyze Financial Statements",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Document",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process KYB Information",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process KYB Information": {
+      "main": [
+        [
+          {
+            "node": "Combine KYB and Financial Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Financial Statements": {
+      "main": [
+        [
+          {
+            "node": "Combine KYB and Financial Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Process Document": {
+      "main": [
+        [
+          {
+            "node": "Get Financial Institutions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Financial Institutions": {
+      "main": [
+        [
+          {
+            "node": "Match Financial Institutions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine KYB and Financial Data": {
+      "main": [
+        [
+          {
+            "node": "Get Financial Institutions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Financial Institutions": {
+      "main": [
+        [
+          {
+            "node": "Update Loan Application Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Error Details": {
+      "main": [
+        [
+          {
+            "node": "Update Error Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "timezone": "America/New_York",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "Set - Error Details"
+  },
+  "staticData": {},
+  "tags": [
+    {
+      "id": "loan-processing",
+      "name": "Loan Processing"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-04T01:00:00.000Z",
+  "versionId": "1"
+}

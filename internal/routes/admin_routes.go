@@ -10,6 +10,8 @@ import (
 func SetupAdminRoutes(
 	router fiber.Router,
 	adminHandler *handlers.AdminHandler,
+	loanAppHandler *handlers.LoanApplicationHandler,
+	reportingHandler *handlers.ReportingHandler,
 	authMw *middleware.AuthMiddleware,
 	adminMw *middleware.AdminMiddleware,
 	csrfMw *middleware.CSRFMiddleware,
@@ -94,4 +96,30 @@ func SetupAdminRoutes(
 	adminFIWriteGroup.Post("/terms", adminHandler.CreateFinancialInstitutionTerm)
 	adminFIWriteGroup.Put("/terms/:id", adminHandler.UpdateFinancialInstitutionTerm)
 	adminFIWriteGroup.Delete("/terms/:id", adminHandler.DeleteFinancialInstitutionTerm)
+
+	// --- Admin Loan Application Management ---
+	// Read operations
+	adminLoanReadGroup := adminReadGroup.Group("/loan-applications")
+	adminLoanReadGroup.Get("", loanAppHandler.GetAllLoanApplications)
+	adminLoanReadGroup.Get("/stats", loanAppHandler.GetLoanApplicationStats)
+	
+	// Write operations
+	adminLoanWriteGroup := adminWriteGroup.Group("/loan-applications")
+	adminLoanWriteGroup.Post("/:id/review", loanAppHandler.AdminReviewLoanApplication)
+	adminLoanWriteGroup.Post("/:id/send-to-financial-institution", loanAppHandler.SendToFinancialInstitution)
+
+	// --- Admin Reporting ---
+	// Read operations (reports are read-only by nature)
+	adminReportsReadGroup := adminReadGroup.Group("/reports")
+	adminReportsReadGroup.Get("/loan-applications", reportingHandler.GenerateLoanApplicationReport)
+	adminReportsReadGroup.Get("/invoices", reportingHandler.GenerateInvoiceReport)
+	adminReportsReadGroup.Get("/users", reportingHandler.GenerateUserReport)
+	adminReportsReadGroup.Get("/activity", reportingHandler.GenerateActivityReport)
+	adminReportsReadGroup.Get("/financial-institutions", reportingHandler.GenerateFinancialInstitutionReport)
+	adminReportsReadGroup.Get("/overview", reportingHandler.GenerateOverviewReport)
+	
+	// Write operations (for generating and exporting reports)
+	adminReportsWriteGroup := adminWriteGroup.Group("/reports")
+	adminReportsWriteGroup.Post("/generate", reportingHandler.GenerateReport)
+	adminReportsWriteGroup.Post("/export", reportingHandler.ExportReport)
 }

@@ -231,6 +231,18 @@ func main() {
 	invoiceService := services.NewInvoiceService(invoiceRepo, userRepo, transactionRepo, financialInstitutionRepo, fileService, notificationService, activityLogSvc, emailService, cfg)
 	internalService := services.NewInternalService(invoiceRepo, activityLogSvc)
 
+	// Initialize Loan Application Service (N8N service will be nil for now)
+	loanAppService := services.NewLoanApplicationService(
+		db,
+		nil, // N8N service placeholder
+		fileService,
+		notificationService,
+		emailService,
+	)
+
+	// Initialize Reporting Service
+	reportingService := services.NewReportingService(db)
+
 	// Initialize AdminService (pass all dependencies)
 	adminService := services.NewAdminService(
 		userRepo,
@@ -254,6 +266,8 @@ func main() {
 	userHandler := handlers.NewUserHandler(userService, customValidator.Validator)
 	invoiceHandler := handlers.NewInvoiceHandler(invoiceService, fileService, customValidator.Validator)
 	adminHandler := handlers.NewAdminHandler(adminService, fileService, customValidator.Validator)
+	loanAppHandler := handlers.NewLoanApplicationHandler(loanAppService, fileService, customValidator.Validator)
+	reportingHandler := handlers.NewReportingHandler(reportingService, customValidator.Validator)
 	internalHandler := handlers.NewInternalHandler(internalService, customValidator.Validator)
 
 	app := fiber.New(fiber.Config{
@@ -262,6 +276,7 @@ func main() {
 
 	nuxtProjects := []NuxtProjectConfig{
 		{Name: "Dashboard", URLPath: "/", DistPath: "./client/dist"},
+		{Name: "Admin Dashboard", URLPath: "/admin", DistPath: "./admin/out"},
 	}
 	setupNuxtFrontendServers(app, nuxtProjects)
 
@@ -291,7 +306,7 @@ func main() {
 	routes.SetupAuthRoutes(apiV1, authHandler, authMiddleware, csrfMiddleware)
 	routes.SetupUserRoutes(apiV1, userHandler, authMiddleware, csrfMiddleware)
 	routes.SetupInvoiceRoutes(apiV1, invoiceHandler, authMiddleware, adminMiddleware, csrfMiddleware)
-	routes.SetupAdminRoutes(apiV1, adminHandler, authMiddleware, adminMiddleware, csrfMiddleware)
+	routes.SetupAdminRoutes(apiV1, adminHandler, loanAppHandler, reportingHandler, authMiddleware, adminMiddleware, csrfMiddleware)
 	routes.SetupInternalRoutes(apiV1, internalHandler, internalApiMiddleware)
 
 	// Setup Swagger

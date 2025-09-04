@@ -3,11 +3,8 @@ package utils
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 )
 
 type CustomValidator struct {
@@ -56,11 +53,3 @@ func formatErrorMessage(fe validator.FieldError) string {
 	}
 }
 
-// HandleValidationError is a utility function for handlers to return validation errors.
-func HandleValidationError(c *fiber.Ctx, errs error) error {
-	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-		"status":  "error",
-		"message": "Validation failed",
-		"errors":  FormatValidationError(errs),
-	})
-}
