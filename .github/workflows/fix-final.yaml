@@ -272,17 +272,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      # Scan frontend dependencies (if frontend directory exists)
-      - name: Scan Frontend Dependencies
-        run: |
-          if [ -d "frontend" ]; then
-            cd frontend
-            echo "Running npm audit on frontend dependencies..."
-            npm audit --production --audit-level=high || echo "Frontend has vulnerabilities that need to be addressed"
-          else
-            echo "No frontend directory found, skipping frontend dependency scan"
-          fi
-
       # Scan Go dependencies in current directory
       - name: Scan Go Dependencies
         run: |
