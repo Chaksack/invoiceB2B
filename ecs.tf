@@ -249,9 +249,9 @@ resource "aws_ecs_service" "api" {
   propagate_tags          = "TASK_DEFINITION" # Propagates tags from task definition to tasks
 
   network_configuration {
-    subnets          = aws_subnet.private[*].id
+    subnets          = aws_subnet.public[*].id
     security_groups  = [aws_security_group.ecs_tasks.id]
-    assign_public_ip = false
+    assign_public_ip = true
   }
 
   load_balancer {

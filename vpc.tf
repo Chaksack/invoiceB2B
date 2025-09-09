@@ -50,29 +50,30 @@ resource "aws_subnet" "private" {
   }
 }
 
-resource "aws_eip" "nat" {
-  count  = length(var.public_subnet_cidrs) # One NAT Gateway per AZ for HA
-  domain = "vpc"                           # Changed from vpc = true for newer AWS provider versions
+# NAT Gateway resources removed as per requirement to not use NAT gateway
+# resource "aws_eip" "nat" {
+#   count  = length(var.public_subnet_cidrs) # One NAT Gateway per AZ for HA
+#   domain = "vpc"                           # Changed from vpc = true for newer AWS provider versions
+#
+#   tags = {
+#     Name    = "${var.project_name}-nat-eip-${count.index + 1}"
+#     Project = var.project_name
+#   }
+# }
 
-  tags = {
-    Name    = "${var.project_name}-nat-eip-${count.index + 1}"
-    Project = var.project_name
-  }
-}
-
-resource "aws_nat_gateway" "main" {
-  count         = length(var.public_subnet_cidrs)
-  allocation_id = aws_eip.nat[count.index].id
-  subnet_id     = aws_subnet.public[count.index].id
-
-  tags = {
-    Name        = "${var.project_name}-nat-gw-${count.index + 1}"
-    Project     = var.project_name
-    Environment = "production"
-  }
-
-  depends_on = [aws_internet_gateway.main]
-}
+# resource "aws_nat_gateway" "main" {
+#   count         = length(var.public_subnet_cidrs)
+#   allocation_id = aws_eip.nat[count.index].id
+#   subnet_id     = aws_subnet.public[count.index].id
+#
+#   tags = {
+#     Name        = "${var.project_name}-nat-gw-${count.index + 1}"
+#     Project     = var.project_name
+#     Environment = "production"
+#   }
+#
+#   depends_on = [aws_internet_gateway.main]
+# }
 
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
@@ -99,10 +100,11 @@ resource "aws_route_table" "private" {
   count  = length(var.private_subnet_cidrs)
   vpc_id = aws_vpc.main.id
 
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main[count.index].id # Route traffic through NAT in the same AZ
-  }
+  # No internet route - private subnets are fully isolated
+  # route {
+  #   cidr_block     = "0.0.0.0/0"
+  #   nat_gateway_id = aws_nat_gateway.main[count.index].id # Route traffic through NAT in the same AZ
+  # }
 
   tags = {
     Name        = "${var.project_name}-private-rt-${count.index + 1}"
