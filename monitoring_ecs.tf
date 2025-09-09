@@ -369,7 +369,7 @@ resource "aws_ecs_task_definition" "sonarqube" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = "2048" # 2 vCPU
   memory                   = "4096" # 4 GB
-  execution_role_arn       = aws_iam_role.ecs_execution_role.arn
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
@@ -481,7 +481,7 @@ resource "aws_ecs_task_definition" "prometheus" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = "1024" # 1 vCPU
   memory                   = "2048" # 2 GB
-  execution_role_arn       = aws_iam_role.ecs_execution_role.arn
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
@@ -555,7 +555,7 @@ resource "aws_ecs_task_definition" "grafana" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = "1024" # 1 vCPU
   memory                   = "2048" # 2 GB
-  execution_role_arn       = aws_iam_role.ecs_execution_role.arn
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
@@ -632,7 +632,7 @@ resource "aws_ecs_task_definition" "alertmanager" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = "512" # 0.5 vCPU
   memory                   = "1024" # 1 GB
-  execution_role_arn       = aws_iam_role.ecs_execution_role.arn
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([

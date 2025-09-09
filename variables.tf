@@ -102,9 +102,9 @@ variable "bastion_public_key" {
 }
 
 variable "bastion_ami" {
-  description = "AMI ID for the bastion host"
+  description = "AMI ID for the bastion host (Amazon Linux 2023)"
   type        = string
-  default     = "ami-02457590d33d576c3"
+  default     = "ami-0230bd60aa48260c6"  # Amazon Linux 2023 AMI (us-east-1) - update as needed
 }
 
 variable "n8n_generic_timezone" {
@@ -123,4 +123,32 @@ variable "api_service_discovery_name" {
   description = "The service discovery name for the API service (e.g., used for internal communication from N8N)."
   type        = string
   default     = "api"
+}
+
+# RabbitMQ Configuration
+variable "rabbitmq_user" {
+  description = "Username for RabbitMQ. Should be overridden in environment-specific tfvars or use AWS Secrets Manager."
+  type        = string
+  default     = "guest"
+  sensitive   = true
+}
+
+variable "rabbitmq_password" {
+  description = "Password for RabbitMQ. Should be stored in AWS Secrets Manager for production environments."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+# Security Configuration
+variable "enable_secrets_manager" {
+  description = "Whether to use AWS Secrets Manager for sensitive values like database passwords and API keys"
+  type        = bool
+  default     = true
+}
+
+variable "force_destroy_s3_buckets" {
+  description = "Allow destruction of S3 buckets that contain objects. Use with caution in production."
+  type        = bool
+  default     = false
 }

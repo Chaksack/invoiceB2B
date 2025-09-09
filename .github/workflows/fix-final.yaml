@@ -214,18 +214,18 @@ jobs:
 
       # Initialize CodeQL
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3
         with:
           languages: go, javascript, typescript
           queries: security-extended,security-and-quality
 
       # Autobuild attempts to build any compiled languages
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
+        uses: github/codeql-action/autobuild@v3
 
       # Analyze the code
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v3
         with:
           category: "/language:go,javascript,typescript"
 
@@ -251,7 +251,7 @@ jobs:
 
       # Setup Node.js for npm audit
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
@@ -259,7 +259,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.21'
 
       # Cache Go modules
       - name: Cache Go modules
@@ -272,19 +272,24 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      # Scan frontend dependencies
+      # Scan frontend dependencies (if frontend directory exists)
       - name: Scan Frontend Dependencies
         run: |
-          cd frontend
-          echo "Running npm audit on frontend dependencies..."
-          npm audit --production --audit-level=high || echo "Frontend has vulnerabilities that need to be addressed"
+          if [ -d "frontend" ]; then
+            cd frontend
+            echo "Running npm audit on frontend dependencies..."
+            npm audit --production --audit-level=high || echo "Frontend has vulnerabilities that need to be addressed"
+          else
+            echo "No frontend directory found, skipping frontend dependency scan"
+          fi
 
-      # Scan client dependencies (Golang)
-      - name: Scan Internal Dependencies
+      # Scan Go dependencies in current directory
+      - name: Scan Go Dependencies
         run: |
-          cd client || cd .
-          echo "Running go mod verify for client dependencies..."
-          go mod verify || echo "Client has dependency issues that need to be addressed"
+          echo "Running go mod verify for Go dependencies..."
+          go mod verify || echo "Go modules have dependency issues that need to be addressed"
+          echo "Running go mod tidy to ensure clean dependencies..."
+          go mod tidy
 
       # Setup Terraform for tfsec
       - name: Setup Terraform
