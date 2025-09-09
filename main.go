@@ -231,9 +231,15 @@ func main() {
 	invoiceService := services.NewInvoiceService(invoiceRepo, userRepo, transactionRepo, financialInstitutionRepo, fileService, notificationService, activityLogSvc, emailService, cfg)
 	internalService := services.NewInternalService(invoiceRepo, activityLogSvc)
 
-	// Initialize Loan Application Service (N8N service will be nil for now)
+	// Initialize Loan Application Repository and Validator
+	loanAppRepo := repositories.NewLoanApplicationRepository(db)
+	loanValidator := services.NewLoanValidationService()
+	
+	// Initialize Loan Application Service
 	loanAppService := services.NewLoanApplicationService(
 		db,
+		loanAppRepo,
+		loanValidator,
 		nil, // N8N service placeholder
 		fileService,
 		notificationService,
@@ -296,15 +302,18 @@ func main() {
 	internalApiMiddleware := middleware.NewInternalAPIMiddleware(cfg.InternalAPIKey)
 	rateLimitMiddleware := middleware.NewRateLimitMiddleware(cfg, rdb)
 	csrfMiddleware := middleware.NewCSRFMiddleware(cfg)
+	requestIDMiddleware := middleware.NewRequestIDMiddleware()
 
 	apiV1 := app.Group("/api/v1")
 	
-	// Apply rate limiting to all API routes
+	// Apply unified middleware stack to all API routes
+	apiV1.Use(requestIDMiddleware.GenerateRequestID())
 	apiV1.Use(rateLimitMiddleware.RateLimit())
 	
 	// Setup routes with all required middleware
 	routes.SetupAuthRoutes(apiV1, authHandler, authMiddleware, csrfMiddleware)
 	routes.SetupUserRoutes(apiV1, userHandler, authMiddleware, csrfMiddleware)
+	routes.SetupLoanApplicationRoutes(apiV1, loanAppHandler, authMiddleware, csrfMiddleware)
 	routes.SetupInvoiceRoutes(apiV1, invoiceHandler, authMiddleware, adminMiddleware, csrfMiddleware)
 	routes.SetupAdminRoutes(apiV1, adminHandler, loanAppHandler, reportingHandler, authMiddleware, adminMiddleware, csrfMiddleware)
 	routes.SetupInternalRoutes(apiV1, internalHandler, internalApiMiddleware)

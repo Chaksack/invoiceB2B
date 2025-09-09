@@ -2234,6 +2234,216 @@
                 }
             }
         },
+        "/api/v1/admin/loan-applications/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve detailed information about a specific loan application for admin review",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Loan Applications"
+                ],
+                "summary": "Get loan application detail (Admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Loan Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.LoanApplicationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/loan-applications/{id}/kyb": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve KYB (Know Your Business) information for a specific loan application",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Loan Applications"
+                ],
+                "summary": "Get loan application KYB details (Admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Loan Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.KYBInformationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/loan-applications/{id}/kyb/review": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Admin review and approve/reject KYB information for a loan application",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Loan Applications"
+                ],
+                "summary": "Review KYB information (Admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Loan Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "KYB review request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dtos.KYBReviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/admin/reports/activity": {
             "get": {
                 "security": [
@@ -3145,77 +3355,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Submit financial statement data for a loan application",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Loan Applications"
-                ],
-                "summary": "Submit financial statement",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Loan Application ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Financial statement request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dtos.SubmitFinancialStatementRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dtos.FinancialStatementResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/utils.SwaggerErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/loan-applications/{id}/financial-statements/upload": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Upload a financial statement file for a loan application",
+                "description": "Submit financial statement data with optional file upload in a single request",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -3225,20 +3365,13 @@
                 "tags": [
                     "Loan Applications"
                 ],
-                "summary": "Upload financial statement file",
+                "summary": "Submit financial statement (Unified)",
                 "parameters": [
                     {
                         "type": "integer",
                         "description": "Loan Application ID",
                         "name": "id",
                         "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "file",
-                        "description": "Financial statement file",
-                        "name": "file",
-                        "in": "formData",
                         "required": true
                     },
                     {
@@ -3261,13 +3394,76 @@
                         "name": "account_number",
                         "in": "formData",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement period from (YYYY-MM-DD)",
+                        "name": "statement_period_from",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement period to (YYYY-MM-DD)",
+                        "name": "statement_period_to",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "Opening balance",
+                        "name": "opening_balance",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "Closing balance",
+                        "name": "closing_balance",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "Total credits",
+                        "name": "total_credits",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "Total debits",
+                        "name": "total_debits",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Transaction count",
+                        "name": "transaction_count",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "Average balance",
+                        "name": "average_balance",
+                        "in": "formData",
+                        "required": false
+                    },
+                    {
+                        "type": "file",
+                        "description": "Financial statement file (optional)",
+                        "name": "file",
+                        "in": "formData",
+                        "required": false
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dtos.DocumentUploadResponse"
+                            "$ref": "#/definitions/dtos.FinancialStatementResponse"
                         }
                     },
                     "400": {
@@ -6235,6 +6431,12 @@
                 "business_address": {
                     "type": "string"
                 },
+                "postal_address": {
+                    "type": "string"
+                },
+                "digital_address": {
+                    "type": "string"
+                },
                 "business_description": {
                     "type": "string",
                     "minLength": 10
@@ -6280,11 +6482,29 @@
                 }
             }
         },
+        "dtos.KYBReviewRequest": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "approved",
+                        "rejected",
+                        "pending"
+                    ]
+                },
+                "notes": {
+                    "type": "string"
+                }
+            }
+        },
         "dtos.SubmitKYCRequest": {
             "type": "object",
             "required": [
                 "addressLine1",
-                "businessRegistrationNumber",
                 "city",
                 "country"
             ],
@@ -6292,13 +6512,16 @@
                 "addressLine1": {
                     "type": "string"
                 },
-                "businessRegistrationNumber": {
-                    "type": "string"
-                },
                 "city": {
                     "type": "string"
                 },
                 "country": {
+                    "type": "string"
+                },
+                "postalAddress": {
+                    "type": "string"
+                },
+                "digitalAddress": {
                     "type": "string"
                 },
                 "documentsInfo": {
@@ -6309,6 +6532,9 @@
                     "maxLength": 50
                 },
                 "ghanaCardPath": {
+                    "type": "string"
+                },
+                "selfiePath": {
                     "type": "string"
                 }
             }

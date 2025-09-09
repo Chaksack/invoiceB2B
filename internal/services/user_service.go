@@ -100,9 +100,15 @@ func (s *userService) SubmitOrUpdateKYC(ctx context.Context, userID uint, req dt
 		}
 	}
 
+	kycDetail.AddressLine1 = req.AddressLine1
+	kycDetail.City = req.City
+	kycDetail.Country = req.Country
+	kycDetail.PostalAddress = req.PostalAddress
+	kycDetail.DigitalAddress = req.DigitalAddress
 	kycDetail.DocumentsInfo = req.DocumentsInfo
 	kycDetail.GhanaCardNumber = req.GhanaCardNumber
 	kycDetail.GhanaCardPath = req.GhanaCardPath
+	kycDetail.SelfiePath = req.SelfiePath
 	kycDetail.Status = models.KYCPending
 	now := time.Now()
 	kycDetail.SubmittedAt = &now

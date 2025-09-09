@@ -24,13 +24,15 @@ type UpdateUserProfileRequest struct {
 }
 
 type SubmitKYCRequest struct {
-	BusinessRegistrationNumber string  `json:"businessRegistrationNumber" validate:"required"`
-	AddressLine1               string  `json:"addressLine1" validate:"required"`
-	City                       string  `json:"city" validate:"required"`
-	Country                    string  `json:"country" validate:"required"`
-	DocumentsInfo              string  `json:"documentsInfo" validate:"omitempty,json"`
-	GhanaCardNumber            *string `json:"ghanaCardNumber" validate:"omitempty,max=50"`
-	GhanaCardPath              *string `json:"ghanaCardPath" validate:"omitempty"`
+	AddressLine1    string  `json:"addressLine1" validate:"required"`
+	City            string  `json:"city" validate:"required"`
+	Country         string  `json:"country" validate:"required"`
+	PostalAddress   *string `json:"postalAddress" validate:"omitempty,max=255"`
+	DigitalAddress  *string `json:"digitalAddress" validate:"omitempty,max=255"`
+	DocumentsInfo   string  `json:"documentsInfo" validate:"omitempty,json"`
+	GhanaCardNumber *string `json:"ghanaCardNumber" validate:"omitempty,max=50"`
+	GhanaCardPath   *string `json:"ghanaCardPath" validate:"omitempty"`
+	SelfiePath      *string `json:"selfiePath" validate:"omitempty"`
 }
 
 type KYCStatusResponse struct {

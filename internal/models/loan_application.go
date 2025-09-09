@@ -94,6 +94,8 @@ type KYBInformation struct {
 	BusinessType            string `gorm:"type:varchar(100);not null"`
 	IndustryType            string `gorm:"type:varchar(100);not null"`
 	BusinessAddress         string `gorm:"type:text;not null"`
+	PostalAddress           *string `gorm:"type:varchar(255);null"`
+	DigitalAddress          *string `gorm:"type:varchar(255);null"`
 	TaxIdentificationNumber string `gorm:"type:varchar(100);not null"`
 	YearsInOperation        int    `gorm:"not null"`
 	

@@ -101,5 +101,5 @@ If the workflow fails, check the following:
 ## Related Resources
 
 - [Terraform Configuration for Monitoring Services](../monitoring_ecs.tf)
-- [Monitoring Services Deployment Guide](../monitoring-services-readme.md)
-- [Monitoring Services Implementation Summary](../monitoring-implementation-summary.md)
+- [Monitoring Services Deployment Guide](monitoring-services-readme.md)
+- [Monitoring Services Implementation Summary](monitoring-implementation-summary.md)

@@ -52,9 +52,17 @@ type KYCDetail struct {
 	RejectionReason *string `gorm:"type:text;null"`
 	DocumentsInfo   string  `gorm:"type:jsonb;null"`
 	
+	// Address Information
+	AddressLine1    string  `gorm:"type:varchar(255);not null"`
+	City            string  `gorm:"type:varchar(100);not null"`
+	Country         string  `gorm:"type:varchar(100);not null"`
+	PostalAddress   *string `gorm:"type:varchar(255);null"`
+	DigitalAddress  *string `gorm:"type:varchar(255);null"`
+	
 	// Ghana Card Information
 	GhanaCardNumber *string `gorm:"type:varchar(50);null"`
 	GhanaCardPath   *string `gorm:"type:varchar(500);null"`
+	SelfiePath      *string `gorm:"type:varchar(500);null"`
 }
 
 type Staff struct {

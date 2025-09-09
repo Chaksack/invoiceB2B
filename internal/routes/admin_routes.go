@@ -101,11 +101,14 @@ func SetupAdminRoutes(
 	// Read operations
 	adminLoanReadGroup := adminReadGroup.Group("/loan-applications")
 	adminLoanReadGroup.Get("", loanAppHandler.GetAllLoanApplications)
+	adminLoanReadGroup.Get("/:id", loanAppHandler.GetLoanApplicationDetail)
+	adminLoanReadGroup.Get("/:id/kyb", loanAppHandler.GetLoanApplicationKYB)
 	adminLoanReadGroup.Get("/stats", loanAppHandler.GetLoanApplicationStats)
 	
 	// Write operations
 	adminLoanWriteGroup := adminWriteGroup.Group("/loan-applications")
 	adminLoanWriteGroup.Post("/:id/review", loanAppHandler.AdminReviewLoanApplication)
+	adminLoanWriteGroup.Put("/:id/kyb/review", loanAppHandler.ReviewKYBInformation)
 	adminLoanWriteGroup.Post("/:id/send-to-financial-institution", loanAppHandler.SendToFinancialInstitution)
 
 	// --- Admin Reporting ---

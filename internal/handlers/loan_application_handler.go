@@ -388,6 +388,174 @@ func (h *LoanApplicationHandler) UploadFinancialStatementFile(c *fiber.Ctx) erro
 	})
 }
 
+// @Summary Submit financial statement (Unified)
+// @Description Submit financial statement data with optional file upload in a single request
+// @Tags Loan Applications
+// @Accept multipart/form-data
+// @Produce json
+// @Param id path int true "Loan Application ID"
+// @Param type formData string true "Statement type (bank or mobile_money)"
+// @Param provider_name formData string true "Bank or mobile money provider name"
+// @Param account_number formData string true "Account number"
+// @Param statement_period_from formData string true "Statement period from (YYYY-MM-DD)"
+// @Param statement_period_to formData string true "Statement period to (YYYY-MM-DD)"
+// @Param opening_balance formData number true "Opening balance"
+// @Param closing_balance formData number true "Closing balance"
+// @Param total_credits formData number true "Total credits"
+// @Param total_debits formData number true "Total debits"
+// @Param transaction_count formData integer true "Transaction count"
+// @Param average_balance formData number false "Average balance"
+// @Param file formData file false "Financial statement file (optional)"
+// @Success 200 {object} dtos.FinancialStatementResponse
+// @Failure 400 {object} utils.SwaggerErrorResponse
+// @Failure 401 {object} utils.SwaggerErrorResponse
+// @Failure 404 {object} utils.SwaggerErrorResponse
+// @Failure 500 {object} utils.SwaggerErrorResponse
+// @Security BearerAuth
+// @Router /api/v1/loan-applications/{id}/financial-statements [post]
+func (h *LoanApplicationHandler) SubmitFinancialStatementUnified(c *fiber.Ctx) error {
+	userID, ok := c.Locals("user_id").(uint)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusUnauthorized, "User not authenticated", nil)
+	}
+
+	idStr := c.Params("id")
+	loanAppID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid loan application ID", err)
+	}
+
+	// Verify loan application belongs to user
+	_, err = h.loanAppService.GetLoanApplication(uint(loanAppID), userID)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusNotFound, "Loan application not found", err)
+	}
+
+	// Parse form data into SubmitFinancialStatementRequest
+	var request dtos.SubmitFinancialStatementRequest
+	
+	// Required fields
+	request.Type = c.FormValue("type")
+	request.ProviderName = c.FormValue("provider_name")
+	request.AccountNumber = c.FormValue("account_number")
+	
+	// Parse dates
+	periodFromStr := c.FormValue("statement_period_from")
+	periodToStr := c.FormValue("statement_period_to")
+	
+	if periodFromStr == "" || periodToStr == "" {
+		return utils.HandleError(c, fiber.StatusBadRequest, "statement_period_from and statement_period_to are required", nil)
+	}
+	
+	periodFrom, err := time.Parse("2006-01-02", periodFromStr)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid statement_period_from format (use YYYY-MM-DD)", err)
+	}
+	request.StatementPeriodFrom = periodFrom
+	
+	periodTo, err := time.Parse("2006-01-02", periodToStr)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid statement_period_to format (use YYYY-MM-DD)", err)
+	}
+	request.StatementPeriodTo = periodTo
+	
+	// Parse financial amounts
+	openingBalanceStr := c.FormValue("opening_balance")
+	if openingBalanceStr == "" {
+		return utils.HandleError(c, fiber.StatusBadRequest, "opening_balance is required", nil)
+	}
+	request.OpeningBalance, err = strconv.ParseFloat(openingBalanceStr, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid opening_balance format", err)
+	}
+	
+	closingBalanceStr := c.FormValue("closing_balance")
+	if closingBalanceStr == "" {
+		return utils.HandleError(c, fiber.StatusBadRequest, "closing_balance is required", nil)
+	}
+	request.ClosingBalance, err = strconv.ParseFloat(closingBalanceStr, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid closing_balance format", err)
+	}
+	
+	totalCreditsStr := c.FormValue("total_credits")
+	if totalCreditsStr == "" {
+		return utils.HandleError(c, fiber.StatusBadRequest, "total_credits is required", nil)
+	}
+	request.TotalCredits, err = strconv.ParseFloat(totalCreditsStr, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid total_credits format", err)
+	}
+	
+	totalDebitsStr := c.FormValue("total_debits")
+	if totalDebitsStr == "" {
+		return utils.HandleError(c, fiber.StatusBadRequest, "total_debits is required", nil)
+	}
+	request.TotalDebits, err = strconv.ParseFloat(totalDebitsStr, 64)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid total_debits format", err)
+	}
+	
+	transactionCountStr := c.FormValue("transaction_count")
+	if transactionCountStr == "" {
+		return utils.HandleError(c, fiber.StatusBadRequest, "transaction_count is required", nil)
+	}
+	transactionCount, err := strconv.Atoi(transactionCountStr)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid transaction_count format", err)
+	}
+	request.TransactionCount = transactionCount
+	
+	// Optional average balance
+	averageBalanceStr := c.FormValue("average_balance")
+	if averageBalanceStr != "" {
+		avgBalance, err := strconv.ParseFloat(averageBalanceStr, 64)
+		if err != nil {
+			return utils.HandleError(c, fiber.StatusBadRequest, "Invalid average_balance format", err)
+		}
+		request.AverageBalance = &avgBalance
+	}
+
+	// Validate request
+	if err := h.validate.Struct(&request); err != nil {
+		return utils.HandleValidationError(c, err)
+	}
+
+	// Handle optional file upload
+	var filePath string
+	file, err := c.FormFile("file")
+	if err == nil {
+		// File was provided, validate and save it
+		if err := h.fileService.ValidateFileType(file); err != nil {
+			return utils.HandleError(c, fiber.StatusBadRequest, "Invalid file type", err)
+		}
+
+		if err := h.fileService.ValidateFileSize(file.Size); err != nil {
+			return utils.HandleError(c, fiber.StatusBadRequest, "File size exceeds limit", err)
+		}
+
+		// Save file
+		_, savedPath, err := h.fileService.SaveFile(file, "financial-statements")
+		if err != nil {
+			return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to save file", err)
+		}
+		filePath = savedPath
+	}
+
+	// Submit financial statement with optional file path
+	statement, err := h.loanAppService.SubmitFinancialStatement(uint(loanAppID), &request, filePath)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to submit financial statement", err)
+	}
+
+	response := dtos.ToFinancialStatementResponse(statement)
+	return c.Status(fiber.StatusOK).JSON(utils.SuccessResponse{
+		Status:  "success",
+		Message: "Financial statement submitted successfully",
+		Data:    response,
+	})
+}
+
 // @Summary Upload invoice or contract document
 // @Description Upload an invoice or contract document for loan application processing
 // @Tags Loan Applications
@@ -669,6 +837,156 @@ func (h *LoanApplicationHandler) SendToFinancialInstitution(c *fiber.Ctx) error 
 	return c.Status(fiber.StatusOK).JSON(utils.SuccessResponse{
 		Status:  "success",
 		Message: "Loan application sent to financial institution successfully",
+		Data:    nil,
+	})
+}
+
+// @Summary Get loan application detail (Admin)
+// @Description Retrieve detailed information about a specific loan application for admin review
+// @Tags Admin - Loan Applications
+// @Accept json
+// @Produce json
+// @Param id path int true "Loan Application ID"
+// @Success 200 {object} dtos.LoanApplicationResponse
+// @Failure 400 {object} utils.SwaggerErrorResponse
+// @Failure 401 {object} utils.SwaggerErrorResponse
+// @Failure 403 {object} utils.SwaggerErrorResponse
+// @Failure 404 {object} utils.SwaggerErrorResponse
+// @Failure 500 {object} utils.SwaggerErrorResponse
+// @Security BearerAuth
+// @Router /api/v1/admin/loan-applications/{id} [get]
+func (h *LoanApplicationHandler) GetLoanApplicationDetail(c *fiber.Ctx) error {
+	// Check admin role
+	userRole, ok := c.Locals("user_role").(string)
+	if !ok || userRole != "admin" {
+		return utils.HandleError(c, fiber.StatusForbidden, "Admin access required", nil)
+	}
+
+	idStr := c.Params("id")
+	loanAppID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid loan application ID", err)
+	}
+
+	// Admin can view any loan application, so we use 0 as userID
+	loanApp, err := h.loanAppService.GetLoanApplication(uint(loanAppID), 0)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusNotFound, "Loan application not found", err)
+	}
+
+	response := dtos.ToLoanApplicationResponse(loanApp)
+
+	return c.Status(fiber.StatusOK).JSON(utils.SuccessResponse{
+		Status:  "success",
+		Message: "Loan application retrieved successfully",
+		Data:    response,
+	})
+}
+
+// @Summary Get loan application KYB details (Admin)
+// @Description Retrieve KYB (Know Your Business) information for a specific loan application
+// @Tags Admin - Loan Applications
+// @Accept json
+// @Produce json
+// @Param id path int true "Loan Application ID"
+// @Success 200 {object} dtos.KYBInformationResponse
+// @Failure 400 {object} utils.SwaggerErrorResponse
+// @Failure 401 {object} utils.SwaggerErrorResponse
+// @Failure 403 {object} utils.SwaggerErrorResponse
+// @Failure 404 {object} utils.SwaggerErrorResponse
+// @Failure 500 {object} utils.SwaggerErrorResponse
+// @Security BearerAuth
+// @Router /api/v1/admin/loan-applications/{id}/kyb [get]
+func (h *LoanApplicationHandler) GetLoanApplicationKYB(c *fiber.Ctx) error {
+	// Check admin role
+	userRole, ok := c.Locals("user_role").(string)
+	if !ok || userRole != "admin" {
+		return utils.HandleError(c, fiber.StatusForbidden, "Admin access required", nil)
+	}
+
+	idStr := c.Params("id")
+	loanAppID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid loan application ID", err)
+	}
+
+	// Get loan application with KYB information
+	loanApp, err := h.loanAppService.GetLoanApplication(uint(loanAppID), 0)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusNotFound, "Loan application not found", err)
+	}
+
+	if loanApp.KYBInformation == nil {
+		return utils.HandleError(c, fiber.StatusNotFound, "KYB information not found for this loan application", nil)
+	}
+
+	// Convert to response format
+	kybResponse := dtos.ToKYBInformationResponse(loanApp.KYBInformation)
+
+	return c.Status(fiber.StatusOK).JSON(utils.SuccessResponse{
+		Status:  "success",
+		Message: "KYB information retrieved successfully",
+		Data:    kybResponse,
+	})
+}
+
+// @Summary Review KYB information (Admin)
+// @Description Admin review and approve/reject KYB information for a loan application
+// @Tags Admin - Loan Applications
+// @Accept json
+// @Produce json
+// @Param id path int true "Loan Application ID"
+// @Param request body dtos.KYBReviewRequest true "KYB review request"
+// @Success 200 {object} utils.SuccessResponse
+// @Failure 400 {object} utils.SwaggerErrorResponse
+// @Failure 401 {object} utils.SwaggerErrorResponse
+// @Failure 403 {object} utils.SwaggerErrorResponse
+// @Failure 404 {object} utils.SwaggerErrorResponse
+// @Failure 500 {object} utils.SwaggerErrorResponse
+// @Security BearerAuth
+// @Router /api/v1/admin/loan-applications/{id}/kyb/review [put]
+func (h *LoanApplicationHandler) ReviewKYBInformation(c *fiber.Ctx) error {
+	// Check admin role
+	userRole, ok := c.Locals("user_role").(string)
+	if !ok || userRole != "admin" {
+		return utils.HandleError(c, fiber.StatusForbidden, "Admin access required", nil)
+	}
+
+	adminID, ok := c.Locals("user_id").(uint)
+	if !ok {
+		return utils.HandleError(c, fiber.StatusUnauthorized, "Admin not authenticated", nil)
+	}
+
+	idStr := c.Params("id")
+	loanAppID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid loan application ID", err)
+	}
+
+	var request dtos.KYBReviewRequest
+	if err := c.BodyParser(&request); err != nil {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Invalid request body", err)
+	}
+
+	// Validate request
+	if err := h.validate.Struct(&request); err != nil {
+		return utils.HandleValidationError(c, err)
+	}
+
+	// Validate that rejection reason is provided if status is rejected
+	if request.Status == "rejected" && (request.Notes == nil || *request.Notes == "") {
+		return utils.HandleError(c, fiber.StatusBadRequest, "Notes are required when rejecting KYB information", nil)
+	}
+
+	// Process KYB review (this would need to be implemented in the service)
+	err = h.loanAppService.ReviewKYBInformation(uint(loanAppID), adminID, &request)
+	if err != nil {
+		return utils.HandleError(c, fiber.StatusInternalServerError, "Failed to review KYB information", err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(utils.SuccessResponse{
+		Status:  "success",
+		Message: "KYB information reviewed successfully",
 		Data:    nil,
 	})
 }

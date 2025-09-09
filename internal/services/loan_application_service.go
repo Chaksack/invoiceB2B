@@ -6,9 +6,11 @@ import (
 	"time"
 	"strings"
 	"math/rand"
+	"log"
 
 	"invoiceB2B/internal/models"
 	"invoiceB2B/internal/dtos"
+	"invoiceB2B/internal/repositories"
 	"gorm.io/gorm"
 	"github.com/google/uuid"
 )
@@ -32,6 +34,7 @@ type LoanApplicationService interface {
 	UpdateFromN8NProcessing(loanApplicationID uint, response *dtos.N8NProcessingResponse) error
 	AdminReview(loanApplicationID uint, adminID uint, request *dtos.AdminReviewRequest) error
 	SendToFinancialInstitution(loanApplicationID uint, adminID uint, request *dtos.SendToFinancialInstitutionRequest) error
+	ReviewKYBInformation(loanApplicationID uint, adminID uint, request *dtos.KYBReviewRequest) error
 	CheckDataExpiration() ([]models.LoanApplication, error)
 	RefreshExpiredData(loanApplicationID uint, dataType string) error
 	GetLoanApplicationStats() (*dtos.LoanApplicationStatsResponse, error)
@@ -41,6 +44,8 @@ type LoanApplicationService interface {
 
 type loanApplicationService struct {
 	db                  *gorm.DB
+	repository          repositories.LoanApplicationRepository
+	validator           LoanValidationService
 	n8nService          N8NIntegrationService
 	fileService         FileService
 	notificationService NotificationService
@@ -50,6 +55,8 @@ type loanApplicationService struct {
 // NewLoanApplicationService creates a new loan application service
 func NewLoanApplicationService(
 	db *gorm.DB,
+	repository repositories.LoanApplicationRepository,
+	validator LoanValidationService,
 	n8nService N8NIntegrationService,
 	fileService FileService,
 	notificationService NotificationService,
@@ -57,6 +64,8 @@ func NewLoanApplicationService(
 ) LoanApplicationService {
 	return &loanApplicationService{
 		db:                  db,
+		repository:          repository,
+		validator:           validator,
 		n8nService:          n8nService,
 		fileService:         fileService,
 		notificationService: notificationService,
@@ -66,9 +75,23 @@ func NewLoanApplicationService(
 
 // CreateLoanApplication creates a new loan application
 func (s *loanApplicationService) CreateLoanApplication(userID uint, request *dtos.CreateLoanApplicationRequest) (*models.LoanApplication, error) {
+	// Validate request before processing
+	if err := s.validator.ValidateCreateLoanRequest(request); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Start transaction to ensure data consistency
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	// Generate unique application reference
 	reference, err := s.generateApplicationReference()
 	if err != nil {
+		tx.Rollback()
 		return nil, fmt.Errorf("failed to generate application reference: %w", err)
 	}
 
@@ -91,13 +114,22 @@ func (s *loanApplicationService) CreateLoanApplication(userID uint, request *dto
 		loanApp.Status = models.LoanApplicationPending
 	}
 
-	if err := s.db.Create(loanApp).Error; err != nil {
+	// Create loan application using repository with transaction
+	repoWithTx := s.repository.WithTransaction(tx)
+	if err := repoWithTx.Create(loanApp); err != nil {
+		tx.Rollback()
 		return nil, fmt.Errorf("failed to create loan application: %w", err)
 	}
 
-	// Create data refresh trackers
-	if err := s.createDataRefreshTrackers(loanApp.ID); err != nil {
+	// Create data refresh trackers within the same transaction
+	if err := s.createDataRefreshTrackersWithTx(tx, loanApp.ID); err != nil {
+		tx.Rollback()
 		return nil, fmt.Errorf("failed to create data refresh trackers: %w", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return loanApp, nil
@@ -105,6 +137,11 @@ func (s *loanApplicationService) CreateLoanApplication(userID uint, request *dto
 
 // CreateManualLoanApplication creates a loan application with all data provided manually
 func (s *loanApplicationService) CreateManualLoanApplication(userID uint, request *dtos.ManualLoanInputRequest) (*models.LoanApplication, error) {
+	// Validate request before processing
+	if err := s.validator.ValidateManualLoanRequest(request); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
 	// Start transaction
 	tx := s.db.Begin()
 	defer func() {
@@ -178,10 +215,13 @@ func (s *loanApplicationService) CreateManualLoanApplication(userID uint, reques
 		return nil, fmt.Errorf("failed to load complete application: %w", err)
 	}
 
-	// Send to N8N for processing
+	// Send to N8N for processing asynchronously with proper error handling
 	go func() {
 		if _, err := s.SendToN8NProcessing(loanApp.ID, "complete_application"); err != nil {
-			fmt.Printf("Failed to send application to N8N: %v\n", err)
+			log.Printf("Failed to send loan application %d to N8N for processing: %v", loanApp.ID, err)
+			// TODO: Implement retry mechanism or add to processing queue
+		} else {
+			log.Printf("Successfully sent loan application %d to N8N for processing", loanApp.ID)
 		}
 	}()
 
@@ -474,6 +514,8 @@ func (s *loanApplicationService) createKYBInformationFromRequest(db *gorm.DB, lo
 		BusinessType:            request.BusinessType,
 		IndustryType:            request.IndustryType,
 		BusinessAddress:         request.BusinessAddress,
+		PostalAddress:           request.PostalAddress,
+		DigitalAddress:          request.DigitalAddress,
 		TaxIdentificationNumber: request.TaxIdentificationNumber,
 		YearsInOperation:        request.YearsInOperation,
 		DirectorsInformation:    string(directorsJSON),
@@ -897,6 +939,127 @@ KYB Information:
 	if err := s.emailService.SendEmail(request.FinancialInstitutionEmail, subject, body); err != nil {
 		return fmt.Errorf("failed to send email to financial institution: %w", err)
 	}
+
+	return nil
+}
+
+// ReviewKYBInformation allows admin to review and approve/reject KYB information
+func (s *loanApplicationService) ReviewKYBInformation(loanApplicationID uint, adminID uint, request *dtos.KYBReviewRequest) error {
+	// Start transaction
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Get loan application with KYB information
+	var loanApp models.LoanApplication
+	if err := tx.Preload("KYBInformation").
+		Preload("User").
+		First(&loanApp, loanApplicationID).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("loan application not found: %w", err)
+	}
+
+	// Check if KYB information exists
+	if loanApp.KYBInformation == nil {
+		tx.Rollback()
+		return fmt.Errorf("KYB information not found for loan application")
+	}
+
+	// Update KYB verification status
+	now := time.Now()
+	loanApp.KYBInformation.VerificationStatus = request.Status
+	loanApp.KYBInformation.VerifiedAt = &now
+	loanApp.KYBInformation.VerifiedByID = &adminID
+	
+	if request.Notes != nil {
+		loanApp.KYBInformation.VerificationNotes = request.Notes
+	}
+
+	// Save KYB information
+	if err := tx.Save(loanApp.KYBInformation).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to update KYB information: %w", err)
+	}
+
+	// Update loan application status based on KYB review
+	var newStatus models.LoanApplicationStatus
+	switch request.Status {
+	case "approved":
+		// If KYB is approved, move to financial_required or under_review based on existing financial statements
+		if len(loanApp.FinancialStatements) == 0 {
+			newStatus = models.LoanApplicationFinancialRequired
+		} else {
+			newStatus = models.LoanApplicationUnderReview
+		}
+	case "rejected":
+		newStatus = models.LoanApplicationRejected
+		if request.Notes != nil {
+			loanApp.RejectionReason = request.Notes
+		}
+	default:
+		// For "pending" or other statuses, keep current status
+		newStatus = loanApp.Status
+	}
+
+	// Update loan application status if it should change
+	if newStatus != loanApp.Status {
+		loanApp.Status = newStatus
+		loanApp.LastUpdatedAt = now
+		loanApp.ReviewedByID = &adminID
+		loanApp.ReviewedAt = &now
+		
+		if err := tx.Save(&loanApp).Error; err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to update loan application status: %w", err)
+		}
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit KYB review transaction: %w", err)
+	}
+
+	// Send email notification to user about KYB review status
+	go func() {
+		var message string
+		switch request.Status {
+		case "approved":
+			message = "Your KYB (Know Your Business) information has been approved. Please submit your financial statements to continue with your loan application."
+		case "rejected":
+			reason := "Please review and resubmit your KYB information."
+			if request.Notes != nil && *request.Notes != "" {
+				reason = *request.Notes
+			}
+			message = fmt.Sprintf("Your KYB (Know Your Business) information has been rejected. Reason: %s", reason)
+		default:
+			message = "Your KYB (Know Your Business) information is still under review."
+		}
+
+		subject := fmt.Sprintf("KYB Review Update - Application %s", loanApp.ApplicationReference)
+		emailBody := fmt.Sprintf(`
+		<html>
+		<body>
+			<h2>KYB Review Update</h2>
+			<p>Dear %s,</p>
+			<p>%s</p>
+			<p><strong>Application Reference:</strong> %s</p>
+			<p><strong>Review Status:</strong> %s</p>
+			<p>You can view your loan application status by logging into your account.</p>
+			<p>Best regards,<br>Invoice B2B Platform</p>
+		</body>
+		</html>`, 
+			loanApp.User.CompanyName, 
+			message, 
+			loanApp.ApplicationReference,
+			strings.Title(request.Status))
+
+		if err := s.emailService.SendEmail(loanApp.User.Email, subject, emailBody); err != nil {
+			log.Printf("Failed to send KYB review email to user %s: %v", loanApp.User.Email, err)
+		}
+	}()
 
 	return nil
 }

@@ -55,6 +55,8 @@ type SubmitKYBInformationRequest struct {
 	BusinessType            string                    `json:"business_type" validate:"required,max=100"`
 	IndustryType            string                    `json:"industry_type" validate:"required,max=100"`
 	BusinessAddress         string                    `json:"business_address" validate:"required"`
+	PostalAddress           *string                   `json:"postal_address" validate:"omitempty,max=255"`
+	DigitalAddress          *string                   `json:"digital_address" validate:"omitempty,max=255"`
 	TaxIdentificationNumber string                    `json:"tax_identification_number" validate:"required,max=100"`
 	YearsInOperation        int                       `json:"years_in_operation" validate:"required,min=0"`
 	DirectorsInformation    []DirectorInformation     `json:"directors_information" validate:"required,min=1"`
@@ -95,6 +97,8 @@ type KYBInformationResponse struct {
 	BusinessType            string                  `json:"business_type"`
 	IndustryType            string                  `json:"industry_type"`
 	BusinessAddress         string                  `json:"business_address"`
+	PostalAddress           *string                 `json:"postal_address,omitempty"`
+	DigitalAddress          *string                 `json:"digital_address,omitempty"`
 	TaxIdentificationNumber string                  `json:"tax_identification_number"`
 	YearsInOperation        int                     `json:"years_in_operation"`
 	DirectorsInformation    []DirectorInformation   `json:"directors_information"`
@@ -369,4 +373,10 @@ func ToFinancialStatementResponse(stmt *models.FinancialStatement) FinancialStat
 		CreatedAt:           stmt.CreatedAt,
 		UpdatedAt:           stmt.UpdatedAt,
 	}
+}
+
+// KYBReviewRequest represents an admin request to review KYB information
+type KYBReviewRequest struct {
+	Status string  `json:"status" validate:"required,oneof=approved rejected pending"`
+	Notes  *string `json:"notes,omitempty"`
 }
