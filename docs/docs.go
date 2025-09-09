@@ -4596,6 +4596,7 @@ const docTemplate = `{
                 "contact_number",
                 "full_name",
                 "id_number",
+                "id_picture_path",
                 "nationality",
                 "share_percentage"
             ],
@@ -4615,6 +4616,9 @@ const docTemplate = `{
                 "id_number": {
                     "type": "string",
                     "maxLength": 50
+                },
+                "id_picture_path": {
+                    "type": "string"
                 },
                 "nationality": {
                     "type": "string",
@@ -4794,6 +4798,7 @@ const docTemplate = `{
                 "contact_number",
                 "full_name",
                 "id_number",
+                "id_picture_path",
                 "position"
             ],
             "properties": {
@@ -4812,6 +4817,9 @@ const docTemplate = `{
                 "id_number": {
                     "type": "string",
                     "maxLength": 50
+                },
+                "id_picture_path": {
+                    "type": "string"
                 },
                 "position": {
                     "type": "string",
@@ -6300,6 +6308,13 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "documentsInfo": {
+                    "type": "string"
+                },
+                "ghanaCardNumber": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "ghanaCardPath": {
                     "type": "string"
                 }
             }

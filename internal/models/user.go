@@ -51,6 +51,10 @@ type KYCDetail struct {
 	ReviewedAt      *time.Time
 	RejectionReason *string `gorm:"type:text;null"`
 	DocumentsInfo   string  `gorm:"type:jsonb;null"`
+	
+	// Ghana Card Information
+	GhanaCardNumber *string `gorm:"type:varchar(50);null"`
+	GhanaCardPath   *string `gorm:"type:varchar(500);null"`
 }
 
 type Staff struct {

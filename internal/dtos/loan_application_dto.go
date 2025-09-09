@@ -67,12 +67,13 @@ type SubmitKYBInformationRequest struct {
 
 // DirectorInformation represents director details
 type DirectorInformation struct {
-	FullName        string `json:"full_name" validate:"required,min=2,max=255"`
-	Position        string `json:"position" validate:"required,max=100"`
-	IDNumber        string `json:"id_number" validate:"required,max=50"`
-	ContactNumber   string `json:"contact_number" validate:"required,max=20"`
-	Address         string `json:"address" validate:"required"`
+	FullName        string   `json:"full_name" validate:"required,min=2,max=255"`
+	Position        string   `json:"position" validate:"required,max=100"`
+	IDNumber        string   `json:"id_number" validate:"required,max=50"`
+	ContactNumber   string   `json:"contact_number" validate:"required,max=20"`
+	Address         string   `json:"address" validate:"required"`
 	SharePercentage *float64 `json:"share_percentage,omitempty" validate:"omitempty,min=0,max=100"`
+	IDPicturePath   string   `json:"id_picture_path" validate:"required"`
 }
 
 // BeneficialOwnerInfo represents beneficial owner details
@@ -83,6 +84,7 @@ type BeneficialOwnerInfo struct {
 	Address         string  `json:"address" validate:"required"`
 	SharePercentage float64 `json:"share_percentage" validate:"required,min=0,max=100"`
 	Nationality     string  `json:"nationality" validate:"required,max=100"`
+	IDPicturePath   string  `json:"id_picture_path" validate:"required"`
 }
 
 // KYBInformationResponse represents KYB information response
