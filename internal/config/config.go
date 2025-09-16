@@ -252,7 +252,7 @@ func LoadConfig(path string) (*Config, error) {
 		SMTPPort:        smtpPort,
 		SMTPUser:        getEnv("SMTP_USER", "your_email@example.com"),
 		SMTPPassword:    getEnv("SMTP_PASSWORD", "your_app_password"),
-		SMTPSenderEmail: getEnv("SMTPSenderEmail", "Profundr <no-reply@profundr.io>"),
+		SMTPSenderEmail: getEnv("SMTPSenderEmail", "SME <no-reply@profundr.io>"),
 
 		OTPExpirationMinutes: time.Duration(otpExpMinutes) * time.Minute,
 		UploadsDir:           getEnv("UPLOADS_DIR", "./uploads"),

@@ -325,7 +325,7 @@ func main() {
 		htmlContent, err := scalar.ApiReferenceHTML(&scalar.Options{
 			SpecURL: "./docs/swagger.json",
 			CustomOptions: scalar.CustomOptions{
-				PageTitle: "Profundr API",
+				PageTitle: "SME API",
 			},
 			DarkMode: true,
 		})

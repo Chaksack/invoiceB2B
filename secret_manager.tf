@@ -123,6 +123,6 @@ resource "aws_secretsmanager_secret_version" "smtp_config_version" {
     port         = "465"
     user         = "andrew.sackey@syentia.io"
     password     = "xyspnvdkrwabrnmb"
-    sender_email = "Profundr Invoice Financing <no-reply@profundr.io>"
+    sender_email = "SME Invoice Financing <no-reply@profundr.io>"
   })
 }
