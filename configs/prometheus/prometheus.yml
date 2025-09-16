@@ -1,0 +1,58 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: '${ENVIRONMENT}'
+    cluster: 'invoiceb2b-production'
+    region: '${AWS_REGION}'
+
+# Alertmanager configuration - Production ready
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+    - ec2_sd_configs:
+      - region: '${AWS_REGION}'
+        port: 9093
+        filters:
+          - name: tag:Service
+            values: [alertmanager]
+          - name: tag:Project
+            values: ['${PROJECT_NAME}']
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+rule_files:
+  - "alert_rules.yml"
+  - "sli_rules.yml"
+  - "business_rules.yml"
+
+# A scrape configuration containing exactly one endpoint to scrape:
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Scrape the InvoiceB2B application
+  - job_name: 'invoiceb2b-app'
+    static_configs:
+      - targets: ['app:8080']  # Adjust port as needed
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # Scrape ECS tasks metrics if available
+  - job_name: 'ecs-tasks'
+    ec2_sd_configs:
+      - region: us-east-1  # Adjust region as needed
+        port: 8080
+        filters:
+          - name: tag:Project
+            values: 
+              - invoiceb2b  # Adjust project name as needed
+
+  # Scrape AWS CloudWatch metrics via CloudWatch Exporter (if deployed)
+  - job_name: 'cloudwatch'
+    static_configs:
+      - targets: ['cloudwatch-exporter:9106']
+    scrape_interval: 60s

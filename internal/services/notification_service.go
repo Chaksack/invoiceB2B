@@ -1,10 +1,12 @@
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"invoiceB2B/internal/config"
 	"log"
+	"net/http"
 	"sync"
 	"time"
 
@@ -18,10 +20,12 @@ const (
 	ExchangeFanout = "fanout"
 )
 
-// NotificationService handles publishing events to RabbitMQ
+// NotificationService handles publishing events to RabbitMQ and Slack notifications
 type NotificationService interface {
 	PublishUserRegisteredEvent(payload map[string]interface{}) error
 	PublishEvent(exchange, routingKey string, payload interface{}) error
+	SendSlackNotification(message string) error
+	SendLoanCreationAlert(userEmail, companyName, loanAmount, applicationID, purpose, source, status, createdAt string) error
 	Close()
 }
 
@@ -345,4 +349,134 @@ func (s *notificationService) Close() {
 	}
 	s.isConnected = false
 	log.Println("NotificationService closed.")
+}
+
+// SlackMessage represents the structure of a Slack webhook message
+type SlackMessage struct {
+	Text        string            `json:"text"`
+	Username    string            `json:"username,omitempty"`
+	IconEmoji   string            `json:"icon_emoji,omitempty"`
+	Channel     string            `json:"channel,omitempty"`
+	Attachments []SlackAttachment `json:"attachments,omitempty"`
+}
+
+type SlackAttachment struct {
+	Color     string       `json:"color,omitempty"`
+	Title     string       `json:"title,omitempty"`
+	Text      string       `json:"text,omitempty"`
+	Fields    []SlackField `json:"fields,omitempty"`
+	Timestamp int64        `json:"ts,omitempty"`
+}
+
+type SlackField struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+	Short bool   `json:"short"`
+}
+
+// SendSlackNotification sends a generic message to Slack webhook
+func (s *notificationService) SendSlackNotification(message string) error {
+	if s.cfg.SlackWebhookURL == "" {
+		log.Println("Slack webhook URL not configured, skipping Slack notification")
+		return nil
+	}
+
+	slackMsg := SlackMessage{
+		Text:      message,
+		Username:  "Loan System Bot",
+		IconEmoji: ":bank:",
+	}
+
+	return s.sendSlackWebhook(slackMsg)
+}
+
+// SendLoanCreationAlert sends a formatted loan creation alert to Slack with comprehensive loan details
+func (s *notificationService) SendLoanCreationAlert(userEmail, companyName, loanAmount, applicationID, purpose, source, status, createdAt string) error {
+	if s.cfg.SlackWebhookURL == "" {
+		log.Println("Slack webhook URL not configured, skipping loan creation alert")
+		return nil
+	}
+
+	attachment := SlackAttachment{
+		Color: "good",
+		Title: "🏦 New Loan Application Created",
+		Text:  "A new loan application has been submitted and requires attention.",
+		Fields: []SlackField{
+			{
+				Title: "Application ID",
+				Value: applicationID,
+				Short: true,
+			},
+			{
+				Title: "User Email",
+				Value: userEmail,
+				Short: true,
+			},
+			{
+				Title: "Company Name",
+				Value: companyName,
+				Short: true,
+			},
+			{
+				Title: "Loan Amount",
+				Value: loanAmount,
+				Short: true,
+			},
+			{
+				Title: "Purpose",
+				Value: purpose,
+				Short: true,
+			},
+			{
+				Title: "Source",
+				Value: source,
+				Short: true,
+			},
+			{
+				Title: "Status",
+				Value: status,
+				Short: true,
+			},
+			{
+				Title: "Created At",
+				Value: createdAt,
+				Short: true,
+			},
+		},
+		Timestamp: time.Now().Unix(),
+	}
+
+	slackMsg := SlackMessage{
+		Text:        "New loan application alert",
+		Username:    "Loan System Bot",
+		IconEmoji:   ":bank:",
+		Attachments: []SlackAttachment{attachment},
+	}
+
+	return s.sendSlackWebhook(slackMsg)
+}
+
+// sendSlackWebhook sends the message to Slack webhook URL
+func (s *notificationService) sendSlackWebhook(message SlackMessage) error {
+	jsonData, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("failed to marshal Slack message: %w", err)
+	}
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Post(s.cfg.SlackWebhookURL, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to send Slack webhook: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Slack webhook returned non-OK status: %d", resp.StatusCode)
+	}
+
+	log.Printf("Slack notification sent successfully")
+	return nil
 }

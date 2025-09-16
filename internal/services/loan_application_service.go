@@ -132,6 +132,9 @@ func (s *loanApplicationService) CreateLoanApplication(userID uint, request *dto
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	// Send notifications after successful loan creation
+	go s.sendLoanCreationNotifications(loanApp, userID)
+
 	return loanApp, nil
 }
 
@@ -227,6 +230,9 @@ func (s *loanApplicationService) CreateManualLoanApplication(userID uint, reques
 
 	// Update with KYB reference for response
 	loanApp.KYBInformation = kybInfo
+
+	// Send notifications after successful manual loan creation
+	go s.sendLoanCreationNotifications(loanApp, userID)
 
 	return loanApp, nil
 }
@@ -1062,4 +1068,82 @@ func (s *loanApplicationService) ReviewKYBInformation(loanApplicationID uint, ad
 	}()
 
 	return nil
+}
+
+// sendLoanCreationNotifications sends both email and Slack notifications for new loan applications
+func (s *loanApplicationService) sendLoanCreationNotifications(loanApp *models.LoanApplication, userID uint) {
+	// Get user information for notifications
+	var user models.User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		log.Printf("Failed to get user information for loan notification (User ID: %d): %v", userID, err)
+		return
+	}
+
+	// Format loan amount for display
+	loanAmount := fmt.Sprintf("%.2f %s", loanApp.RequestedAmount, loanApp.Currency)
+	applicationID := loanApp.ApplicationReference
+
+	// Send email notification
+	go func() {
+		subject := fmt.Sprintf("New Loan Application Created - %s", applicationID)
+		emailBody := fmt.Sprintf(`
+		<html>
+		<body>
+			<h2>New Loan Application Alert</h2>
+			<p>A new loan application has been created and requires attention.</p>
+			<p><strong>Application Details:</strong></p>
+			<ul>
+				<li><strong>Application ID:</strong> %s</li>
+				<li><strong>User Email:</strong> %s</li>
+				<li><strong>Company Name:</strong> %s</li>
+				<li><strong>Loan Amount:</strong> %s</li>
+				<li><strong>Purpose:</strong> %s</li>
+				<li><strong>Source:</strong> %s</li>
+				<li><strong>Status:</strong> %s</li>
+				<li><strong>Created At:</strong> %s</li>
+			</ul>
+			<p>Please review the application in the admin dashboard.</p>
+			<p>Best regards,<br>Loan System</p>
+		</body>
+		</html>`, 
+			applicationID,
+			user.Email,
+			user.CompanyName,
+			loanAmount,
+			loanApp.Purpose,
+			string(loanApp.Source),
+			string(loanApp.Status),
+			loanApp.CreatedAt.Format("2006-01-02 15:04:05"))
+
+		// Send to admin email (could be configured via environment variable)
+		adminEmail := "admin@profundr.io"
+		if err := s.emailService.SendEmail(adminEmail, subject, emailBody); err != nil {
+			log.Printf("Failed to send loan creation email notification: %v", err)
+		} else {
+			log.Printf("Loan creation email notification sent successfully for application %s", applicationID)
+		}
+	}()
+
+	// Send Slack notification
+	go func() {
+		if s.notificationService != nil {
+			createdAt := loanApp.CreatedAt.Format("2006-01-02 15:04:05")
+			if err := s.notificationService.SendLoanCreationAlert(
+				user.Email,
+				user.CompanyName,
+				loanAmount,
+				applicationID,
+				loanApp.Purpose,
+				string(loanApp.Source),
+				string(loanApp.Status),
+				createdAt,
+			); err != nil {
+				log.Printf("Failed to send loan creation Slack notification: %v", err)
+			} else {
+				log.Printf("Loan creation Slack notification sent successfully for application %s", applicationID)
+			}
+		} else {
+			log.Println("Notification service is nil, skipping Slack notification")
+		}
+	}()
 }

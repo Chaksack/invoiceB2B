@@ -58,6 +58,9 @@ type Config struct {
 	SMTPPassword    string
 	SMTPSenderEmail string
 
+	// Slack Configuration
+	SlackWebhookURL string
+
 	OTPExpirationMinutes time.Duration
 	UploadsDir           string
 	MaxUploadSizeMB      int64
@@ -252,7 +255,10 @@ func LoadConfig(path string) (*Config, error) {
 		SMTPPort:        smtpPort,
 		SMTPUser:        getEnv("SMTP_USER", "your_email@example.com"),
 		SMTPPassword:    getEnv("SMTP_PASSWORD", "your_app_password"),
-		SMTPSenderEmail: getEnv("SMTPSenderEmail", "SME <no-reply@profundr.io>"),
+		SMTPSenderEmail: getEnv("SMTPSenderEmail", "SmeLoan <no-reply@profundr.io>"),
+
+		// Slack Configuration
+		SlackWebhookURL: getEnv("SLACK_WEBHOOK_URL", ""),
 
 		OTPExpirationMinutes: time.Duration(otpExpMinutes) * time.Minute,
 		UploadsDir:           getEnv("UPLOADS_DIR", "./uploads"),

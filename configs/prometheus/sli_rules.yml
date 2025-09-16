@@ -1,0 +1,175 @@
+groups:
+- name: sli_rules
+  interval: 30s
+  rules:
+  # API Availability SLI
+  - record: sli:api_availability
+    expr: |
+      (
+        sum(rate(http_requests_total{job="invoiceb2b-app", code!~"5.."}[5m])) /
+        sum(rate(http_requests_total{job="invoiceb2b-app"}[5m]))
+      ) * 100
+
+  # API Latency SLI (95th percentile)
+  - record: sli:api_latency_p95
+    expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="invoiceb2b-app"}[5m])) * 1000
+
+  # API Latency SLI (99th percentile)
+  - record: sli:api_latency_p99
+    expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job="invoiceb2b-app"}[5m])) * 1000
+
+  # Database Availability SLI
+  - record: sli:db_availability
+    expr: |
+      (
+        sum(rate(db_connections_success_total[5m])) /
+        sum(rate(db_connections_total[5m]))
+      ) * 100
+
+  # Database Query Performance SLI
+  - record: sli:db_query_latency_p95
+    expr: histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m])) * 1000
+
+  # Cache Hit Rate SLI
+  - record: sli:cache_hit_rate
+    expr: |
+      (
+        sum(rate(cache_hits_total[5m])) /
+        (sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m])))
+      ) * 100
+
+  # System Resource Utilization SLIs
+  - record: sli:cpu_utilization
+    expr: 100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+
+  - record: sli:memory_utilization
+    expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+
+  - record: sli:disk_utilization
+    expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100
+
+  # ECS Service Health SLIs
+  - record: sli:ecs_service_availability
+    expr: |
+      (
+        aws_ecs_service_running_count /
+        aws_ecs_service_desired_count
+      ) * 100
+
+  # Load Balancer Health SLI
+  - record: sli:alb_healthy_targets
+    expr: |
+      (
+        aws_alb_healthy_host_count /
+        (aws_alb_healthy_host_count + aws_alb_unhealthy_host_count)
+      ) * 100
+
+  # Message Queue SLIs
+  - record: sli:queue_processing_rate
+    expr: rate(rabbitmq_queue_messages_delivered_total[5m])
+
+  - record: sli:queue_depth
+    expr: rabbitmq_queue_messages
+
+  # File Processing SLIs
+  - record: sli:file_upload_success_rate
+    expr: |
+      (
+        sum(rate(file_uploads_success_total[5m])) /
+        sum(rate(file_uploads_total[5m]))
+      ) * 100
+
+  - record: sli:file_processing_latency_p95
+    expr: histogram_quantile(0.95, rate(file_processing_duration_seconds_bucket[5m])) * 1000
+
+# Business Logic SLIs
+- name: business_sli_rules
+  interval: 60s
+  rules:
+  # Invoice Processing SLIs
+  - record: sli:invoice_processing_success_rate
+    expr: |
+      (
+        sum(rate(invoice_processing_success_total[10m])) /
+        sum(rate(invoice_processing_total[10m]))
+      ) * 100
+
+  - record: sli:invoice_processing_time_p95
+    expr: histogram_quantile(0.95, rate(invoice_processing_duration_seconds_bucket[10m])) * 1000
+
+  # Payment Processing SLIs
+  - record: sli:payment_success_rate
+    expr: |
+      (
+        sum(rate(payments_success_total[10m])) /
+        sum(rate(payments_total[10m]))
+      ) * 100
+
+  # User Authentication SLIs
+  - record: sli:auth_success_rate
+    expr: |
+      (
+        sum(rate(auth_attempts_success_total[5m])) /
+        sum(rate(auth_attempts_total[5m]))
+      ) * 100
+
+  # Loan Application SLIs
+  - record: sli:loan_application_approval_time_p95
+    expr: histogram_quantile(0.95, rate(loan_application_processing_duration_seconds_bucket[30m])) * 1000
+
+# SLO Burn Rate Rules (for error budget calculations)
+- name: slo_burn_rate_rules
+  interval: 30s
+  rules:
+  # API Availability burn rates
+  - record: sli:api_availability_burn_rate_5m
+    expr: 1 - sli:api_availability / 100
+
+  - record: sli:api_availability_burn_rate_1h
+    expr: 1 - (avg_over_time(sli:api_availability[1h]) / 100)
+
+  - record: sli:api_availability_burn_rate_6h
+    expr: 1 - (avg_over_time(sli:api_availability[6h]) / 100)
+
+  - record: sli:api_availability_burn_rate_3d
+    expr: 1 - (avg_over_time(sli:api_availability[3d]) / 100)
+
+  # Database availability burn rates
+  - record: sli:db_availability_burn_rate_5m
+    expr: 1 - sli:db_availability / 100
+
+  - record: sli:db_availability_burn_rate_1h
+    expr: 1 - (avg_over_time(sli:db_availability[1h]) / 100)
+
+# Composite SLIs (Golden Signals)
+- name: golden_signals
+  interval: 30s
+  rules:
+  # Latency (average response time across all services)
+  - record: golden:latency
+    expr: |
+      (
+        histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="invoiceb2b-app"}[5m])) +
+        histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m]))
+      ) / 2
+
+  # Traffic (requests per second)
+  - record: golden:traffic
+    expr: sum(rate(http_requests_total{job="invoiceb2b-app"}[5m]))
+
+  # Errors (error rate percentage)
+  - record: golden:errors
+    expr: |
+      (
+        sum(rate(http_requests_total{job="invoiceb2b-app", code=~"5.."}[5m])) /
+        sum(rate(http_requests_total{job="invoiceb2b-app"}[5m]))
+      ) * 100
+
+  # Saturation (resource utilization composite)
+  - record: golden:saturation
+    expr: |
+      (
+        sli:cpu_utilization +
+        sli:memory_utilization +
+        sli:disk_utilization
+      ) / 3

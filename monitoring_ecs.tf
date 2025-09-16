@@ -239,7 +239,11 @@ resource "aws_security_group_rule" "grafana_ingress" {
   to_port                  = 3000
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.alb.id
-  description              = "Allow traffic from ALB to Grafana"
+  description              = "Allow traffic from ALB to Grafana - Monitoring"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_security_group_rule" "alertmanager_ingress" {
@@ -386,12 +390,25 @@ resource "aws_ecs_task_definition" "sonarqube" {
         }
       ]
 
+      secrets = [
+        {
+          name      = "SONAR_JDBC_URL"
+          valueFrom = "${aws_secretsmanager_secret.sonarqube_db_credentials.arn}:jdbc_url::"
+        },
+        {
+          name      = "SONAR_JDBC_USERNAME"
+          valueFrom = "${aws_secretsmanager_secret.sonarqube_db_credentials.arn}:username::"
+        },
+        {
+          name      = "SONAR_JDBC_PASSWORD"
+          valueFrom = "${aws_secretsmanager_secret.sonarqube_db_credentials.arn}:password::"
+        }
+      ]
+
       environment = [
-        { name = "SONAR_JDBC_URL", value = "jdbc:postgresql://${aws_db_instance.main.endpoint}/${var.sonarqube_db_name}" },
-        { name = "SONAR_JDBC_USERNAME", value = "sonarqube" },
-        { name = "SONAR_JDBC_PASSWORD", value = "sonarqube_password" }, # Should use secrets manager in production
         { name = "SONAR_WEB_CONTEXT", value = "/sonarqube" },
-        { name = "SONAR_WEB_HOST", value = "0.0.0.0" }
+        { name = "SONAR_WEB_HOST", value = "0.0.0.0" },
+        { name = "SONAR_ES_BOOTSTRAP_CHECKS_DISABLE", value = "true" }
       ]
 
       logConfiguration = {
@@ -572,11 +589,23 @@ resource "aws_ecs_task_definition" "grafana" {
         }
       ]
 
+      secrets = [
+        {
+          name      = "GF_SECURITY_ADMIN_USER"
+          valueFrom = "${aws_secretsmanager_secret.grafana_admin_credentials.arn}:admin_user::"
+        },
+        {
+          name      = "GF_SECURITY_ADMIN_PASSWORD"
+          valueFrom = "${aws_secretsmanager_secret.grafana_admin_credentials.arn}:admin_password::"
+        }
+      ]
+
       environment = [
         { name = "GF_SERVER_ROOT_URL", value = "https://${aws_lb.main.dns_name}/grafana" },
         { name = "GF_SERVER_SERVE_FROM_SUB_PATH", value = "true" },
-        { name = "GF_SECURITY_ADMIN_USER", value = "admin" },
-        { name = "GF_SECURITY_ADMIN_PASSWORD", value = "admin" } # Should use secrets manager in production
+        { name = "GF_SECURITY_COOKIE_SECURE", value = "true" },
+        { name = "GF_SECURITY_COOKIE_SAMESITE", value = "strict" },
+        { name = "GF_LOG_LEVEL", value = "info" }
       ]
 
       logConfiguration = {
@@ -625,13 +654,13 @@ resource "aws_ecs_task_definition" "grafana" {
   }
 }
 
-# Alertmanager ECS Task Definition
+# Alertmanager ECS Task Definition - Production Ready
 resource "aws_ecs_task_definition" "alertmanager" {
   family                   = "${var.project_name}-alertmanager"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "512" # 0.5 vCPU
-  memory                   = "1024" # 1 GB
+  cpu                      = "1024" # 1 vCPU - Increased for production
+  memory                   = "2048" # 2 GB - Increased for production
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
@@ -649,8 +678,38 @@ resource "aws_ecs_task_definition" "alertmanager" {
         }
       ]
 
+      secrets = [
+        {
+          name      = "SLACK_WEBHOOK_URL"
+          valueFrom = "${aws_secretsmanager_secret.monitoring_slack_webhook.arn}:webhook_url::"
+        },
+        {
+          name      = "MONITORING_SMTP_HOST"
+          valueFrom = "${aws_secretsmanager_secret.monitoring_email_config.arn}:smtp_host::"
+        },
+        {
+          name      = "MONITORING_SMTP_PORT"
+          valueFrom = "${aws_secretsmanager_secret.monitoring_email_config.arn}:smtp_port::"
+        },
+        {
+          name      = "MONITORING_SMTP_USER"
+          valueFrom = "${aws_secretsmanager_secret.monitoring_email_config.arn}:smtp_user::"
+        },
+        {
+          name      = "MONITORING_SMTP_PASSWORD"
+          valueFrom = "${aws_secretsmanager_secret.monitoring_email_config.arn}:smtp_password::"
+        },
+        {
+          name      = "MONITORING_FROM_EMAIL"
+          valueFrom = "${aws_secretsmanager_secret.monitoring_email_config.arn}:from_email::"
+        }
+      ]
+
       environment = [
-        { name = "ALERTMANAGER_CONFIG_PATH", value = "/etc/alertmanager/alertmanager.yml" }
+        { name = "ALERTMANAGER_CONFIG_PATH", value = "/etc/alertmanager/alertmanager.yml" },
+        { name = "ALERTMANAGER_STORAGE_PATH", value = "/alertmanager" },
+        { name = "ALERTMANAGER_DATA_RETENTION", value = "120h" },
+        { name = "ALERTMANAGER_WEB_EXTERNAL_URL", value = "https://${aws_lb.main.dns_name}/alertmanager" }
       ]
 
       logConfiguration = {
@@ -673,9 +732,9 @@ resource "aws_ecs_task_definition" "alertmanager" {
       healthCheck = {
         command     = ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9093/-/healthy || exit 1"]
         interval    = 30
-        timeout     = 5
+        timeout     = 10
         retries     = 3
-        startPeriod = 30
+        startPeriod = 60
       }
     }
   ])
@@ -788,8 +847,18 @@ resource "aws_ecs_service" "alertmanager" {
   name            = "${var.project_name}-alertmanager"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.alertmanager.arn
-  desired_count   = 1
+  desired_count   = var.enable_multi_az ? 2 : 1
   launch_type     = "FARGATE"
+  platform_version = "1.4.0"
+
+  deployment_configuration {
+    maximum_percent         = 200
+    minimum_healthy_percent = 50
+    deployment_circuit_breaker {
+      enable   = true
+      rollback = true
+    }
+  }
 
   network_configuration {
     subnets          = aws_subnet.private[*].id
@@ -812,7 +881,33 @@ resource "aws_ecs_service" "alertmanager" {
   }
 }
 
-# Add IAM policy for EFS access for monitoring services
+# Auto-scaling for Alertmanager
+resource "aws_appautoscaling_target" "alertmanager_target" {
+  count              = var.enable_auto_scaling ? 1 : 0
+  max_capacity       = 5
+  min_capacity       = var.enable_multi_az ? 2 : 1
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.alertmanager.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "alertmanager_up" {
+  count              = var.enable_auto_scaling ? 1 : 0
+  name               = "${var.project_name}-alertmanager-scale-up"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.alertmanager_target[0].resource_id
+  scalable_dimension = aws_appautoscaling_target.alertmanager_target[0].scalable_dimension
+  service_namespace  = aws_appautoscaling_target.alertmanager_target[0].service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+    target_value = 70.0
+  }
+}
+
+# Production-grade IAM policies for monitoring services
 resource "aws_iam_policy" "monitoring_efs_access" {
   name        = "${var.project_name}-monitoring-efs-access"
   description = "Allow ECS tasks to access EFS for monitoring services"
@@ -851,7 +946,82 @@ resource "aws_iam_policy" "monitoring_efs_access" {
   })
 }
 
+resource "aws_iam_policy" "monitoring_secrets_access" {
+  name        = "${var.project_name}-monitoring-secrets-access"
+  description = "Allow monitoring services to access their secrets"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Effect = "Allow"
+        Resource = [
+          aws_secretsmanager_secret.monitoring_slack_webhook.arn,
+          aws_secretsmanager_secret.monitoring_email_config.arn,
+          aws_secretsmanager_secret.sonarqube_db_credentials.arn,
+          aws_secretsmanager_secret.grafana_admin_credentials.arn
+        ]
+      },
+      {
+        Action = [
+          "kms:Decrypt"
+        ]
+        Effect = "Allow"
+        Resource = [
+          "arn:aws:kms:${var.aws_region}:*:key/*"
+        ]
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "secretsmanager.${var.aws_region}.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy" "monitoring_cloudwatch_access" {
+  name        = "${var.project_name}-monitoring-cloudwatch-access"
+  description = "Allow monitoring services enhanced CloudWatch access"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "cloudwatch:PutMetricData",
+          "cloudwatch:GetMetricStatistics",
+          "cloudwatch:ListMetrics",
+          "ec2:DescribeInstances",
+          "ec2:DescribeInstanceStatus",
+          "ecs:DescribeServices",
+          "ecs:DescribeTasks",
+          "ecs:ListTasks",
+          "rds:DescribeDBInstances",
+          "elasticache:DescribeCacheClusters"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy_attachment" "monitoring_efs_access" {
   role       = aws_iam_role.ecs_task_role.name
   policy_arn = aws_iam_policy.monitoring_efs_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "monitoring_secrets_access" {
+  role       = aws_iam_role.ecs_task_role.name
+  policy_arn = aws_iam_policy.monitoring_secrets_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "monitoring_cloudwatch_access" {
+  role       = aws_iam_role.ecs_task_role.name
+  policy_arn = aws_iam_policy.monitoring_cloudwatch_access.arn
 }

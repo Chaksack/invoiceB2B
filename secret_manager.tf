@@ -119,10 +119,108 @@ resource "aws_secretsmanager_secret" "smtp_config" {
 resource "aws_secretsmanager_secret_version" "smtp_config_version" {
   secret_id = aws_secretsmanager_secret.smtp_config.id
   secret_string = jsonencode({
-    host         = "smtp.gmail.com"
-    port         = "465"
-    user         = "andrew.sackey@syentia.io"
-    password     = "xyspnvdkrwabrnmb"
-    sender_email = "SME Invoice Financing <no-reply@profundr.io>"
+    host         = var.smtp_host
+    port         = var.smtp_port
+    user         = var.smtp_user
+    password     = var.smtp_password
+    sender_email = var.smtp_sender_email
+  })
+}
+
+# Monitoring secrets for production-ready alerting
+resource "aws_secretsmanager_secret" "monitoring_slack_webhook" {
+  name        = "${var.project_name}/monitoring/slack_webhook"
+  description = "Slack webhook URL for monitoring alerts"
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+    Service     = "Monitoring"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "monitoring_slack_webhook_version" {
+  secret_id = aws_secretsmanager_secret.monitoring_slack_webhook.id
+  secret_string = jsonencode({
+    webhook_url = var.slack_webhook_url
+  })
+}
+
+resource "aws_secretsmanager_secret" "monitoring_email_config" {
+  name        = "${var.project_name}/monitoring/email_config"
+  description = "Email configuration for monitoring alerts"
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+    Service     = "Monitoring"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "monitoring_email_config_version" {
+  secret_id = aws_secretsmanager_secret.monitoring_email_config.id
+  secret_string = jsonencode({
+    smtp_host     = var.monitoring_smtp_host
+    smtp_port     = var.monitoring_smtp_port
+    smtp_user     = var.monitoring_smtp_user
+    smtp_password = var.monitoring_smtp_password
+    from_email    = var.monitoring_from_email
+    admin_emails  = var.monitoring_admin_emails
+    ops_emails    = var.monitoring_ops_emails
+    dba_emails    = var.monitoring_dba_emails
+  })
+}
+
+# SonarQube database credentials
+resource "aws_secretsmanager_secret" "sonarqube_db_credentials" {
+  name        = "${var.project_name}/sonarqube/db_credentials"
+  description = "SonarQube database credentials"
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+    Service     = "SonarQube"
+  }
+}
+
+resource "random_password" "sonarqube_db_password" {
+  length  = 32
+  special = true
+}
+
+resource "aws_secretsmanager_secret_version" "sonarqube_db_credentials_version" {
+  secret_id = aws_secretsmanager_secret.sonarqube_db_credentials.id
+  secret_string = jsonencode({
+    username = "sonarqube"
+    password = random_password.sonarqube_db_password.result
+    host     = aws_db_instance.main.address
+    port     = aws_db_instance.main.port
+    dbname   = var.sonarqube_db_name
+    jdbc_url = "jdbc:postgresql://${aws_db_instance.main.address}:${aws_db_instance.main.port}/${var.sonarqube_db_name}"
+  })
+}
+
+# Grafana admin credentials
+resource "aws_secretsmanager_secret" "grafana_admin_credentials" {
+  name        = "${var.project_name}/grafana/admin_credentials"
+  description = "Grafana admin user credentials"
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+    Service     = "Grafana"
+  }
+}
+
+resource "random_password" "grafana_admin_password" {
+  length  = 16
+  special = true
+}
+
+resource "aws_secretsmanager_secret_version" "grafana_admin_credentials_version" {
+  secret_id = aws_secretsmanager_secret.grafana_admin_credentials.id
+  secret_string = jsonencode({
+    admin_user     = "admin"
+    admin_password = random_password.grafana_admin_password.result
   })
 }

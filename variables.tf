@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "A short name for the project, used for naming resources"
   type        = string
-  default     = "smedev"
+  default     = "smeloan"
 }
 
 variable "vpc_cidr" {
@@ -39,13 +39,13 @@ variable "availability_zones" {
 variable "ecr_repository_api_name" {
   description = "Name for the ECR repository for the API service"
   type        = string
-  default     = "smedev-api"
+  default     = "smeloan-api"
 }
 
 variable "ecs_cluster_name" {
   description = "Name for the ECS cluster"
   type        = string
-  default     = "smedev-cluster" # Corresponds to secrets.ECS_CLUSTER_NAME, uses project_name prefix
+  default     = "smeloan-cluster" # Corresponds to secrets.ECS_CLUSTER_NAME, uses project_name prefix
 }
 
 variable "app_port" {
@@ -151,4 +151,138 @@ variable "force_destroy_s3_buckets" {
   description = "Allow destruction of S3 buckets that contain objects. Use with caution in production."
   type        = bool
   default     = false
+}
+
+# SMTP Configuration Variables (Production-ready)
+variable "smtp_host" {
+  description = "SMTP server hostname for application email notifications"
+  type        = string
+  default     = "smtp.gmail.com"
+}
+
+variable "smtp_port" {
+  description = "SMTP server port"
+  type        = string
+  default     = "587"
+}
+
+variable "smtp_user" {
+  description = "SMTP username for authentication"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "smtp_password" {
+  description = "SMTP password for authentication"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "smtp_sender_email" {
+  description = "Email address used as sender for application emails"
+  type        = string
+  default     = "noreply@invoiceb2b.com"
+}
+
+# Monitoring Configuration Variables
+variable "slack_webhook_url" {
+  description = "Slack webhook URL for monitoring alerts"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "monitoring_smtp_host" {
+  description = "SMTP server for monitoring alerts"
+  type        = string
+  default     = "smtp.gmail.com"
+}
+
+variable "monitoring_smtp_port" {
+  description = "SMTP port for monitoring alerts"
+  type        = string
+  default     = "465"
+}
+
+variable "monitoring_smtp_user" {
+  description = "SMTP username for monitoring alerts"
+  type        = string
+  sensitive   = true
+  default     = "andrew.sackey@syentia.io"
+}
+
+variable "monitoring_smtp_password" {
+  description = "SMTP password for monitoring alerts"
+  type        = string
+  sensitive   = true
+  default     = "xyspnvdkrwabrnmb"
+}
+
+variable "monitoring_from_email" {
+  description = "From email address for monitoring alerts"
+  type        = string
+  default     = "SmeLoan Financing <no-reply@profundr.io>"
+}
+
+variable "monitoring_admin_emails" {
+  description = "List of admin email addresses for critical alerts"
+  type        = list(string)
+  default     = ["andrew.sackey@syentia.io", "admin@invoiceb2b.com"]
+}
+
+variable "monitoring_ops_emails" {
+  description = "List of operations team email addresses"
+  type        = list(string)
+  default     = ["andrew.sackey@syentia.io"]
+}
+
+variable "monitoring_dba_emails" {
+  description = "List of DBA email addresses for database alerts"
+  type        = list(string)
+  default     = ["andrew.sackey@syentia.io"]
+}
+
+# Production Deployment Variables
+variable "enable_multi_az" {
+  description = "Enable multi-AZ deployment for high availability"
+  type        = bool
+  default     = true
+}
+
+variable "enable_auto_scaling" {
+  description = "Enable auto-scaling for ECS services"
+  type        = bool
+  default     = true
+}
+
+variable "enable_backup" {
+  description = "Enable automated backups for databases and EFS"
+  type        = bool
+  default     = true
+}
+
+variable "backup_retention_days" {
+  description = "Number of days to retain backups"
+  type        = number
+  default     = 30
+}
+
+variable "log_retention_days" {
+  description = "CloudWatch log retention period in days"
+  type        = number
+  default     = 30
+}
+
+variable "enable_encryption" {
+  description = "Enable encryption at rest for all storage services"
+  type        = bool
+  default     = true
+}
+
+variable "dr_region" {
+  description = "Disaster recovery region for cross-region backups"
+  type        = string
+  default     = "us-west-2"
 }
